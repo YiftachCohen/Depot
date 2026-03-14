@@ -1,0 +1,23 @@
+{
+  "name": "@depot/server",
+  "version": "0.7.5",
+  "description": "Standalone headless Depot server (Bun runtime)",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "depot-server": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@depot/core": "workspace:*",
+    "@depot/server-core": "workspace:*",
+    "@depot/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2",
+    "@types/node": "^22.0.0"
+  }
+}

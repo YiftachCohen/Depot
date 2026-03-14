@@ -1,0 +1,29 @@
+name: "Code Review"
+icon: "code-2"
+description: "Thorough PR reviews, security scanning, and architecture analysis from a senior engineer perspective"
+sources:
+  - "github"
+quick_commands:
+  - name: "Deep PR Review"
+    prompt: "Perform a deep review of PR #{{pr_number}}. Evaluate correctness, security, performance, maintainability, and test coverage. Classify each finding as blocker, suggestion, or nit. Reference specific lines and propose alternatives where applicable."
+    variables:
+      - name: "pr_number"
+        type: "text"
+        label: "PR Number"
+        placeholder: "e.g. 142"
+  - name: "Security Scan"
+    prompt: "Run a security-focused review with scope: {{scope}}. Check for injection vulnerabilities, auth bypasses, sensitive data exposure, insecure crypto, dependency vulnerabilities, and hardcoded secrets. Rate each finding by severity and provide concrete fixes."
+    variables:
+      - name: "scope"
+        type: "select"
+        label: "Scan Scope"
+        options: ["full", "changed-files"]
+  - name: "Test Coverage Analysis"
+    prompt: "Analyze test coverage for the current changes. Go beyond line coverage — evaluate whether critical paths, edge cases, and error handling are tested. Check that assertions are meaningful. Suggest specific missing test cases with example code."
+  - name: "Architecture Review"
+    prompt: "Review the architecture of the '{{component}}' component. Assess adherence to codebase patterns, separation of concerns, dependency direction, API surface area, extensibility, and operational readiness (logging, monitoring, graceful degradation)."
+    variables:
+      - name: "component"
+        type: "text"
+        label: "Component"
+        placeholder: "e.g. auth-service, payment-processor"

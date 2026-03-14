@@ -1,0 +1,234 @@
+# Depot — Fork Plan
+
+> **The skill-first, enterprise-ready agent interface.**
+> A fork of [Craft Agents](https://github.com/lukilabs/craft-agents-oss) (Apache 2.0) focused on visual skill dispatching and AWS Bedrock support.
+
+---
+
+## 1. Why Fork (Not Patch)
+
+Craft Agents is **session-centric** — you open a session, then figure out what to do. Depot is **skill-centric** — you see your capabilities, pick one, and a session is created with the right context pre-loaded. This is a UX-level divergence, not a feature addition.
+
+| Craft Agents | Depot |
+|---|---|
+| Primary nav: session inbox | Primary nav: skill catalog |
+| "Start a session, then @mention a skill" | "Click a skill, session is created for you" |
+| Anthropic API / OpenRouter / Copilot | Adds AWS Bedrock as first-class provider |
+| General-purpose agent interface | Optimized for enterprise devs with defined workflows |
+| Skills are an add-on | Skills are the core abstraction |
+
+**Upstream relationship:** Depot should track Craft Agents upstream for core agent SDK updates, session management, and MCP infrastructure. The fork diverges on navigation UX, provider support, and skill-first workflows.
+
+---
+
+## 2. Target User
+
+Enterprise developers who:
+- Run Claude through AWS Bedrock (org policy)
+- Have 3-10 well-defined agent skills (PM, DevOps, QA, KB, etc.)
+- Want visual, one-click dispatching instead of remembering slash commands
+- Need session history organized by skill, not by time
+
+**Not** for: people who want a general chat interface, or multi-agent orchestration/swarm systems.
+
+---
+
+## 3. Core Differentiators (What to Build)
+
+### 3.1 Skill Dashboard (Home Screen)
+
+Replace the session inbox as the default landing view with a **skill catalog**.
+
+```
+┌─────────────────────────────────────────────────┐
+│  Depot                              [+ Add Skill]│
+├─────────────────────────────────────────────────┤
+│                                                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+│  │ 📋 PM    │  │ 🔧 DevOps│  │ 🔍 QA    │      │
+│  │          │  │          │  │          │      │
+│  │ Refine   │  │ Check    │  │ Deep     │      │
+│  │ Sprint   │  │ Logs     │  │ Review   │      │
+│  │ Backlog  │  │ Status   │  │ PR       │      │
+│  └──────────┘  └──────────┘  └──────────┘      │
+│                                                  │
+│  ┌──────────┐                                   │
+│  │ 📚 KB    │                                   │
+│  │          │                                   │
+│  │ Search   │                                   │
+│  │ Save     │                                   │
+│  └──────────┘                                   │
+│                                                  │
+│  ─── Recent Sessions ──────────────────────     │
+│  [PM] Refined PROJ-1234          2h ago         │
+│  [DevOps] Scan status #889       yesterday      │
+│  [QA] PR review #42             2 days ago      │
+│                                                  │
+└─────────────────────────────────────────────────┘
+```
+
+Each skill card shows:
+- Skill name + icon
+- **Quick Commands** — buttons that launch a session with a pre-filled prompt template
+- Last used timestamp
+- Session count badge
+
+Clicking a Quick Command:
+1. Creates a new session
+2. Pre-loads the skill's system context (project config, MCP sources, etc.)
+3. Optionally pre-fills the first message from a prompt template
+4. Opens the session view (standard Craft Agents session UI)
+
+### 3.2 Skill Definition Format
+
+Extend Craft Agents' existing skill format with a `depot.yaml` manifest:
+
+```yaml
+# ~/.depot/skills/pm/depot.yaml
+name: Product Manager
+icon: clipboard        # lucide icon name
+provider: bedrock      # which LLM connection to use
+description: "Sprint planning, ticket refinement, backlog health for Project Phoenix"
+
+sources:               # MCP servers / APIs to auto-connect
+  - jira-mcp
+  - confluence-mcp
+
+quick_commands:
+  - name: Refine Ticket
+    template: "Refine ticket {{ticket_id}} — check acceptance criteria, sizing, and dependencies"
+    variables:
+      ticket_id:
+        prompt: "Ticket ID (e.g. PROJ-1234)"
+        type: string
+
+  - name: Sprint Planning
+    template: "Plan the next sprint. Review current velocity, unfinished items, and top-priority backlog items."
+
+  - name: Backlog Health
+    template: "Analyze backlog health — find stale tickets, duplicates, and items missing sizing or priority."
+
+context_files:         # files loaded into skill context
+  - ./project-context.md
+  - ./backlog-strategy.md
+```
+
+This is additive — standard Craft Agents SKILL.md files still work, depot.yaml just adds the visual/dispatch layer.
+
+### 3.3 AWS Bedrock Provider
+
+Add a new LLM connection type alongside Anthropic/OpenRouter/Copilot:
+
+```
+Connection Type: AWS Bedrock
+─────────────────────────
+Region:          [us-east-1        ▼]
+Auth:            [SSO / IAM Role   ▼]
+Model:           [claude-sonnet-4-20250514  ]
+Profile (opt):   [my-org-profile   ]
+```
+
+Implementation notes:
+- Use `@aws-sdk/client-bedrock-runtime` with `InvokeModelWithResponseStream`
+- Support IAM role assumption and SSO credential chains
+- Map Bedrock's response format to the internal message format Craft Agents already uses
+- Per-workspace default: enterprise workspace uses Bedrock, personal workspace uses Anthropic API
+
+### 3.4 Skill-Grouped Session History
+
+Extend the existing session inbox with skill-based grouping and filtering:
+
+- Filter by skill: "Show me all PM sessions"
+- Group by skill in the sidebar, with expand/collapse
+- Skill badge on each session in the list
+- Search across sessions within a skill
+
+---
+
+## 4. What NOT to Build (Keep from Upstream)
+
+- **Session UI** — Craft Agents' session view, streaming, tool visualization: keep as-is
+- **MCP infrastructure** — source connections, stdio/SSE transports: keep as-is
+- **Permission modes** — Explore / Ask to Edit / Execute: keep as-is
+- **File handling** — drag-drop, document conversion: keep as-is
+- **Workspace system** — isolation, themes, config: keep as-is
+- **Multi-agent / swarm** — explicitly out of scope for v1
+
+---
+
+## 5. Implementation Phases
+
+### Phase 0: Setup & Bedrock Provider (Week 1)
+- Fork repo, rebrand to Depot (icons, name, README)
+- Implement Bedrock provider module
+- Test basic session flow: Bedrock → session → tool use → response
+- **Milestone:** Can run a session against Bedrock
+
+### Phase 1: Skill Dashboard MVP (Week 2-3)
+- Create `depot.yaml` schema and parser
+- Build skill catalog view (grid of skill cards)
+- Implement Quick Command buttons → session creation with pre-loaded context
+- Wire up source auto-connection from skill manifest
+- **Milestone:** Can click "PM → Refine Ticket", get a session with context
+
+### Phase 2: Skill-Grouped History (Week 3-4)
+- Add skill metadata to session model
+- Build filter/group UI in session sidebar
+- Skill badge rendering on session list items
+- **Milestone:** Can filter sessions by skill, see history per-skill
+
+### Phase 3: Polish & Open Source Launch (Week 4-5)
+- README, contributing guide, demo GIF/video
+- 2-3 example skill packs (generic PM, DevOps, Code Review)
+- GitHub Actions CI for builds (macOS, Linux, Windows)
+- Landing page or minimal docs site
+- **Milestone:** Public repo with working releases
+
+---
+
+## 6. Technical Decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| **Keep Electron** | Yes | Upstream uses it, low friction to fork. Evaluate Tauri later if bundle size matters. |
+| **Skill config format** | YAML (`depot.yaml`) | Familiar to Claude Code users, co-locates with SKILL.md. JSON is too noisy for quick editing. |
+| **Bedrock auth** | AWS SDK credential chain | Covers SSO, IAM roles, env vars — matches how enterprise devs already auth. |
+| **Upstream sync strategy** | Rebase on tagged releases | Don't try to stay on HEAD. Track stable releases, cherry-pick security fixes. |
+| **Skill storage** | `~/.depot/skills/` | Local-first, version-controllable, importable from Claude Code's `.claude/skills/`. |
+
+---
+
+## 7. Open Source Strategy
+
+### Positioning
+"Depot is the skill-first agent interface for enterprise teams. If you run Claude through AWS Bedrock and organize your work around defined agent capabilities, Depot gives you a visual command center to dispatch and track your skills."
+
+### Differentiator from Craft Agents
+- Bedrock support (enterprise unlock)
+- Skill-first UX (opinionated, not general-purpose)
+- Quick Commands (declarative dispatch, not just chat)
+- Skill-grouped history
+
+### Launch Checklist
+- [ ] Clear Apache 2.0 attribution to upstream
+- [ ] "Why fork?" section in README explaining the divergence
+- [ ] 3 example skill packs people can try immediately
+- [ ] Demo video showing the skill dashboard workflow
+- [ ] Blog post / LinkedIn article: "Building an enterprise agent interface on top of Craft Agents"
+
+### Community Growth Levers
+- **Skill Pack contributions** — low barrier, high value. People share their PM/DevOps/QA skill configs.
+- **Provider plugins** — Bedrock is first, but the pattern enables Azure OpenAI, Google Vertex, etc.
+- **Craft Agents interop** — explicitly support importing from upstream, don't create lock-in.
+
+---
+
+## 8. Risks & Mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Upstream Craft Agents adds skill-first UX | Fork becomes redundant | Stay close to upstream; if they add it, contribute back and deprecate the fork |
+| Bedrock API differences cause edge cases | Sessions break on tool use, streaming | Build a Bedrock-specific test suite early; tool_use mapping is the hardest part |
+| Claude Code itself adds a visual layer | Whole category shrinks | Depot's value is skill organization + dispatch, not just "GUI for Claude" |
+| Electron bloat / performance | Poor UX for power users | Keep the fork lean; don't add features upstream doesn't have unless they're core |
+| Maintaining upstream sync is painful | Merge conflicts pile up | Minimize changes to upstream files; add new files/components rather than modifying existing ones |

@@ -1,0 +1,24 @@
+{
+  "name": "@depot/cli",
+  "version": "0.7.5",
+  "description": "Terminal client for Depot server",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "depot-cli": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src/"
+  },
+  "dependencies": {
+    "@depot/shared": "workspace:*",
+    "@depot/server-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2",
+    "@types/node": "^22.0.0",
+    "@types/bun": "latest"
+  }
+}

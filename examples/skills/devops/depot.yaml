@@ -1,0 +1,35 @@
+name: "DevOps"
+icon: "server"
+description: "Deployment monitoring, log analysis, and incident response for production reliability"
+sources:
+  - "datadog"
+  - "pagerduty"
+  - "aws"
+quick_commands:
+  - name: "Check Deploy Status"
+    prompt: "Check the current deployment status for the {{environment}} environment. Show the deployed version, recent deployment history, health check results, and any active alerts. Flag if staging and production are out of sync."
+    variables:
+      - name: "environment"
+        type: "select"
+        label: "Environment"
+        options: ["staging", "production"]
+  - name: "Analyze Logs"
+    prompt: "Analyze logs for the '{{service_name}}' service over the last {{time_range}}. Identify error rate trends, new error patterns, correlations with recent deploys, and any resource utilization anomalies. Quantify the impact of any issues found."
+    variables:
+      - name: "service_name"
+        type: "text"
+        label: "Service Name"
+        placeholder: "e.g. api-gateway, auth-service"
+      - name: "time_range"
+        type: "select"
+        label: "Time Range"
+        options: ["1h", "6h", "24h"]
+  - name: "Incident Response"
+    prompt: "Initiate incident response for a {{severity}} incident. Assess blast radius and user impact, identify likely root cause from recent changes, propose ranked mitigation steps (rollback first), draft stakeholder communication, and outline post-mortem follow-ups."
+    variables:
+      - name: "severity"
+        type: "select"
+        label: "Severity"
+        options: ["p1", "p2", "p3"]
+  - name: "Infrastructure Review"
+    prompt: "Perform an infrastructure review. Evaluate resource utilization efficiency, identify cost optimization opportunities, assess security posture, check scaling readiness, and flag disaster recovery gaps. Provide specific recommendations with estimated impact."

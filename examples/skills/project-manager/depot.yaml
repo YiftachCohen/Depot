@@ -1,0 +1,30 @@
+name: "Project Manager"
+icon: "clipboard-list"
+description: "Sprint planning, ticket refinement, and backlog management following agile best practices"
+sources:
+  - "linear"
+  - "github"
+quick_commands:
+  - name: "Plan Sprint"
+    prompt: "Plan the next sprint named '{{sprint_name}}'. Review the current backlog, assess team velocity from the last 3 sprints, and propose a sprint scope. Include a mix of feature work, tech debt, and bugs. Flag any risks or dependencies."
+    variables:
+      - name: "sprint_name"
+        type: "text"
+        label: "Sprint Name"
+        placeholder: "e.g. Sprint 24 - Auth Revamp"
+  - name: "Refine Ticket"
+    prompt: "Refine ticket {{ticket_id}}. Review its current description, add or improve acceptance criteria, suggest a point estimate, identify dependencies, and flag anything ambiguous that needs clarification from the team."
+    variables:
+      - name: "ticket_id"
+        type: "text"
+        label: "Ticket ID"
+        placeholder: "e.g. ENG-1234"
+  - name: "Backlog Health Check"
+    prompt: "Perform a backlog health check. Identify stale tickets (>90 days untouched), tickets missing acceptance criteria, duplicates, unbalanced priorities, and items with no epic. Provide a summary with specific action items."
+  - name: "Write PRD"
+    prompt: "Write a PRD for the feature '{{feature_name}}'. Include: problem statement, proposed solution, scope boundaries (what's in and out), success metrics, rollout plan, edge cases, and open questions. Keep it concise and actionable."
+    variables:
+      - name: "feature_name"
+        type: "text"
+        label: "Feature Name"
+        placeholder: "e.g. Multi-workspace support"
