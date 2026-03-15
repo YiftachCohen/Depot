@@ -721,10 +721,10 @@ export function SessionList({
   // Don't show empty state when there are collapsed groups with content
   if (flatRows.length === 0 && rowData.groups.length === 0 && !searchActive) {
     // When a skill filter is active, keep the filter bar visible so the user can clear it
-    if (skillFilter) {
+    if (skillFilter && onSkillFilterChange) {
       return (
         <div className="flex flex-col flex-1 min-h-0">
-          <SkillFilterBar skills={skills} activeSlug={skillFilter} onChange={onSkillFilterChange!} />
+          <SkillFilterBar skills={skills} activeSlug={skillFilter} onChange={onSkillFilterChange} />
           <EntityListEmptyScreen
             icon={<Inbox />}
             title="No chats with this agent"

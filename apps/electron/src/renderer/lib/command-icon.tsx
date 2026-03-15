@@ -92,8 +92,9 @@ export function getCommandIcon(
 
   // 2. Keyword inference
   const lower = commandName.toLowerCase()
+  const tokens = lower.split(/\W+/).filter(Boolean)
   for (const [keywords, Icon] of KEYWORD_RULES) {
-    if (keywords.some((kw) => lower.includes(kw))) {
+    if (keywords.some((kw) => tokens.includes(kw) || lower.includes(kw) && kw.length > 3)) {
       return <Icon {...props} />
     }
   }
@@ -115,8 +116,9 @@ export function resolveIconComponent(iconName?: string, displayName?: string): I
   }
   if (displayName) {
     const lower = displayName.toLowerCase()
+    const tokens = lower.split(/\W+/).filter(Boolean)
     for (const [keywords, Icon] of KEYWORD_RULES) {
-      if (keywords.some((kw) => lower.includes(kw))) return Icon
+      if (keywords.some((kw) => tokens.includes(kw) || lower.includes(kw) && kw.length > 3)) return Icon
     }
   }
   return Zap

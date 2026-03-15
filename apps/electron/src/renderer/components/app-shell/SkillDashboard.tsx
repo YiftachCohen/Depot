@@ -301,8 +301,9 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const [newPathValue, setNewPathValue] = useState('')
   const [savingPath, setSavingPath] = useState(false)
   // Reset override when focused skill changes (file watcher catches up)
-  useEffect(() => { setIconOverride(undefined); setShowIconPicker(false) }, [focusedSkill?.manifest?.icon])
-  useEffect(() => { setFocusedPaths(focusedSkill?.manifest?.project_paths ?? []) }, [focusedSkill?.manifest?.project_paths])
+  // Skip sync if user is mid-edit to avoid clobbering in-flight changes
+  useEffect(() => { if (!showIconPicker) { setIconOverride(undefined) } }, [focusedSkill?.manifest?.icon])
+  useEffect(() => { if (!addingPath) { setFocusedPaths(focusedSkill?.manifest?.project_paths ?? []) } }, [focusedSkill?.manifest?.project_paths])
 
   const iconEntries = useMemo(() => Object.entries(ICON_NAME_MAP), [])
 

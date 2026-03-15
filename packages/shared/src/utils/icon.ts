@@ -202,8 +202,8 @@ export function needsIconDownload(iconValue: string | undefined, localIconPath: 
  * Result of resolving an icon for rendering.
  */
 export interface ResolvedIcon {
-  type: 'file' | 'emoji' | 'url' | 'none';
-  /** For file: absolute path. For emoji: the emoji string. For url: the URL. */
+  type: 'file' | 'emoji' | 'url' | 'lucide' | 'none';
+  /** For file: absolute path. For emoji: the emoji string. For url: the URL. For lucide: the icon name. */
   value?: string;
 }
 
@@ -231,7 +231,12 @@ export function resolveIcon(iconValue: string | undefined, localIconPath: string
     return { type: 'url', value: iconValue };
   }
 
-  // Priority 3: Auto-discovered local file (only when config.icon is undefined)
+  // Priority 3: Lucide icon name from config
+  if (iconValue && isLucideIconName(iconValue)) {
+    return { type: 'lucide', value: iconValue };
+  }
+
+  // Priority 4: Auto-discovered local file (only when config.icon is undefined)
   if (localIconPath) {
     return { type: 'file', value: localIconPath };
   }

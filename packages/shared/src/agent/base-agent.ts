@@ -13,7 +13,7 @@
  * Provider-specific behavior (chat, abort, capabilities) is implemented in subclasses.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { AgentEvent } from '@depot/core/types';
@@ -980,9 +980,20 @@ ${formattedMessages}
 
         try {
           const filePath = join(projectPath, contextFileName);
-          let content = readFileSync(filePath, 'utf-8');
-          if (content.length > BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE) {
-            content = content.slice(0, BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE) + '\n... (truncated)';
+          const { size } = statSync(filePath);
+          let content: string;
+          if (size > BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE) {
+            // Read only the first N bytes to avoid loading large files into memory
+            const buf = Buffer.alloc(BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE);
+            const fd = openSync(filePath, 'r');
+            try {
+              readSync(fd, buf, 0, BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE, 0);
+            } finally {
+              closeSync(fd);
+            }
+            content = buf.toString('utf-8') + '\n... (truncated)';
+          } else {
+            content = readFileSync(filePath, 'utf-8');
           }
           blocks.push(`<agent_project_context path="${projectPath}" file="${contextFileName}">\n${content}\n</agent_project_context>`);
           this.debug(`[resolveProjectContext] Loaded ${contextFileName} from ${projectPath} (${content.length} bytes)`);

@@ -87,7 +87,7 @@ import { setBundledAssetsRoot } from '@depot/shared/utils'
 import { initializeBackendHostRuntime } from '@depot/shared/agent/backend'
 import { setPowerShellValidatorRoot } from '@depot/shared/agent'
 import { handleDeepLink } from './deep-link'
-import { getPrimaryDeepLinkScheme, isSupportedDeepLinkUrl } from './deep-link-scheme'
+import { getPrimaryDeepLinkScheme, getSupportedDeepLinkSchemes, isSupportedDeepLinkUrl } from './deep-link-scheme'
 import { BrowserPaneManager } from './browser-pane-manager'
 import { OAuthFlowStore } from '@depot/shared/auth'
 import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-protocol'
@@ -194,16 +194,18 @@ let pendingDeepLink: string | null = null
 // Supports multi-instance dev: DEPOT_APP_NAME env var (e.g., "Depot [1]")
 app.setName(process.env.DEPOT_APP_NAME || 'Depot')
 
-// Register as default protocol client for depot:// URLs
+// Register as default protocol client for all supported deep-link schemes
 // This must be done before app.whenReady() on some platforms
-if (process.defaultApp) {
-  // Development mode: need to pass the app path
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient(DEEPLINK_SCHEME, process.execPath, [process.argv[1]])
+for (const scheme of getSupportedDeepLinkSchemes()) {
+  if (process.defaultApp) {
+    // Development mode: need to pass the app path
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient(scheme, process.execPath, [process.argv[1]])
+    }
+  } else {
+    // Production mode
+    app.setAsDefaultProtocolClient(scheme)
   }
-} else {
-  // Production mode
-  app.setAsDefaultProtocolClient(DEEPLINK_SCHEME)
 }
 
 // Apply network proxy settings early (Node-level only — Electron sessions require app.whenReady)

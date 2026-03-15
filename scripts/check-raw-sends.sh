@@ -24,7 +24,7 @@ while IFS= read -r file; do
   esac
 
   # Look for raw ipcRenderer.send('...') or ipcRenderer.invoke('...')
-  if grep -nE "ipcRenderer\.(send|invoke)\s*\(\s*['\"]" "$file" 2>/dev/null; then
+  if grep -nE "ipcRenderer\.(send|invoke)\s*\(\s*['\"\`]" "$file" 2>/dev/null; then
     echo "  ^ Found in: $file"
     ERRORS=$((ERRORS + 1))
   fi

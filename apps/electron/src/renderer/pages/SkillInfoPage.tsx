@@ -311,17 +311,19 @@ function ProjectPathsSection({
   }, [manifest, workspaceId, skill.slug])
 
   const addPath = useCallback(() => {
+    if (saving) return
     const trimmed = newPath.trim()
     if (!trimmed || paths.includes(trimmed)) return
     const updated = [...paths, trimmed]
     setNewPath('')
     save(updated)
-  }, [newPath, paths, save])
+  }, [newPath, paths, save, saving])
 
   const removePath = useCallback((index: number) => {
+    if (saving) return
     const updated = paths.filter((_, i) => i !== index)
     save(updated)
-  }, [paths, save])
+  }, [paths, save, saving])
 
   return (
     <Info_Section title="Project Paths">
@@ -340,6 +342,8 @@ function ProjectPathsSection({
                   type="button"
                   onClick={() => removePath(i)}
                   disabled={saving}
+                  aria-label={`Remove project path ${p}`}
+                  title="Remove project path"
                   className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/10"
                 >
                   <Trash2 className="h-3 w-3 text-destructive" />
@@ -355,7 +359,8 @@ function ProjectPathsSection({
             placeholder="~/projects/my-app"
             value={newPath}
             onChange={(e) => setNewPath(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addPath()}
+            onKeyDown={(e) => e.key === 'Enter' && !saving && addPath()}
+            disabled={saving}
             className={PATH_INPUT_CLS}
           />
           <button

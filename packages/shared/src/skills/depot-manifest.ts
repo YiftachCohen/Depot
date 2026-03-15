@@ -175,7 +175,12 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
   const projectPaths = Array.isArray(data.project_paths)
     ? data.project_paths
         .filter((p): p is string => typeof p === 'string' && p.trim() !== '')
-        .map(p => p.trim().startsWith('~') ? p.trim().replace(/^~/, homedir()) : p.trim())
+        .map((p) => {
+          const trimmed = p.trim();
+          if (trimmed === '~') return homedir();
+          if (trimmed.startsWith('~/')) return join(homedir(), trimmed.slice(2));
+          return trimmed;
+        })
     : undefined;
 
   const provider = typeof data.provider === 'string' && data.provider.trim() !== ''

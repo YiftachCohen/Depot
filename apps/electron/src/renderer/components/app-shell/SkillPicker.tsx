@@ -189,7 +189,7 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
   }, [open, enabledSlugs, allSkills])
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase()
+    const q = search.trim().toLowerCase()
     const matches = !search.trim()
       ? allSkills
       : allSkills.filter(

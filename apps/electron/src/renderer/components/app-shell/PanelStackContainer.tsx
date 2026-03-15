@@ -54,7 +54,7 @@ export function PanelStackContainer({
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevCountRef = useRef(contentPanels.length)
 
-  const hasSidebar = sidebarWidth > 0
+  const hasSidebar = !isSidebarHidden && sidebarWidth > 0
   const isMultiPanel = contentPanels.length > 1
   const isLeftEdge = !hasSidebar
 
