@@ -117,7 +117,26 @@ function syncConfigDefaults(): void {
  */
 export function loadConfigDefaults(): ConfigDefaults {
   if (!existsSync(CONFIG_DEFAULTS_FILE)) {
-    throw new Error('config-defaults.json not found at ' + CONFIG_DEFAULTS_FILE + '. Ensure ensureConfigDir() was called at startup.');
+    debug('[config] config-defaults.json not found at ' + CONFIG_DEFAULTS_FILE + ', using built-in fallback defaults');
+    return {
+      version: '1.0',
+      description: 'Built-in fallback defaults',
+      defaults: {
+        notificationsEnabled: true,
+        colorTheme: 'default',
+        autoCapitalisation: true,
+        sendMessageKey: 'enter',
+        spellCheck: false,
+        keepAwakeWhileRunning: false,
+        richToolDescriptions: true,
+      },
+      workspaceDefaults: {
+        thinkingLevel: 'think' as ThinkingLevel,
+        permissionMode: 'safe',
+        cyclablePermissionModes: [...PERMISSION_MODE_ORDER],
+        localMcpServers: { enabled: true },
+      },
+    };
   }
 
   const defaults = readJsonFileSync<ConfigDefaults>(CONFIG_DEFAULTS_FILE);

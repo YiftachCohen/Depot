@@ -2000,11 +2000,12 @@ describe('unwrapPowerShellCommand', () => {
 
 describe('PowerShell plans folder exception', () => {
   const psAvailable = isPowerShellAvailable();
+  const isWindows = process.platform === 'win32';
   const plansFolderPath = 'C:\\Users\\test\\.craft-agent\\workspaces\\ws\\sessions\\s1\\plans';
 
   describe('should allow Out-File to plans folder', () => {
     it('allows Out-File with -FilePath to plans folder', () => {
-      if (!psAvailable) return;
+      if (!psAvailable || !isWindows) return;
 
       const command = `@('# Sample Plan','','## Goal','Test') | Out-File -FilePath '${plansFolderPath}\\sample-plan.md' -Encoding utf8`;
       const result = shouldAllowToolInMode(
@@ -2017,7 +2018,7 @@ describe('PowerShell plans folder exception', () => {
     });
 
     it('allows Set-Content to plans folder', () => {
-      if (!psAvailable) return;
+      if (!psAvailable || !isWindows) return;
 
       const command = `'# Plan content' | Set-Content -Path '${plansFolderPath}\\plan.md'`;
       const result = shouldAllowToolInMode(
@@ -2032,7 +2033,7 @@ describe('PowerShell plans folder exception', () => {
 
   describe('should block Out-File outside plans folder', () => {
     it('blocks Out-File to temp folder', () => {
-      if (!psAvailable) return;
+      if (!psAvailable || !isWindows) return;
 
       const command = `@('data') | Out-File -FilePath 'C:\\temp\\evil.txt' -Encoding utf8`;
       const result = shouldAllowToolInMode(
@@ -2045,7 +2046,7 @@ describe('PowerShell plans folder exception', () => {
     });
 
     it('blocks Set-Content outside plans folder', () => {
-      if (!psAvailable) return;
+      if (!psAvailable || !isWindows) return;
 
       const command = `'content' | Set-Content -Path 'C:\\Users\\test\\Desktop\\file.txt'`;
       const result = shouldAllowToolInMode(
@@ -2060,7 +2061,7 @@ describe('PowerShell plans folder exception', () => {
 
   describe('case-insensitive path matching on Windows', () => {
     it('allows write when path case differs from plansFolderPath', () => {
-      if (!psAvailable) return;
+      if (!psAvailable || !isWindows) return;
 
       // plansFolderPath uses lowercase 'test', command uses 'Test'
       const command = `@('plan') | Out-File -FilePath 'C:\\Users\\Test\\.craft-agent\\workspaces\\ws\\sessions\\s1\\plans\\plan.md'`;
