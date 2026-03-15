@@ -299,10 +299,12 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const [addingPath, setAddingPath] = useState(false)
   const [newPathValue, setNewPathValue] = useState('')
   const [savingPath, setSavingPath] = useState(false)
+  const latestManifestRef = React.useRef<DepotSkillManifest | null>(null)
   // Reset override when focused skill changes (file watcher catches up)
   // Skip sync if user is mid-edit to avoid clobbering in-flight changes
   useEffect(() => { if (!showIconPicker) { setIconOverride(undefined) } }, [focusedSkill?.manifest?.icon])
   useEffect(() => { if (!addingPath) { setFocusedPaths(focusedSkill?.manifest?.project_paths ?? []) } }, [focusedSkill?.manifest?.project_paths])
+  useEffect(() => { latestManifestRef.current = focusedSkill?.manifest ?? null }, [focusedSkill?.slug, focusedSkill?.manifest])
 
   const iconEntries = useMemo(() => Object.entries(ICON_NAME_MAP), [])
 
@@ -310,8 +312,10 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     if (!focusedSkill?.manifest || !activeWorkspaceId) return false
     setSavingPath(true)
     try {
-      const updated: DepotSkillManifest = { ...focusedSkill.manifest, ...updates }
+      const baseManifest = latestManifestRef.current ?? focusedSkill.manifest
+      const updated: DepotSkillManifest = { ...baseManifest, ...updates }
       await window.electronAPI.promoteSkillToAgent(activeWorkspaceId, focusedSkill.slug, updated)
+      latestManifestRef.current = updated
       return true
     } catch (err) {
       toast.error('Failed to save', { description: err instanceof Error ? err.message : 'Unknown error' })

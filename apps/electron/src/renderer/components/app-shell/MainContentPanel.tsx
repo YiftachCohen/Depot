@@ -36,6 +36,7 @@ import { useSessionSelection, useIsMultiSelectActive, useSelectedIds, useSelecti
 import { sourceSelection, skillSelection } from '@/hooks/useEntitySelection'
 import { extractLabelId } from '@depot/shared/labels'
 import type { SessionStatusId } from '@/config/session-status-config'
+import { SourcesListPanel } from './SourcesListPanel'
 import { SourceInfoPage, ChatPage } from '@/pages'
 import SkillInfoPage from '@/pages/SkillInfoPage'
 import { getSettingsPageComponent } from '@/pages/settings/settings-pages'
@@ -71,7 +72,7 @@ export function MainContentPanel({
 }: MainContentPanelProps) {
   const globalNavState = useNavigationState()
   const navState = navStateOverride ?? globalNavState
-  const { navigate } = useNavigation()
+  const { navigate, navigateToSource } = useNavigation()
   const {
     activeWorkspaceId,
     onSessionStatusChange,
@@ -92,6 +93,10 @@ export function MainContentPanel({
     onUnarchiveSession,
     onMarkSessionUnread,
     onRenameSession,
+    enabledSources,
+    onDeleteSource,
+    workspaceRootPath,
+    localMcpEnabled,
   } = useAppShellContext()
 
   // Session multi-select state
@@ -229,7 +234,7 @@ export function MainContentPanel({
     )
   }
 
-  // Sources navigator - show source info, multi-select panel, or empty state
+  // Sources navigator - split layout with sources list sidebar + detail view
   if (isSourcesNavigation(navState)) {
     if (isSourceMultiSelectActive) {
       return wrapWithStoplight(
@@ -242,21 +247,33 @@ export function MainContentPanel({
         </Panel>
       )
     }
-    if (navState.details) {
-      return wrapWithStoplight(
-        <Panel variant="grow" className={className}>
-          <SourceInfoPage
-            sourceSlug={navState.details.sourceSlug}
-            workspaceId={activeWorkspaceId || ''}
-          />
-        </Panel>
-      )
-    }
-    // No source selected - empty state
+    const sourceFilter = navState.filter ?? null
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
-        <div className="flex items-center justify-center h-full text-muted-foreground">
-          <p className="text-sm">No sources configured</p>
+        <div className="flex h-full">
+          <div className="w-[240px] shrink-0 border-r border-border/50 overflow-y-auto">
+            <SourcesListPanel
+              sources={enabledSources ?? []}
+              sourceFilter={sourceFilter}
+              workspaceRootPath={workspaceRootPath}
+              onDeleteSource={onDeleteSource ?? (() => {})}
+              onSourceClick={(source) => navigateToSource(source.config.slug)}
+              selectedSourceSlug={navState.details?.sourceSlug ?? null}
+              localMcpEnabled={localMcpEnabled}
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            {navState.details ? (
+              <SourceInfoPage
+                sourceSlug={navState.details.sourceSlug}
+                workspaceId={activeWorkspaceId || ''}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <p className="text-sm">Select a source to view details</p>
+              </div>
+            )}
+          </div>
         </div>
       </Panel>
     )

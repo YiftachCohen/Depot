@@ -971,6 +971,10 @@ ${formattedMessages}
           this.debug(`[resolveProjectContext] Path does not exist: ${configuredProjectPath}`);
           continue;
         }
+        if (!statSync(projectPath).isDirectory()) {
+          this.debug(`[resolveProjectContext] Path is not a directory: ${configuredProjectPath}`);
+          continue;
+        }
 
         const contextFileName = findProjectContextFile(projectPath);
         if (!contextFileName) {
@@ -1041,10 +1045,13 @@ ${formattedMessages}
       if (!configuredPath) continue;
 
       const resolvedPath = expandPath(configuredPath, this.config.workspace.rootPath);
-      if (existsSync(resolvedPath)) {
+      if (existsSync(resolvedPath) && statSync(resolvedPath).isDirectory()) {
         this.debug(`[chat] Setting working directory from skill project_paths: ${configuredPath}`);
         this.updateWorkingDirectory(resolvedPath);
         break;
+      }
+      if (existsSync(resolvedPath)) {
+        this.debug(`[chat] Skipping non-directory project_paths entry: ${configuredPath}`);
       }
     }
 

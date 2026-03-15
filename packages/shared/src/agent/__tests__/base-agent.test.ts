@@ -321,6 +321,26 @@ ${projectPathsBlock}quick_commands:
         skillAgent.destroy();
       }
     });
+
+    it('does not update the working directory when skill project_paths points to a file', async () => {
+      const workspaceRoot = join(tempDir, 'workspace-file-path');
+      const filePath = join(tempDir, 'not-a-directory.txt');
+      writeFileSync(filePath, 'content');
+      writeSkill(workspaceRoot, 'file-skill', { projectPaths: [filePath] });
+
+      const skillAgent = createAgentForWorkspace(workspaceRoot);
+      const debugMessages: string[] = [];
+      skillAgent.onDebug = (message) => { debugMessages.push(message); };
+
+      try {
+        await collectEvents(skillAgent.chat('[skill:file-skill] inspect the repo'));
+
+        expect((skillAgent as any).config.session?.workingDirectory).toBeUndefined();
+        expect(debugMessages).toContain(`[chat] Skipping non-directory project_paths entry: ${filePath}`);
+      } finally {
+        skillAgent.destroy();
+      }
+    });
   });
 
   describe('Callbacks', () => {

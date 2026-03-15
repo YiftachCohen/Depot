@@ -1,5 +1,124 @@
 import * as React from 'react'
 
+const SAFE_SVG_ATTRIBUTES = new Set([
+  'ariaHidden',
+  'clipPath',
+  'clipPathUnits',
+  'clipRule',
+  'color',
+  'colorInterpolationFilters',
+  'cx',
+  'cy',
+  'd',
+  'direction',
+  'display',
+  'dominantBaseline',
+  'dx',
+  'dy',
+  'fill',
+  'fillOpacity',
+  'fillRule',
+  'filter',
+  'filterUnits',
+  'floodColor',
+  'floodOpacity',
+  'focusable',
+  'fontFamily',
+  'fontSize',
+  'fontWeight',
+  'gradientTransform',
+  'gradientUnits',
+  'height',
+  'href',
+  'id',
+  'in',
+  'in2',
+  'k1',
+  'k2',
+  'k3',
+  'k4',
+  'markerEnd',
+  'markerHeight',
+  'markerMid',
+  'markerStart',
+  'markerWidth',
+  'mask',
+  'maskContentUnits',
+  'maskType',
+  'maskUnits',
+  'offset',
+  'opacity',
+  'operator',
+  'orient',
+  'pathLength',
+  'patternContentUnits',
+  'patternTransform',
+  'patternUnits',
+  'points',
+  'preserveAspectRatio',
+  'primitiveUnits',
+  'r',
+  'refX',
+  'refY',
+  'result',
+  'role',
+  'rotate',
+  'rx',
+  'ry',
+  'spreadMethod',
+  'startOffset',
+  'stdDeviation',
+  'stopColor',
+  'stopOpacity',
+  'stroke',
+  'strokeDasharray',
+  'strokeDashoffset',
+  'strokeLinecap',
+  'strokeLinejoin',
+  'strokeMiterlimit',
+  'strokeOpacity',
+  'strokeWidth',
+  'textAnchor',
+  'transform',
+  'transformBox',
+  'transformOrigin',
+  'type',
+  'values',
+  'vectorEffect',
+  'version',
+  'viewBox',
+  'width',
+  'x',
+  'x1',
+  'x2',
+  'xlinkHref',
+  'xmlSpace',
+  'xmlns',
+  'xmlnsXlink',
+  'y',
+  'y1',
+  'y2',
+])
+
+const SAFE_STYLE_PROPERTIES = new Set([
+  'color',
+  'fill',
+  'fillOpacity',
+  'fillRule',
+  'opacity',
+  'stroke',
+  'strokeDasharray',
+  'strokeDashoffset',
+  'strokeLinecap',
+  'strokeLinejoin',
+  'strokeMiterlimit',
+  'strokeOpacity',
+  'strokeWidth',
+  'transform',
+  'transformBox',
+  'transformOrigin',
+])
+
 function toReactAttributeName(name: string): string {
   if (name === 'class') return 'className'
   if (name === 'for') return 'htmlFor'
@@ -14,7 +133,7 @@ function toReactAttributeName(name: string): string {
   return name.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
 }
 
-function parseStyleAttribute(style: string): React.CSSProperties {
+function parseStyleAttribute(style: string): Record<string, string> {
   const entries = style
     .split(';')
     .map((declaration) => declaration.trim())
@@ -32,15 +151,33 @@ function parseStyleAttribute(style: string): React.CSSProperties {
   return Object.fromEntries(entries)
 }
 
+function filterSafeStyleProperties(style: string): React.CSSProperties | undefined {
+  const parsedStyle = parseStyleAttribute(style)
+  const safeEntries = Object.entries(parsedStyle)
+    .filter(([property]) => SAFE_STYLE_PROPERTIES.has(property))
+
+  return safeEntries.length > 0 ? Object.fromEntries(safeEntries) : undefined
+}
+
+function isSafeSvgAttribute(name: string): boolean {
+  return SAFE_SVG_ATTRIBUTES.has(name) || name.startsWith('aria-')
+}
+
 function getElementProps(element: Element): Record<string, unknown> {
   const props: Record<string, unknown> = {}
 
   for (const { name, value } of Array.from(element.attributes)) {
     if (name === 'style') {
-      props.style = parseStyleAttribute(value)
+      const safeStyle = filterSafeStyleProperties(value)
+      if (safeStyle) props.style = safeStyle
       continue
     }
-    props[toReactAttributeName(name)] = value
+
+    if (name === 'class') continue
+
+    const reactName = toReactAttributeName(name)
+    if (!isSafeSvgAttribute(reactName)) continue
+    props[reactName] = value
   }
 
   return props
@@ -80,13 +217,15 @@ function parseSvgElement(svg: string): SVGSVGElement | null {
  * explicit width/height so the caller controls sizing.
  */
 export function sanitizeSvgForInline(svg: string): string {
-  return svg
+  const sanitized = svg
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/on\w+="[^"]*"/gi, '')
     .replace(/on\w+='[^']*'/gi, '')
     .replace(/javascript:/gi, '')
-    .replace(/\s+width="[^"]*"/gi, '')
-    .replace(/\s+height="[^"]*"/gi, '')
+
+  return sanitized.replace(/<svg\b[^>]*>/i, (tag) =>
+    tag.replace(/\s+(width|height)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, ''),
+  )
 }
 
 export function parseInlineSvg(

@@ -1563,11 +1563,26 @@ function AppShellContent({
     return onDeleteSession(sessionId, skipConfirmation)
   }, [session.selected, setSession, onDeleteSession])
 
+  // Delete Source - simplified since agents system is removed
+  const handleDeleteSource = useCallback(async (sourceSlug: string) => {
+    if (!activeWorkspace) return
+    try {
+      await window.electronAPI.deleteSource(activeWorkspace.id, sourceSlug)
+      toast.success(`Deleted source`)
+    } catch (error) {
+      console.error('[Chat] Failed to delete source:', error)
+      toast.error('Failed to delete source')
+    }
+  }, [activeWorkspace])
+
   // Extend context value with local overrides (wrapped onDeleteSession, sources, skills, labels, enabledModes, rightSidebarOpenButton, effectiveSessionStatuses)
   const appShellContextValue = React.useMemo<AppShellContextType>(() => ({
     ...contextValue,
     onDeleteSession: handleDeleteSession,
     enabledSources: sources,
+    onDeleteSource: handleDeleteSource,
+    workspaceRootPath: activeWorkspace?.rootPath,
+    localMcpEnabled,
     skills,
     labels: labelConfigs,
     onSessionLabelsChange: handleSessionLabelsChange,
@@ -1587,7 +1602,7 @@ function AppShellContent({
     automationTestResults,
     getAutomationHistory,
     onReplayAutomation: handleReplayAutomation,
-  }), [contextValue, handleDeleteSession, sources, skills, labelConfigs, handleSessionLabelsChange, enabledModes, effectiveSessionStatuses, handleSessionSourcesChange, searchActive, searchQuery, handleChatMatchInfoChange, handleTestAutomation, handleToggleAutomation, handleDuplicateAutomation, handleDeleteAutomation, automationTestResults, getAutomationHistory, handleReplayAutomation])
+  }), [contextValue, handleDeleteSession, sources, handleDeleteSource, activeWorkspace?.rootPath, localMcpEnabled, skills, labelConfigs, handleSessionLabelsChange, enabledModes, effectiveSessionStatuses, handleSessionSourcesChange, searchActive, searchQuery, handleChatMatchInfoChange, handleTestAutomation, handleToggleAutomation, handleDuplicateAutomation, handleDeleteAutomation, automationTestResults, getAutomationHistory, handleReplayAutomation])
 
   // Session list title derived from the current filter
   const sessionListTitle = React.useMemo(() => {
@@ -1965,17 +1980,6 @@ function AppShellContent({
     }
   }, [])
 
-  // Delete Source - simplified since agents system is removed
-  const handleDeleteSource = useCallback(async (sourceSlug: string) => {
-    if (!activeWorkspace) return
-    try {
-      await window.electronAPI.deleteSource(activeWorkspace.id, sourceSlug)
-      toast.success(`Deleted source`)
-    } catch (error) {
-      console.error('[Chat] Failed to delete source:', error)
-      toast.error('Failed to delete source')
-    }
-  }, [activeWorkspace])
 
   // Delete Skill
   const handleDeleteSkill = useCallback(async (skillSlug: string) => {

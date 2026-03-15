@@ -51,6 +51,12 @@ export interface AppShellContextType {
   getDraft: (sessionId: string) => string
   /** All enabled sources for this workspace - provided by AppShell component */
   enabledSources?: LoadedSource[]
+  /** Delete a source by slug */
+  onDeleteSource?: (sourceSlug: string) => void
+  /** Workspace root path (for "Add Source" popover) */
+  workspaceRootPath?: string
+  /** Whether local MCP sources are enabled */
+  localMcpEnabled?: boolean
   /** All skills for this workspace - provided by AppShell component (for @mentions) */
   skills?: LoadedSkill[]
   /** All label configs (tree) for label menu and badge display */
