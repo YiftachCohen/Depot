@@ -103,7 +103,7 @@ export function EntityRow({
   buttonProps,
   dataAttributes,
   className,
-  separatorClassName = 'pl-12 pr-4',
+  separatorClassName = 'pl-[42px] pr-4',
 }: EntityRowProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
@@ -123,7 +123,7 @@ export function EntityRow({
       <button
         {...(buttonProps as React.ButtonHTMLAttributes<HTMLButtonElement>)}
         className={cn(
-          "flex w-full items-start gap-2 pl-2 pr-4 py-3 text-left text-sm outline-none rounded-[8px]",
+          "flex w-full items-start gap-2.5 pl-2.5 pr-4 py-3.5 text-left text-sm outline-none rounded-[8px]",
           "transition-[background-color] duration-75",
           (isSelected || isInMultiSelect)
             ? "bg-foreground/3"
@@ -134,12 +134,12 @@ export function EntityRow({
         onClick={!onMouseDown ? onClick : undefined}
       >
         {/* Content column */}
-        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+        <div className="flex flex-col gap-2 min-w-0 flex-1">
           {/* Title */}
           {titleTrailing ? (
             <div className="flex items-center gap-[10px] w-full min-w-0">
               {icon && (
-                <div className="shrink-0 flex items-center gap-[10px] [&>*]:w-3 [&>*]:h-3">
+                <div className="shrink-0 flex items-center gap-[10px] [&>*]:w-3.5 [&>*]:h-3.5">
                   {icon}
                 </div>
               )}
@@ -174,7 +174,7 @@ export function EntityRow({
           ) : (
             <div className="flex items-center gap-[10px] w-full pr-6 min-w-0">
               {icon && (
-                <div className="shrink-0 flex items-center gap-[10px] [&>*]:w-3 [&>*]:h-3">
+                <div className="shrink-0 flex items-center gap-[10px] [&>*]:w-3.5 [&>*]:h-3.5">
                   {icon}
                 </div>
               )}
@@ -189,7 +189,7 @@ export function EntityRow({
             <div className="flex items-center gap-[10px] text-xs text-foreground/70 w-full -mb-[2px] min-w-0">
               {/* Invisible spacer matching icon container width */}
               {icon && (
-                <div className="shrink-0 flex items-center gap-[10px] [&>*]:w-3 [&>*]:h-3 invisible" aria-hidden="true">
+                <div className="shrink-0 flex items-center gap-[10px] [&>*]:w-3.5 [&>*]:h-3.5 invisible" aria-hidden="true">
                   {icon}
                 </div>
               )}

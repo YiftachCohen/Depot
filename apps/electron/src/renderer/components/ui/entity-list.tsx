@@ -80,7 +80,7 @@ export interface EntityListProps<T> {
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-4 py-2">
+    <div className="px-4 py-2.5">
       <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
         {label}
       </span>

@@ -62,10 +62,10 @@ function createTestHarness(overrides?: { workspaceId?: string | null }) {
 }
 
 describe('registerSystemCoreHandlers OPEN_URL', () => {
-  it('routes depot action links internally via deeplink:navigate', async () => {
+  it('routes craftagents action links internally via deeplink:navigate', async () => {
     const { openUrl, ctx, invokeClientCalls, pushCalls } = createTestHarness()
 
-    await openUrl(ctx, 'depot://action/new-session?input=sg&send=true')
+    await openUrl(ctx, 'craftagents://action/new-session?input=sg&send=true')
 
     expect(invokeClientCalls).toHaveLength(0)
     expect(pushCalls).toHaveLength(1)
@@ -79,7 +79,7 @@ describe('registerSystemCoreHandlers OPEN_URL', () => {
   it('routes workspace deep links to workspace target when URL workspace differs', async () => {
     const { openUrl, ctx, invokeClientCalls, pushCalls } = createTestHarness({ workspaceId: 'ws-1' })
 
-    await openUrl(ctx, 'depot://workspace/ws-2/action/new-session?input=hello')
+    await openUrl(ctx, 'craftagents://workspace/ws-2/action/new-session?input=hello')
 
     expect(invokeClientCalls).toHaveLength(0)
     expect(pushCalls).toHaveLength(1)
@@ -93,14 +93,28 @@ describe('registerSystemCoreHandlers OPEN_URL', () => {
   it('falls back to client openExternal for depot window-mode links', async () => {
     const { openUrl, ctx, invokeClientCalls, pushCalls } = createTestHarness()
 
-    await openUrl(ctx, 'depot://action/new-session?window=focused')
+    await openUrl(ctx, 'craftagents://action/new-session?window=focused')
 
     expect(pushCalls).toHaveLength(0)
     expect(invokeClientCalls).toHaveLength(1)
     expect(invokeClientCalls[0]).toEqual({
       clientId: 'client-1',
       channel: CLIENT_OPEN_EXTERNAL,
-      args: ['depot://action/new-session?window=focused'],
+      args: ['craftagents://action/new-session?window=focused'],
+    })
+  })
+
+  it('continues accepting legacy depot links', async () => {
+    const { openUrl, ctx, invokeClientCalls, pushCalls } = createTestHarness()
+
+    await openUrl(ctx, 'depot://action/new-session?input=legacy')
+
+    expect(invokeClientCalls).toHaveLength(0)
+    expect(pushCalls).toHaveLength(1)
+    expect(pushCalls[0]).toEqual({
+      channel: RPC_CHANNELS.deeplink.NAVIGATE,
+      target: { to: 'client', clientId: 'client-1' },
+      args: [{ action: 'new-session', actionParams: { input: 'legacy' } }],
     })
   })
 
@@ -121,7 +135,7 @@ describe('registerSystemCoreHandlers OPEN_URL', () => {
     const { openUrl, ctx } = createTestHarness()
 
     await expect(openUrl(ctx, 'file:///tmp/test.txt')).rejects.toThrow(
-      'Failed to open URL: Only http, https, mailto, depotdocs, depot URLs are allowed'
+      'Failed to open URL: Only http, https, mailto, depotdocs, and craftagents, depot URLs are allowed'
     )
   })
 })

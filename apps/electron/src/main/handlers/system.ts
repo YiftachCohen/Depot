@@ -14,6 +14,7 @@ import {
   requestClientShowInFolder,
   requestClientOpenFileDialog,
 } from '@depot/server-core/transport'
+import { getSupportedDeepLinkSchemes, isSupportedDeepLinkProtocol } from '../deep-link-scheme'
 
 export const CORE_HANDLED_CHANNELS = [
   RPC_CHANNELS.theme.GET_SYSTEM_PREFERENCE,
@@ -207,8 +208,8 @@ export function registerSystemCoreHandlers(server: RpcServer, deps: HandlerDeps)
     try {
       const parsed = new URL(url)
 
-      // Handle depot:// URLs internally via deep link handler (GUI only)
-      if (parsed.protocol === 'depot:') {
+      // Handle app deep links internally via deep link handler (GUI only)
+      if (isSupportedDeepLinkProtocol(parsed.protocol)) {
         if (!windowManager) return
         deps.platform.logger.info('[OPEN_URL] Handling as deep link')
         const { handleDeepLink } = await import('../deep-link')
@@ -219,7 +220,8 @@ export function registerSystemCoreHandlers(server: RpcServer, deps: HandlerDeps)
       }
 
       if (!['http:', 'https:', 'mailto:', 'depotdocs:'].includes(parsed.protocol)) {
-        throw new Error('Only http, https, mailto, depotdocs URLs are allowed')
+        const deepLinkSchemes = getSupportedDeepLinkSchemes().join(', ')
+        throw new Error(`Only http, https, mailto, depotdocs, and ${deepLinkSchemes} URLs are allowed`)
       }
 
       const result = await requestClientOpenExternal(server, ctx.clientId, url)

@@ -13,7 +13,7 @@
  * Provider-specific behavior (chat, abort, capabilities) is implemented in subclasses.
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { AgentEvent } from '@depot/core/types';
@@ -26,6 +26,7 @@ import { buildCallLlmRequest, type LLMQueryRequest, type LLMQueryResult } from '
 import { getLlmConnections, getDefaultLlmConnection } from '../config/storage.ts';
 import { loadAllSources } from '../sources/storage.ts';
 import type { ApiServerConfig } from '../mcp/mcp-pool.ts';
+import { expandPath } from '../utils/paths.ts';
 
 import type {
   AgentBackend,
@@ -64,6 +65,8 @@ import { buildTitlePrompt, buildRegenerateTitlePrompt, validateTitle } from '../
 // Skill extraction for Codex/Copilot backends (Claude uses native SDK Skill tool)
 import { parseMentions, stripAllMentions, resolveFileMentions } from '../mentions/index.ts';
 import { loadAllSkills } from '../skills/storage.ts';
+import type { LoadedSkill } from '../skills/types.ts';
+import { findProjectContextFile } from '../prompts/system.ts';
 
 // ============================================================
 // Mini Agent Configuration
@@ -876,6 +879,7 @@ ${formattedMessages}
    */
   protected extractSkillPaths(message: string): {
     skillPaths: Map<string, string>;
+    matchedSkills: LoadedSkill[];
     cleanMessage: string;
     missingSkills: string[];
   } {
@@ -894,9 +898,11 @@ ${formattedMessages}
 
     // Resolve SKILL.md paths for matched skills
     const skillPaths = new Map<string, string>();
+    const matchedSkills: LoadedSkill[] = [];
     for (const slug of parsed.skills) {
       const skill = skills.find(s => s.slug === slug);
       if (skill) {
+        matchedSkills.push(skill);
         const skillMdPath = join(skill.path, 'SKILL.md');
         if (existsSync(skillMdPath)) {
           skillPaths.set(slug, skillMdPath);
@@ -923,6 +929,7 @@ ${formattedMessages}
 
     return {
       skillPaths,
+      matchedSkills,
       cleanMessage,
       missingSkills: parsed.invalidSkills || []
     };
@@ -941,6 +948,91 @@ ${formattedMessages}
   }
 
   // ============================================================
+  // Project Context Resolution
+  // ============================================================
+
+  /** Maximum size of a single context file to inject (10KB) */
+  private static readonly MAX_PROJECT_CONTEXT_FILE_SIZE = 10 * 1024;
+  /** Maximum total injected project context across all skills and paths (50KB) */
+  private static readonly MAX_TOTAL_PROJECT_CONTEXT_SIZE = 50 * 1024;
+
+  /**
+   * Resolve project context for a skill that has project_paths configured.
+   * Reads CLAUDE.md from each project path and formats as an XML block.
+   */
+  protected resolveProjectContext(skills: LoadedSkill[]): string {
+    const blocks: string[] = [];
+    let totalBytes = 0;
+
+    const appendBlock = (block: string): boolean => {
+      const blockBytes = Buffer.byteLength(block, 'utf-8');
+      if (totalBytes + blockBytes > BaseAgent.MAX_TOTAL_PROJECT_CONTEXT_SIZE) {
+        this.debug(
+          `[resolveProjectContext] Reached total project context size cap (${BaseAgent.MAX_TOTAL_PROJECT_CONTEXT_SIZE} bytes, per-file cap ${BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE} bytes)`,
+        );
+        return false;
+      }
+
+      blocks.push(block);
+      totalBytes += blockBytes;
+      return true;
+    };
+
+    for (const skill of skills) {
+      const projectPaths = skill.manifest?.project_paths;
+      if (!projectPaths || projectPaths.length === 0) continue;
+
+      for (const configuredProjectPath of projectPaths) {
+        const projectPath = expandPath(configuredProjectPath, this.config.workspace.rootPath);
+        if (!existsSync(projectPath)) {
+          this.debug(`[resolveProjectContext] Path does not exist: ${configuredProjectPath}`);
+          continue;
+        }
+        if (!statSync(projectPath).isDirectory()) {
+          this.debug(`[resolveProjectContext] Path is not a directory: ${configuredProjectPath}`);
+          continue;
+        }
+
+        const contextFileName = findProjectContextFile(projectPath);
+        if (!contextFileName) {
+          this.debug(`[resolveProjectContext] No CLAUDE.md found in: ${projectPath}`);
+          // Still include the path so the agent knows about this project
+          const block = `<agent_project_context path="${configuredProjectPath}">\nNo CLAUDE.md found in this project.\n</agent_project_context>`;
+          if (!appendBlock(block)) return blocks.join('\n\n');
+          continue;
+        }
+
+        try {
+          const filePath = join(projectPath, contextFileName);
+          const { size } = statSync(filePath);
+          let content: string;
+          if (size > BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE) {
+            // Read only the first N bytes to avoid loading large files into memory
+            const buf = Buffer.alloc(BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE);
+            const fd = openSync(filePath, 'r');
+            let bytesRead = 0;
+            try {
+              bytesRead = readSync(fd, buf, 0, BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE, 0);
+            } finally {
+              closeSync(fd);
+            }
+            content = buf.subarray(0, bytesRead).toString('utf-8') + '\n... (truncated)';
+          } else {
+            content = readFileSync(filePath, 'utf-8');
+          }
+          const block = `<agent_project_context path="${configuredProjectPath}" file="${contextFileName}">\n${content}\n</agent_project_context>`;
+          if (!appendBlock(block)) return blocks.join('\n\n');
+          this.debug(`[resolveProjectContext] Loaded ${contextFileName} from ${configuredProjectPath} (${content.length} bytes)`);
+        } catch {
+          this.debug(`[resolveProjectContext] Failed to read context from: ${configuredProjectPath}`);
+        }
+      }
+    }
+
+    return blocks.length > 0 ? blocks.join('\n\n') : '';
+  }
+
+  // ============================================================
   // Chat entry point (template method)
   // ============================================================
 
@@ -955,7 +1047,7 @@ ${formattedMessages}
     attachments?: FileAttachment[],
     options?: ChatOptions
   ): AsyncGenerator<AgentEvent> {
-    const { skillPaths, cleanMessage, missingSkills } = this.extractSkillPaths(message);
+    const { skillPaths, matchedSkills, cleanMessage, missingSkills } = this.extractSkillPaths(message);
     if (missingSkills.length > 0) {
       yield { type: 'error', message: `Skill(s) not found: ${missingSkills.join(', ')}` };
       yield { type: 'complete' };
@@ -967,6 +1059,25 @@ ${formattedMessages}
       this.prerequisiteManager.registerSkillPrerequisites([...skillPaths.values()]);
     }
 
+    // Set working directory from the first matched skill's project_paths (if any).
+    outer:
+    for (const skill of matchedSkills) {
+      for (const configuredPath of skill.manifest?.project_paths ?? []) {
+        const resolvedPath = expandPath(configuredPath, this.config.workspace.rootPath);
+        if (existsSync(resolvedPath) && statSync(resolvedPath).isDirectory()) {
+          this.debug(`[chat] Setting working directory from skill project_paths: ${configuredPath}`);
+          this.updateWorkingDirectory(resolvedPath);
+          break outer;
+        }
+        if (existsSync(resolvedPath)) {
+          this.debug(`[chat] Skipping non-directory project_paths entry: ${configuredPath}`);
+        }
+      }
+    }
+
+    // Resolve project context (CLAUDE.md from each project_path).
+    const projectContext = this.resolveProjectContext(matchedSkills);
+
     // Prepend branch seed context (for seeded branch sessions) and skill directive.
     const branchSeedContext = this.buildBranchSeedContext(this.config.getBranchSeedMessages?.());
     if (branchSeedContext) {
@@ -975,7 +1086,7 @@ ${formattedMessages}
 
     // Prepend read directive to the message so the model reads SKILL.md first.
     const directive = this.formatSkillDirective(skillPaths);
-    const messageParts = [branchSeedContext, directive, cleanMessage].filter(Boolean);
+    const messageParts = [branchSeedContext, projectContext, directive, cleanMessage].filter(Boolean);
     const effectiveMessage = messageParts.join('\n\n');
 
     yield* this.chatImpl(effectiveMessage, attachments, options);

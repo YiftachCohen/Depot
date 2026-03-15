@@ -2,16 +2,16 @@
  * PanelStackContainer
  *
  * Horizontal layout container for ALL panels:
- * Sidebar → Navigator → Content Panel(s) with resize sashes.
+ * Sidebar → Content Panel(s) with resize sashes.
  *
  * Content panels use CSS flex-grow with their proportions as weights:
  * - Each panel gets `flex: <proportion> 1 0px` with `min-width: PANEL_MIN_WIDTH`
  * - Flex distributes available space proportionally — panels fill the viewport
  * - When panels hit min-width, overflow-x: auto kicks in naturally
  *
- * Sidebar and Navigator are NOT part of the proportional layout —
- * they have their own fixed/user-resizable widths managed by AppShell.
- * They just reduce the available width for content panels and scroll with everything else.
+ * Sidebar is NOT part of the proportional layout —
+ * it has its own fixed/user-resizable width managed by AppShell.
+ * It just reduces the available width for content panels and scrolls with everything else.
  *
  * The right sidebar stays OUTSIDE this container.
  */
@@ -19,7 +19,6 @@
 import { useRef, useEffect } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
-import { cn } from '@/lib/utils'
 import { panelStackAtom, focusedPanelIdAtom } from '@/atoms/panel-stack'
 import { PanelSlot } from './PanelSlot'
 import { PanelResizeSash } from './PanelResizeSash'
@@ -27,8 +26,6 @@ import {
   PANEL_GAP,
   PANEL_EDGE_INSET,
   PANEL_STACK_VERTICAL_OVERFLOW,
-  RADIUS_EDGE,
-  RADIUS_INNER,
 } from './panel-constants'
 
 /** Spring transition matching AppShell's sidebar/navigator animation */
@@ -37,9 +34,7 @@ const PANEL_SPRING = { type: 'spring' as const, stiffness: 600, damping: 49 }
 interface PanelStackContainerProps {
   sidebarSlot: React.ReactNode
   sidebarWidth: number
-  navigatorSlot: React.ReactNode
-  navigatorWidth: number
-  isSidebarAndNavigatorHidden: boolean
+  isSidebarHidden: boolean
   isRightSidebarVisible?: boolean
   isResizing?: boolean
 }
@@ -47,9 +42,7 @@ interface PanelStackContainerProps {
 export function PanelStackContainer({
   sidebarSlot,
   sidebarWidth,
-  navigatorSlot,
-  navigatorWidth,
-  isSidebarAndNavigatorHidden,
+  isSidebarHidden,
   isRightSidebarVisible,
   isResizing,
 }: PanelStackContainerProps) {
@@ -61,10 +54,9 @@ export function PanelStackContainer({
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevCountRef = useRef(contentPanels.length)
 
-  const hasSidebar = sidebarWidth > 0
-  const hasNavigator = navigatorWidth > 0
+  const hasSidebar = !isSidebarHidden && sidebarWidth > 0
   const isMultiPanel = contentPanels.length > 1
-  const isLeftEdge = !hasSidebar && !hasNavigator
+  const isLeftEdge = !hasSidebar
 
   // Auto-scroll to newly pushed content panel
   useEffect(() => {
@@ -126,31 +118,6 @@ export function PanelStackContainer({
           </div>
         </motion.div>
 
-        {/* === NAVIGATOR SLOT === */}
-        <motion.div
-          initial={false}
-          animate={{
-            width: hasNavigator ? navigatorWidth : 0,
-            marginRight: hasNavigator ? 0 : -PANEL_GAP,
-            opacity: hasNavigator ? 1 : 0,
-          }}
-          transition={transition}
-          className={cn(
-            'h-full overflow-hidden relative shrink-0 z-[2]',
-            'bg-background shadow-middle',
-          )}
-          style={{
-            borderTopLeftRadius: RADIUS_INNER,
-            borderBottomLeftRadius: !hasSidebar ? RADIUS_EDGE : RADIUS_INNER,
-            borderTopRightRadius: RADIUS_INNER,
-            borderBottomRightRadius: RADIUS_INNER,
-          }}
-        >
-          <div className="h-full" style={{ width: navigatorWidth }}>
-            {navigatorSlot}
-          </div>
-        </motion.div>
-
         {/* === CONTENT PANELS WITH SASHES === */}
         {contentPanels.length === 0 ? (
           <div className="flex-1 flex items-center justify-center" />
@@ -161,7 +128,7 @@ export function PanelStackContainer({
               entry={entry}
               isOnly={contentPanels.length === 1}
               isFocusedPanel={isMultiPanel ? entry.id === focusedPanelId : true}
-              isSidebarAndNavigatorHidden={isSidebarAndNavigatorHidden}
+              isSidebarHidden={isSidebarHidden}
               isAtLeftEdge={index === 0 && isLeftEdge}
               isAtRightEdge={index === contentPanels.length - 1 && !isRightSidebarVisible}
               proportion={entry.proportion}

@@ -15,6 +15,7 @@
 
 import * as React from 'react'
 import { CrossfadeAvatar } from '@/components/ui/avatar'
+import { InlineSvg } from '@/lib/inline-svg'
 import { cn } from '@/lib/utils'
 import type { ResolvedEntityIcon, IconSize } from '@depot/shared/icons'
 import { ICON_SIZE_CLASSES, ICON_EMOJI_SIZES } from '@depot/shared/icons'
@@ -114,19 +115,15 @@ function EntityIconComponent({
     if (icon.colorable && icon.rawSvg) {
       if (bare) {
         return (
-          <span
-            className={cn("[&>svg]:h-3.5 [&>svg]:w-3.5", className)}
-            title={alt}
-            dangerouslySetInnerHTML={{ __html: icon.rawSvg }}
-          />
+          <span className={cn("[&>svg]:h-3.5 [&>svg]:w-3.5", className)} title={alt}>
+            <InlineSvg svg={icon.rawSvg} />
+          </span>
         )
       }
       return (
-        <div
-          className={cn(sizeClass, !chromeless && containerBase, "[&>svg]:w-full [&>svg]:h-full", className)}
-          title={alt}
-          dangerouslySetInnerHTML={{ __html: icon.rawSvg }}
-        />
+        <div className={cn(sizeClass, !chromeless && containerBase, "[&>svg]:w-full [&>svg]:h-full", className)} title={alt}>
+          <InlineSvg svg={icon.rawSvg} />
+        </div>
       )
     }
 

@@ -8,7 +8,7 @@
 
 import * as React from 'react'
 import { useEffect, useState, useCallback } from 'react'
-import { Check, X, Minus } from 'lucide-react'
+import { Check, X, Minus, FolderOpen, Trash2 } from 'lucide-react'
 import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopover'
 import { toast } from 'sonner'
 import { SkillMenu } from '@/components/app-shell/SkillMenu'
@@ -20,7 +20,8 @@ import {
   Info_Table,
   Info_Markdown,
 } from '@/components/info'
-import type { LoadedSkill } from '../../shared/types'
+import type { LoadedSkill, DepotSkillManifest } from '../../shared/types'
+import { cn } from '@/lib/utils'
 
 interface SkillInfoPageProps {
   skillSlug: string
@@ -191,6 +192,14 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
             </Info_Table>
           </Info_Section>
 
+          {/* Project Paths */}
+          {skill.manifest && (
+            <ProjectPathsSection
+              skill={skill}
+              workspaceId={workspaceId}
+            />
+          )}
+
           {/* Permission Modes */}
           {skill.metadata.alwaysAllow && skill.metadata.alwaysAllow.length > 0 && (
             <Info_Section title="Permission Modes">
@@ -252,5 +261,125 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
         </Info_Page.Content>
       )}
     </Info_Page>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Project Paths Section
+// ---------------------------------------------------------------------------
+
+const PATH_INPUT_CLS = cn(
+  'flex-1 h-7 px-2.5 text-xs rounded-md font-mono',
+  'bg-background border border-border/60',
+  'placeholder:text-muted-foreground/60',
+  'focus:outline-none focus:ring-1 focus:ring-ring',
+)
+
+function ProjectPathsSection({
+  skill,
+  workspaceId,
+}: {
+  skill: LoadedSkill
+  workspaceId: string
+}) {
+  const manifest = skill.manifest!
+  const [paths, setPaths] = useState<string[]>(manifest.project_paths ?? [])
+  const [newPath, setNewPath] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  // Sync when skill updates externally
+  useEffect(() => {
+    setPaths(skill.manifest?.project_paths ?? [])
+  }, [skill.manifest?.project_paths])
+
+  const save = useCallback(async (updatedPaths: string[]): Promise<boolean> => {
+    setSaving(true)
+    try {
+      const updated: DepotSkillManifest = {
+        ...manifest,
+        project_paths: updatedPaths.length > 0 ? updatedPaths : undefined,
+      }
+      await window.electronAPI.promoteSkillToAgent(workspaceId, skill.slug, updated)
+      setPaths(updatedPaths)
+      return true
+    } catch (err) {
+      toast.error('Failed to update project paths', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }, [manifest, workspaceId, skill.slug])
+
+  const addPath = useCallback(async () => {
+    if (saving) return
+    const trimmed = newPath.trim()
+    if (!trimmed || paths.includes(trimmed)) return
+    const updated = [...paths, trimmed]
+    const saved = await save(updated)
+    if (saved) setNewPath('')
+  }, [newPath, paths, save, saving])
+
+  const removePath = useCallback((index: number) => {
+    if (saving) return
+    const updated = paths.filter((_, i) => i !== index)
+    save(updated)
+  }, [paths, save, saving])
+
+  return (
+    <Info_Section title="Project Paths">
+      <div className="px-4 py-3 space-y-2">
+        <p className="text-xs text-muted-foreground mb-2">
+          Directories this agent operates in. The first path becomes the working directory, and CLAUDE.md files are loaded as context.
+        </p>
+
+        {paths.length > 0 && (
+          <div className="space-y-1">
+            {paths.map((p, i) => (
+              <div key={i} className="flex items-center gap-2 group">
+                <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="flex-1 text-xs font-mono truncate">{p}</span>
+                <button
+                  type="button"
+                  onClick={() => void removePath(i)}
+                  disabled={saving}
+                  aria-label={`Remove project path ${p}`}
+                  title="Remove project path"
+                  className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/10 focus-visible:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <Trash2 className="h-3 w-3 text-destructive" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 pt-1">
+          <input
+            type="text"
+            placeholder="~/projects/my-app"
+            value={newPath}
+            onChange={(e) => setNewPath(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !saving && void addPath()}
+            disabled={saving}
+            className={PATH_INPUT_CLS}
+          />
+          <button
+            type="button"
+            onClick={() => void addPath()}
+            disabled={!newPath.trim() || saving}
+            className={cn(
+              'shrink-0 h-7 px-2 text-xs rounded-md',
+              'border border-border/60 bg-background hover:bg-foreground/[0.05]',
+              'text-muted-foreground hover:text-foreground transition-colors',
+              'disabled:opacity-40 disabled:pointer-events-none',
+            )}
+          >
+            {saving ? '...' : 'Add'}
+          </button>
+        </div>
+      </div>
+    </Info_Section>
   )
 }

@@ -34,6 +34,7 @@ export const CORE_HANDLED_CHANNELS = [
 export const GUI_HANDLED_CHANNELS = [
   RPC_CHANNELS.power.SET_KEEP_AWAKE,
   RPC_CHANNELS.settings.SET_NETWORK_PROXY,
+  RPC_CHANNELS.appearance.SET_APP_ICON,
 ] as const
 
 /** @deprecated Use CORE_HANDLED_CHANNELS / GUI_HANDLED_CHANNELS */
@@ -290,5 +291,10 @@ export function registerSettingsGuiHandlers(server: RpcServer, deps: HandlerDeps
   server.handle(RPC_CHANNELS.settings.SET_NETWORK_PROXY, async (_ctx, settings: import('@depot/shared/config/types').NetworkProxySettings) => {
     const { updateConfiguredProxySettings } = await import('../network-proxy')
     await updateConfiguredProxySettings(settings)
+  })
+
+  server.handle(RPC_CHANNELS.appearance.SET_APP_ICON, async (_ctx, dataUrl: string) => {
+    const { setBaseDockIcon } = await import('../notifications')
+    setBaseDockIcon(dataUrl)
   })
 }

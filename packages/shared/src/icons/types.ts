@@ -44,7 +44,7 @@ export interface ResolvedEntityIcon {
   /**
    * Raw SVG content (sanitized) for inline rendering.
    * Only present when colorable=true, enabling CSS color inheritance.
-   * EntityIcon renders this inline (dangerouslySetInnerHTML) so parent
+   * Renderer components parse this into real SVG elements so parent
    * color classes (e.g. 'text-success') cascade into SVG fills/strokes.
    */
   rawSvg?: string

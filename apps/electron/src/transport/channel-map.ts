@@ -271,6 +271,7 @@ export const CHANNEL_MAP = {
   // Appearance settings
   getRichToolDescriptions: invoke(RPC_CHANNELS.appearance.GET_RICH_TOOL_DESCRIPTIONS),
   setRichToolDescriptions: invoke(RPC_CHANNELS.appearance.SET_RICH_TOOL_DESCRIPTIONS),
+  setAppIcon: invoke(RPC_CHANNELS.appearance.SET_APP_ICON),
 
   // Badge
   refreshBadge: invoke(RPC_CHANNELS.badge.REFRESH),

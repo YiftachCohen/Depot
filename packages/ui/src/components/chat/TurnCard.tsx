@@ -1469,7 +1469,7 @@ function clearAnnotationMarks(root: HTMLElement): void {
   annotatedInlineCodeNodes.forEach((codeNode) => {
     codeNode.removeAttribute('data-ca-annotation-inline-code')
     codeNode.style.backgroundColor = ''
-    codeNode.style.boxShadow = ''
+    codeNode.style.boxShadow = '' // eslint-disable-line craft-styles/no-nonstandard-shadows
   })
 
   const marks = root.querySelectorAll('span[data-ca-annotation-id]')

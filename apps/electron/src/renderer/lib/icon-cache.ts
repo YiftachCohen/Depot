@@ -22,6 +22,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { isEmoji } from '@depot/shared/utils/icon-constants'
 import type { ResolvedEntityIcon } from '@depot/shared/icons'
+import { sanitizeSvgForInline } from '@/lib/inline-svg'
 
 // ============================================================================
 // Types
@@ -702,20 +703,10 @@ async function loadIconFile(
 }
 
 /**
- * Sanitize SVG content for safe inline rendering via dangerouslySetInnerHTML.
+ * Sanitize SVG content for safe inline rendering.
  * Removes script tags, event handlers, and JavaScript URLs.
- * Also strips width/height attributes so SVG fills its container.
+ * Also strips width/height attributes so the caller controls sizing.
  */
-function sanitizeSvgForInline(svg: string): string {
-  return svg
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/on\w+="[^"]*"/gi, '')
-    .replace(/on\w+='[^']*'/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/\s+width="[^"]*"/gi, '')
-    .replace(/\s+height="[^"]*"/gi, '')
-}
-
 /**
  * Auto-discover an icon file in a workspace directory.
  * Probes all extensions (.svg, .png, .jpg, .jpeg) in parallel via IPC,

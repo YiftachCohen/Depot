@@ -1,8 +1,23 @@
 /**
  * Regression tests for metadata-driven session tool safe-mode classification.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { shouldAllowToolInMode } from '../../agent/mode-manager.ts';
+
+let origDevFeedback: string | undefined;
+
+beforeAll(() => {
+  origDevFeedback = process.env.DEPOT_FEATURE_DEVELOPER_FEEDBACK;
+  process.env.DEPOT_FEATURE_DEVELOPER_FEEDBACK = '1';
+});
+
+afterAll(() => {
+  if (origDevFeedback === undefined) {
+    delete process.env.DEPOT_FEATURE_DEVELOPER_FEEDBACK;
+  } else {
+    process.env.DEPOT_FEATURE_DEVELOPER_FEEDBACK = origDevFeedback;
+  }
+});
 
 describe('session tool safe-mode classification', () => {
   it('allows read-only session tools in safe mode', () => {

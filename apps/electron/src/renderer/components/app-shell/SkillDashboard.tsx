@@ -9,10 +9,14 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import { Zap, Plus, Settings2, Search } from 'lucide-react'
+import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
+import { getCommandIcon, ICON_NAME_MAP, resolveIconComponent } from '@/lib/command-icon'
+import { useEntityIcon } from '@/lib/icon-cache'
+import { InlineSvg } from '@/lib/inline-svg'
 import { skillsAtom } from '@/atoms/skills'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
-import { SkillAvatar } from '@/components/ui/skill-avatar'
+import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { PanelHeader } from './PanelHeader'
@@ -21,7 +25,7 @@ import { useAppShellContext } from '@/context/AppShellContext'
 import { navigate, routes } from '@/lib/navigate'
 import { cn } from '@/lib/utils'
 import { isAgent } from '../../../shared/types'
-import type { LoadedSkill, QuickCommand } from '../../../shared/types'
+import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../shared/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -33,16 +37,12 @@ export function getAccentColor(slug: string): string {
   for (let i = 0; i < slug.length; i++) hash = ((hash << 5) - hash + slug.charCodeAt(i)) | 0
   return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length]
 }
-function accentToRgb(hex: string): string {
-  const n = parseInt(hex.slice(1), 16)
-  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`
-}
 function getActivityStatus(lastUsedAt?: number): 'active' | 'recent' | 'idle' {
   if (!lastUsedAt) return 'idle'
   const diff = Date.now() - lastUsedAt
   return diff < 3600_000 ? 'active' : diff < 86400_000 ? 'recent' : 'idle'
 }
-function formatRelativeTime(epochMs: number): string {
+export function formatRelativeTime(epochMs: number): string {
   const diff = Date.now() - epochMs
   const s = Math.floor(diff / 1000)
   if (s < 60) return 'just now'
@@ -53,9 +53,45 @@ function formatRelativeTime(epochMs: number): string {
   const d = Math.floor(h / 24)
   return d < 30 ? `${d}d ago` : `${Math.floor(d / 30)}mo ago`
 }
-function getGreeting(): string {
+// Dynamic greeting pool — each entry has [withName, withoutName] variants
+type TimeBucket = 'morning' | 'afternoon' | 'evening' | 'latenight' | 'any'
+const GREETINGS: [TimeBucket, string, string][] = [
+  // morning (5-12)
+  ['morning', 'Good morning, {name}', 'Good morning'],
+  ['morning', 'Rise and ship, {name}', 'Rise and ship'],
+  ['morning', 'What are we building today, {name}?', 'What are we building today?'],
+  ['morning', 'Fresh start, {name} — let\'s go', 'Fresh start — let\'s go'],
+  // afternoon (12-18)
+  ['afternoon', 'Good afternoon, {name}', 'Good afternoon'],
+  ['afternoon', 'Let\'s keep shipping, {name}', 'Let\'s keep shipping'],
+  ['afternoon', 'Back at it, {name}?', 'Back at it?'],
+  ['afternoon', 'Afternoon focus mode, {name}', 'Afternoon focus mode'],
+  // evening (18-22)
+  ['evening', 'Good evening, {name}', 'Good evening'],
+  ['evening', 'Evening session, {name}?', 'Evening session?'],
+  ['evening', 'Winding down or just getting started, {name}?', 'Winding down or just getting started?'],
+  // late night (22-5)
+  ['latenight', 'Late night coding, {name}?', 'Late night coding?'],
+  ['latenight', 'The quiet hours — let\'s build, {name}', 'The quiet hours — let\'s build'],
+  ['latenight', 'Burning the midnight oil, {name}?', 'Burning the midnight oil?'],
+  // time-agnostic
+  ['any', '{name} returns!', 'Welcome back'],
+  ['any', 'Welcome back, {name}', 'Welcome back'],
+  ['any', 'Ready when you are, {name}', 'Ready when you are'],
+  ['any', 'Let\'s make something great, {name}', 'Let\'s make something great'],
+  ['any', 'What\'s on the agenda, {name}?', 'What\'s on the agenda?'],
+]
+
+function getDynamicGreeting(name?: string): string {
   const h = new Date().getHours()
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+  const bucket: TimeBucket = h >= 5 && h < 12 ? 'morning'
+    : h >= 12 && h < 18 ? 'afternoon'
+    : h >= 18 && h < 22 ? 'evening'
+    : 'latenight'
+  const pool = GREETINGS.filter(([b]) => b === bucket || b === 'any')
+  const daySeed = Math.floor(Date.now() / 86_400_000)
+  const entry = pool[daySeed % pool.length]
+  return name ? entry[1].replace('{name}', name) : entry[2]
 }
 
 // Animation variants
@@ -69,14 +105,22 @@ const fadeIn: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
 }
 
-// Shared class strings — command buttons
-const cmdBase = 'inline-flex items-center gap-1.5 h-7 px-2.5 text-[11px] font-medium rounded-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-150'
-const CMD_BTN = cn(cmdBase, 'bg-foreground/[0.04] hover:bg-foreground/[0.10] text-foreground/70')
-const CMD_BTN_NEW = cn(cmdBase, 'bg-transparent border border-dashed border-foreground/[0.12] hover:bg-foreground/[0.04] text-foreground/50')
-const FOCUSED_ACTION_BTN = cn(
-  'w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all',
-  'border border-border/60 bg-background hover:bg-foreground/[0.03]',
-  'hover:border-foreground/20 shadow-minimal hover:shadow-sm',
+// Shared class strings — command chips (minimal style)
+const CMD_CHIP = cn(
+  'inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/60 cursor-pointer',
+  'rounded-md px-1.5 py-0.5 -mx-0.5',
+  'hover:bg-foreground/[0.05] hover:text-foreground/80 transition-colors',
+)
+const FOCUSED_CMD_CHIP = cn(
+  'inline-flex items-center gap-1.5 text-[13px] text-muted-foreground/70 cursor-pointer',
+  'rounded-lg px-3 py-1.5',
+  'border border-border/60 bg-foreground/[0.02]',
+  'hover:bg-foreground/[0.06] hover:border-foreground/20 hover:text-foreground/80 transition-colors',
+)
+const PATH_BADGE = cn(
+  'inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/50',
+  'rounded-md px-1.5 py-0.5 group/path',
+  'hover:text-muted-foreground/70 transition-colors',
 )
 const INPUT_CLS = cn(
   'w-full h-8 px-3 text-sm rounded-md bg-background border border-border/60',
@@ -85,6 +129,42 @@ const INPUT_CLS = cn(
 
 interface SkillSessionStats { sessionCount: number; lastUsedAt?: number }
 const ACTIVITY_DOT: Record<string, string> = { active: 'bg-success', recent: 'bg-info', idle: 'bg-foreground/20' }
+
+// Accent-tinted agent avatar for the dashboard list
+function AgentIcon({ skill, accent, workspaceId }: { skill: LoadedSkill; accent: string; workspaceId: string }) {
+  const icon = useEntityIcon({
+    workspaceId,
+    entityType: 'skill',
+    identifier: skill.slug,
+    iconPath: skill.iconPath,
+    iconValue: skill.metadata.icon,
+  })
+  const FallbackIcon = useMemo(
+    () => resolveIconComponent(skill.manifest?.icon, skill.metadata.name),
+    [skill.manifest?.icon, skill.metadata.name],
+  )
+
+  return (
+    <div
+      className="flex items-center justify-center h-9 w-9 rounded-xl shrink-0"
+      style={{ backgroundColor: `${accent}14` }}
+    >
+      {icon.kind === 'emoji' ? (
+        <span className="text-base leading-none">{icon.value}</span>
+      ) : icon.kind === 'file' && icon.colorable && icon.rawSvg ? (
+        <span className="[&>svg]:h-[18px] [&>svg]:w-[18px]" style={{ color: accent }}>
+          <InlineSvg svg={icon.rawSvg} />
+        </span>
+      ) : icon.kind === 'file' ? (
+        <img src={icon.value} alt={skill.metadata.name} className="h-[18px] w-[18px] rounded" />
+      ) : (
+        <span style={{ color: accent }}>
+          <FallbackIcon className="h-[18px] w-[18px]" />
+        </span>
+      )}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // SkillDashboard
@@ -198,26 +278,96 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   const headerActions = (
     <div className="flex items-center gap-1">
-      <button type="button" onClick={() => setShowCreateForm((v) => !v)}
-        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors" title="Create Agent">
+      <button type="button" onClick={() => setShowCreateForm((v) => !v)} aria-label="Create Agent"
+        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Create Agent">
         <Plus className="h-4 w-4 text-muted-foreground" />
       </button>
-      <button type="button" onClick={() => setPickerOpen(true)}
-        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors" title="Manage Agents">
+      <button type="button" onClick={() => setPickerOpen(true)} aria-label="Manage Agents"
+        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Manage Agents">
         <Settings2 className="h-4 w-4 text-muted-foreground" />
       </button>
     </div>
   )
 
-  const gridCls = filteredAgents.length <= 2
-    ? 'grid grid-cols-1 sm:grid-cols-2 gap-3'
-    : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
+  const gridCls = 'space-y-0 divide-y divide-border/30'
 
   // --- Focused Agent View ---
   const focusedSkill = focusedSkillSlug ? skills.find(s => s.slug === focusedSkillSlug) : null
+  const [iconOverride, setIconOverride] = useState<string | undefined>(undefined)
+  const [showIconPicker, setShowIconPicker] = useState(false)
+  const [focusedPaths, setFocusedPaths] = useState<string[]>([])
+  const [addingPath, setAddingPath] = useState(false)
+  const [newPathValue, setNewPathValue] = useState('')
+  const [savingPath, setSavingPath] = useState(false)
+  const latestManifestRef = React.useRef<DepotSkillManifest | null>(null)
+  // Reset override when focused skill changes (file watcher catches up)
+  // Skip sync if user is mid-edit to avoid clobbering in-flight changes
+  useEffect(() => { if (!showIconPicker) { setIconOverride(undefined) } }, [focusedSkill?.manifest?.icon])
+  useEffect(() => { if (!addingPath) { setFocusedPaths(focusedSkill?.manifest?.project_paths ?? []) } }, [focusedSkill?.manifest?.project_paths])
+  useEffect(() => { latestManifestRef.current = focusedSkill?.manifest ?? null }, [focusedSkill?.slug, focusedSkill?.manifest])
+
+  const iconEntries = useMemo(() => Object.entries(ICON_NAME_MAP), [])
+
+  const saveFocusedManifest = useCallback(async (updates: Partial<DepotSkillManifest>): Promise<boolean> => {
+    if (!focusedSkill?.manifest || !activeWorkspaceId) return false
+    setSavingPath(true)
+    try {
+      const baseManifest = latestManifestRef.current ?? focusedSkill.manifest
+      const updated: DepotSkillManifest = { ...baseManifest, ...updates }
+      await window.electronAPI.promoteSkillToAgent(activeWorkspaceId, focusedSkill.slug, updated)
+      latestManifestRef.current = updated
+      return true
+    } catch (err) {
+      toast.error('Failed to save', { description: err instanceof Error ? err.message : 'Unknown error' })
+      return false
+    } finally { setSavingPath(false) }
+  }, [focusedSkill, activeWorkspaceId])
+
+  const handleFocusedIconSelect = useCallback(async (iconName: string) => {
+    const previousIcon = iconOverride
+    setIconOverride(iconName)
+    setShowIconPicker(false)
+    const saved = await saveFocusedManifest({ icon: iconName })
+    if (!saved) setIconOverride(previousIcon)
+  }, [iconOverride, saveFocusedManifest])
+
+  const handleAddPath = useCallback(async () => {
+    const trimmed = newPathValue.trim()
+    if (!trimmed || focusedPaths.includes(trimmed)) return
+    const updated = [...focusedPaths, trimmed]
+    const saved = await saveFocusedManifest({ project_paths: updated })
+    if (!saved) return
+    setFocusedPaths(updated)
+    setNewPathValue('')
+    setAddingPath(false)
+  }, [newPathValue, focusedPaths, saveFocusedManifest])
+
+  const handleRemovePath = useCallback(async (index: number) => {
+    const updated = focusedPaths.filter((_, i) => i !== index)
+    const saved = await saveFocusedManifest({ project_paths: updated.length > 0 ? updated : undefined })
+    if (!saved) return
+    setFocusedPaths(updated)
+  }, [focusedPaths, saveFocusedManifest])
+
+  const handleImproveAgent = useCallback(async () => {
+    if (!activeWorkspaceId || !focusedSkill) return
+    const session = await onCreateSession(activeWorkspaceId, {
+      name: `Improve ${focusedSkill.metadata.name}`,
+      skillSlug: focusedSkill.slug,
+    })
+    if (session?.id) {
+      const prompt = `I want to improve the "${focusedSkill.metadata.name}" agent. Its SKILL.md is at: ${focusedSkill.path}/SKILL.md\n\nPlease read it, then help me refine it — better instructions, more useful quick commands, clearer description. Show me what you'd change and why.`
+      onSendMessage(session.id, prompt, undefined, [focusedSkill.slug])
+      navigate(routes.view.skills(focusedSkill.slug, session.id))
+    }
+  }, [activeWorkspaceId, focusedSkill, onCreateSession, onSendMessage])
+
   if (focusedSkill) {
     const cmds = focusedSkill.manifest?.quick_commands ?? []
     const stats = skillStats.get(focusedSkill.slug)
+    const count = stats?.sessionCount ?? 0
+    const activity = getActivityStatus(stats?.lastUsedAt)
+    const accent = getAccentColor(focusedSkill.slug)
     const recent = Array.from(sessionMetaMap.values())
       .filter(m => m.skillSlug === focusedSkill.slug)
       .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)).slice(0, 5)
@@ -226,57 +376,190 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
         <PanelHeader title={focusedSkill.metadata.name} />
         <Separator />
         <ScrollArea className="flex-1">
-          <div className="px-6 py-6 max-w-2xl mx-auto space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="shrink-0"><SkillAvatar skill={focusedSkill} size="lg" workspaceId={activeWorkspaceId ?? ''} /></div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-muted-foreground mt-1">{focusedSkill.metadata.description}</p>
-                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground/70">
-                  {stats && stats.sessionCount > 0 && <span>{stats.sessionCount} session{stats.sessionCount !== 1 ? 's' : ''}</span>}
-                  {stats?.lastUsedAt && <span>Last used {formatRelativeTime(stats.lastUsedAt)}</span>}
+          <motion.div
+            className="px-8 py-6 max-w-[640px] mx-auto space-y-5"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {/* Header — mirrors dashboard card layout */}
+            <motion.div variants={fadeIn}>
+              <div className="flex items-start gap-3.5">
+                <div className="relative shrink-0 mt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => focusedSkill.manifest && setShowIconPicker(v => !v)}
+                    aria-label="Change icon"
+                    className="cursor-pointer rounded-xl hover:ring-2 hover:ring-foreground/10 transition-all"
+                    title="Change icon"
+                  >
+                    <AgentIcon skill={focusedSkill} accent={accent} workspaceId={activeWorkspaceId ?? ''} />
+                  </button>
+                </div>
+                <div className="flex-1 min-w-0">
+                  {/* Row 1: Name + activity dot */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-medium truncate">{focusedSkill.metadata.name}</span>
+                    <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
+                  </div>
+
+                  {/* Row 2: Description */}
+                  <p className="text-[13px] leading-relaxed text-muted-foreground/60 line-clamp-2 mt-1">{focusedSkill.metadata.description}</p>
+
+                  {/* Row 3: Project paths as inline badges */}
+                  {focusedSkill.manifest && (focusedPaths.length > 0 || addingPath) && (
+                    <div className="flex flex-wrap items-center gap-1 mt-2">
+                      {focusedPaths.map((p, i) => (
+                        <span key={i} className={PATH_BADGE}>
+                          <FolderOpen className="h-2.5 w-2.5" />
+                          <span className="truncate max-w-[180px]">{p}</span>
+                          <button
+                            type="button"
+                            onClick={() => void handleRemovePath(i)}
+                            disabled={savingPath}
+                            aria-label={`Remove project path ${p}`}
+                            title="Remove project path"
+                            className="opacity-0 group-hover/path:opacity-100 group-focus-within/path:opacity-100 focus-visible:opacity-100 transition-opacity rounded hover:text-destructive focus-visible:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </span>
+                      ))}
+                      {addingPath && (
+                        <span className="inline-flex items-center gap-1">
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="~/projects/my-app"
+                            value={newPathValue}
+                            onChange={(e) => setNewPathValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void handleAddPath()
+                              if (e.key === 'Escape') { setAddingPath(false); setNewPathValue('') }
+                            }}
+                            onBlur={() => { if (!newPathValue.trim()) { setAddingPath(false); setNewPathValue('') } }}
+                            className="h-5 px-1.5 text-[10px] font-mono rounded border border-border/60 bg-background w-36 focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Row 4: Meta line — stats + actions */}
+                  <div className="flex items-center flex-wrap gap-1.5 mt-2 text-xs text-muted-foreground/40">
+                    {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
+                    {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
+                    {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
+                    {(count > 0 || stats?.lastUsedAt) && <span aria-hidden>{'·'}</span>}
+                    {focusedSkill.manifest && !addingPath && (
+                      <button
+                        type="button"
+                        onClick={() => setAddingPath(true)}
+                        className="hover:text-muted-foreground/70 transition-colors cursor-pointer"
+                      >
+                        + Add path
+                      </button>
+                    )}
+                    {focusedSkill.manifest && !addingPath && <span aria-hidden>{'·'}</span>}
+                    <EditPopover
+                      trigger={
+                        <button type="button" className="inline-flex items-center gap-1 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+                          <Pencil className="h-3 w-3" />
+                          Edit
+                        </button>
+                      }
+                      {...getEditConfig('skill-metadata', focusedSkill.path)}
+                      secondaryAction={{
+                        label: 'Edit File',
+                        filePath: `${focusedSkill.path}/SKILL.md`,
+                      }}
+                    />
+                    <span aria-hidden>{'·'}</span>
+                    <button
+                      type="button"
+                      onClick={handleImproveAgent}
+                      className="inline-flex items-center gap-1 hover:text-muted-foreground/70 transition-colors cursor-pointer"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      Improve
+                    </button>
+                    <span aria-hidden>{'·'}</span>
+                    <button
+                      type="button"
+                      onClick={() => window.electronAPI.showInFolder(`${focusedSkill.path}/SKILL.md`)}
+                      className="inline-flex items-center gap-1 hover:text-muted-foreground/70 transition-colors cursor-pointer"
+                    >
+                      <FolderOpen className="h-3 w-3" />
+                      Open folder
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                {cmds.length > 0 ? 'Run a Task' : 'Start'}
-              </h3>
-              <div className="space-y-2">
-                {cmds.length > 0 ? cmds.map((cmd) => (
-                  <button key={cmd.name} type="button" onClick={() => handleQuickCommand(focusedSkill, cmd)} className={FOCUSED_ACTION_BTN}>
-                    <div className="flex items-center justify-center h-8 w-8 rounded-md bg-foreground/[0.05] shrink-0">
-                      <Zap className="h-4 w-4 text-foreground/70" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium">{cmd.name}</span>
-                      {cmd.prompt && <p className="text-xs text-muted-foreground truncate mt-0.5">{cmd.prompt.slice(0, 80)}{cmd.prompt.length > 80 ? '...' : ''}</p>}
-                    </div>
+
+              {/* Inline icon picker */}
+              {showIconPicker && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-3 rounded-lg border border-border/60 bg-background p-2"
+                >
+                  <div className="grid grid-cols-8 gap-1">
+                    {iconEntries.map(([name, Icon]) => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => handleFocusedIconSelect(name)}
+                        aria-label={`Select icon ${name}`}
+                        title={name}
+                        className={cn(
+                          'flex items-center justify-center h-8 w-8 rounded-md transition-colors cursor-pointer',
+                          (iconOverride ?? focusedSkill.manifest?.icon) === name
+                            ? 'bg-foreground text-background'
+                            : 'hover:bg-foreground/[0.08] text-foreground/70',
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+
+            {/* Quick commands — chip style */}
+            <motion.div variants={itemVariants}>
+                <h3 className="text-[11px] font-medium text-muted-foreground/40 uppercase tracking-widest mb-2.5">
+                  {cmds.length > 0 ? 'Run a Task' : 'Start'}
+                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  {cmds.map((cmd) => (
+                    <button key={cmd.name} type="button" onClick={() => handleQuickCommand(focusedSkill, cmd)} className={FOCUSED_CMD_CHIP}>
+                      {getCommandIcon(cmd.name, 'h-4 w-4 opacity-50', cmd.icon)}{cmd.name}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => handleSkillClick(focusedSkill)} className={cn(FOCUSED_CMD_CHIP, 'text-muted-foreground/40')}>
+                    <Plus className="h-4 w-4 opacity-50" />New Chat
                   </button>
-                )) : (
-                  <button type="button" onClick={() => handleSkillClick(focusedSkill)} className={FOCUSED_ACTION_BTN}>
-                    <div className="flex items-center justify-center h-8 w-8 rounded-md bg-foreground/[0.05] shrink-0">
-                      <Zap className="h-4 w-4 text-foreground/70" />
-                    </div>
-                    <span className="text-sm font-medium">New Chat</span>
-                  </button>
-                )}
-              </div>
-            </div>
+                </div>
+            </motion.div>
+
+            {/* Recent Sessions */}
             {recent.length > 0 && (
-              <div>
-                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Recent Sessions</h3>
-                <div className="space-y-1">
+              <motion.div variants={itemVariants}>
+                <div className="border-t border-border/20 pt-4 mb-2" />
+                <h3 className="text-[11px] font-medium text-muted-foreground/40 uppercase tracking-widest mb-2">Recent</h3>
+                <div className="space-y-0">
                   {recent.map((s) => (
                     <button key={s.id} type="button" onClick={() => navigate(routes.view.skills(focusedSkill.slug, s.id))}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors hover:bg-foreground/[0.03]">
-                      <span className="flex-1 min-w-0 text-sm truncate">{s.name || 'Untitled'}</span>
-                      {s.lastMessageAt && <span className="text-[10px] text-muted-foreground/60 shrink-0">{formatRelativeTime(s.lastMessageAt)}</span>}
+                      className="w-full flex items-center gap-3 px-0 py-1.5 text-left hover:text-foreground transition-colors cursor-pointer group/recent">
+                      <span className="flex-1 min-w-0 text-sm text-foreground/70 truncate group-hover/recent:text-foreground transition-colors">{s.name || 'Untitled'}</span>
+                      {s.lastMessageAt && <span className="shrink-0 text-[11px] text-muted-foreground/30">{formatRelativeTime(s.lastMessageAt)}</span>}
                     </button>
                   ))}
                 </div>
-              </div>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         </ScrollArea>
       </div>
     )
@@ -288,15 +571,15 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       <PanelHeader title="Agents" actions={headerActions} />
       <Separator />
       <ScrollArea className="flex-1">
-        <div className="px-6 py-5 max-w-[900px] mx-auto space-y-5">
+        <div className="px-8 py-6 max-w-[640px] mx-auto space-y-6">
           {/* Greeting + Search */}
           <motion.div variants={fadeIn} initial="hidden" animate="visible" className="space-y-2.5">
-            <div className="flex items-baseline justify-between">
-              <h2 className="text-base font-medium text-foreground/80">
-                {getGreeting()}{userName ? `, ${userName}` : ''}
+            <div className="flex items-baseline justify-between mb-6">
+              <h2 className="text-2xl tracking-tight text-foreground" style={{ fontFamily: 'ui-serif, Georgia, "Times New Roman", serif', fontWeight: 500 }}>
+                {getDynamicGreeting(userName || undefined)}
               </h2>
               <button type="button" onClick={() => navigate(routes.action.newSession())}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 decoration-foreground/20 hover:decoration-foreground/40">
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 decoration-foreground/20 hover:decoration-foreground/40 cursor-pointer">
                 + New Chat
               </button>
             </div>
@@ -325,71 +608,68 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             </div>
           )}
 
-          {/* Agent cards grid */}
+          {/* Agent list */}
           {filteredAgents.length > 0 && (
             <motion.div className={gridCls} variants={containerVariants} initial="hidden" animate="visible">
               {filteredAgents.map((skill) => {
                 const cmds = skill.manifest?.quick_commands ?? []
                 const stats = skillStats.get(skill.slug)
                 const count = stats?.sessionCount ?? 0
-                const accent = getAccentColor(skill.slug)
-                const rgb = accentToRgb(accent)
                 const activity = getActivityStatus(stats?.lastUsedAt)
+                const accent = getAccentColor(skill.slug)
                 return (
                   <motion.div key={skill.slug} variants={itemVariants}
-                    className="group relative flex flex-col rounded-xl bg-background hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
-                    style={{
-                      boxShadow: `rgba(${rgb}, 0.20) 0px 0px 0px 1px, rgba(${rgb}, 0.07) 0px 2px 6px -1px, rgba(${rgb}, 0.04) 0px 8px 12px -3px`,
-                      background: `linear-gradient(to bottom, rgba(${rgb}, 0.03) 0%, rgba(${rgb}, 0) 40%)`,
-                    }}>
-                    <div className="flex flex-col flex-1 p-3.5 gap-2.5">
-                      <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className="flex items-start gap-2.5 text-left">
-                        <div className="shrink-0 mt-0.5"><SkillAvatar skill={skill} size="md" workspaceId={activeWorkspaceId ?? ''} /></div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-semibold truncate flex items-center gap-1.5">
-                            {skill.metadata.name}
-                            <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
-                          </span>
-                          <p className="text-[11px] leading-relaxed text-muted-foreground line-clamp-2 mt-0.5">{skill.metadata.description}</p>
-                        </div>
+                    className="group py-4 first:pt-0">
+                    <div className="flex items-start gap-3.5">
+                      <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className="shrink-0 mt-0.5 cursor-pointer">
+                        <AgentIcon skill={skill} accent={accent} workspaceId={activeWorkspaceId ?? ''} />
                       </button>
-                      <div className="flex flex-wrap gap-1">
-                        {cmds.map((cmd, i) => (
-                          <button key={cmd.name} type="button" onClick={() => handleQuickCommand(skill, cmd)}
-                            className={i === 0 ? cn(cmdBase, 'text-white/90 hover:brightness-110') : CMD_BTN}
-                            style={i === 0 ? { backgroundColor: accent } : undefined}>
-                            <Zap className="h-3 w-3" />{cmd.name}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))}
+                            className="flex items-center gap-2 text-left rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer group/title">
+                            <span className="text-[13px] font-medium truncate">
+                              {skill.metadata.name}
+                            </span>
+                            <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
                           </button>
-                        ))}
-                        <button type="button" onClick={() => handleSkillClick(skill)} className={CMD_BTN_NEW}>
-                          <Plus className="h-3 w-3" />New Chat
-                        </button>
-                      </div>
-                      {(count > 0 || stats?.lastUsedAt) && (
-                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50 mt-auto">
-                          {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
-                          {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
-                          {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
+                          <div className="shrink-0 flex items-center gap-1.5 text-[10px] text-muted-foreground/35">
+                            {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
+                            {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
+                            {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
+                          </div>
                         </div>
-                      )}
+                        <p className="text-[11px] leading-relaxed text-muted-foreground/50 line-clamp-1 mt-0.5">{skill.metadata.description}</p>
+                        <div className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 mt-2">
+                          {cmds.slice(0, 4).map((cmd) => (
+                            <button key={cmd.name} type="button" onClick={() => handleQuickCommand(skill, cmd)} className={CMD_CHIP}>
+                              {getCommandIcon(cmd.name, 'h-3 w-3 opacity-50', cmd.icon)}{cmd.name}
+                            </button>
+                          ))}
+                          {cmds.length > 4 && (
+                            <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className={cn(CMD_CHIP, 'text-muted-foreground/40')}>
+                              +{cmds.length - 4} more
+                            </button>
+                          )}
+                          <button type="button" onClick={() => handleSkillClick(skill)} className={cn(CMD_CHIP, 'text-muted-foreground/40')}>
+                            <Plus className="h-3 w-3 opacity-50" />New Chat
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 )
               })}
-            </motion.div>
-          )}
-
-          {/* Add Agent — compact inline action */}
-          {filteredAgents.length > 0 && (
-            <motion.div variants={fadeIn} initial="hidden" animate="visible">
-              <button type="button" onClick={() => setPickerOpen(true)} className={cn(
-                'group/add w-full flex items-center justify-center gap-2 py-2.5 rounded-lg',
-                'border border-dashed border-border/50 hover:border-foreground/15',
-                'hover:bg-foreground/[0.02] transition-all duration-200',
-              )}>
-                <Plus className="h-3.5 w-3.5 text-muted-foreground/60 transition-transform duration-200 group-hover/add:scale-110" />
-                <span className="text-xs font-medium text-muted-foreground/60">Add Agent</span>
-              </button>
+              {/* Add Agent — last item in the list */}
+              <motion.div variants={itemVariants} className="py-3">
+                <button type="button" onClick={() => setPickerOpen(true)}
+                  className="flex items-center gap-3 rounded-md -mx-1.5 px-1.5 py-1.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer">
+                  <div className="shrink-0 flex items-center justify-center h-7 w-7 rounded-md border border-dashed border-foreground/[0.12]">
+                    <Plus className="h-3.5 w-3.5 text-muted-foreground/40" />
+                  </div>
+                  <span className="text-[12px] text-muted-foreground/50">Add Agent</span>
+                </button>
+              </motion.div>
             </motion.div>
           )}
 
@@ -402,7 +682,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
               <p className="text-sm font-medium text-foreground">No agents configured</p>
               <p className="text-xs text-muted-foreground">Agents are reusable instructions that teach your AI specialized behaviors.</p>
               <button type="button" onClick={() => navigate(routes.view.settings('workspace'))}
-                className={cn('inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg bg-background shadow-minimal hover:bg-foreground/[0.03] transition-colors')}>
+                className={cn('inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg bg-background shadow-minimal hover:bg-foreground/[0.03] transition-colors cursor-pointer')}>
                 <Plus className="h-3.5 w-3.5" />Add Agents
               </button>
             </div>
@@ -411,7 +691,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
               <p className="text-sm text-muted-foreground">No agents enabled yet.</p>
               <button type="button" onClick={() => setPickerOpen(true)}
-                className={cn('inline-flex items-center gap-1.5 h-8 px-4 text-xs font-medium rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-colors')}>
+                className={cn('inline-flex items-center gap-1.5 h-8 px-4 text-xs font-medium rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-colors cursor-pointer')}>
                 Choose Agents
               </button>
             </div>
@@ -419,20 +699,19 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
           {/* Recent Sessions */}
           {recentGlobalSessions.length > 0 && filteredSkills.length > 0 && (
-            <motion.div variants={fadeIn} initial="hidden" animate="visible">
-              <h3 className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Recent</h3>
-              <div className="rounded-lg border border-border/30 overflow-hidden divide-y divide-border/20">
+            <motion.div variants={fadeIn} initial="hidden" animate="visible" className="pt-4">
+              <div className="border-t border-border/20 pt-4 mb-2" />
+              <h3 className="text-[10px] font-medium text-muted-foreground/40 uppercase tracking-widest mb-2">Recent</h3>
+              <div className="space-y-0">
                 {recentGlobalSessions.map((session) => {
                   const sk = session.skillSlug ? skillBySlug.get(session.skillSlug) : null
-                  const accent = session.skillSlug ? getAccentColor(session.skillSlug) : '#6b7280'
                   return (
                     <button key={session.id} type="button"
                       onClick={() => { if (session.skillSlug) navigate(routes.view.skills(session.skillSlug, session.id)) }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-foreground/[0.02] transition-colors border-l-2"
-                      style={{ borderLeftColor: accent }}>
-                      {sk && <span className="shrink-0 text-[10px] font-medium text-muted-foreground/60 w-20 truncate">{sk.metadata.name}</span>}
-                      <span className="flex-1 min-w-0 text-sm truncate">{session.name || 'Untitled'}</span>
-                      {session.lastMessageAt && <span className="shrink-0 text-[10px] text-muted-foreground/40">{formatRelativeTime(session.lastMessageAt)}</span>}
+                      className="w-full flex items-center gap-3 px-0 py-1.5 text-left hover:text-foreground transition-colors cursor-pointer group/recent">
+                      {sk && <span className="shrink-0 text-[10px] text-muted-foreground/40 w-20 truncate">{sk.metadata.name}</span>}
+                      <span className="flex-1 min-w-0 text-[13px] text-foreground/70 truncate group-hover/recent:text-foreground transition-colors">{session.name || 'Untitled'}</span>
+                      {session.lastMessageAt && <span className="shrink-0 text-[10px] text-muted-foreground/30">{formatRelativeTime(session.lastMessageAt)}</span>}
                     </button>
                   )
                 })}

@@ -171,6 +171,12 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     ? data.context_files.filter((f): f is string => typeof f === 'string' && f.trim() !== '')
     : undefined;
 
+  const projectPaths = Array.isArray(data.project_paths)
+    ? data.project_paths
+        .filter((p): p is string => typeof p === 'string' && p.trim() !== '')
+        .map((p) => p.trim())
+    : undefined;
+
   const provider = typeof data.provider === 'string' && data.provider.trim() !== ''
     ? data.provider.trim()
     : undefined;
@@ -183,6 +189,7 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     sources: sources && sources.length > 0 ? sources : undefined,
     quick_commands: parsedCommands,
     context_files: contextFiles && contextFiles.length > 0 ? contextFiles : undefined,
+    project_paths: projectPaths && projectPaths.length > 0 ? projectPaths : undefined,
   };
 }
 

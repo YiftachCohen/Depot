@@ -142,6 +142,46 @@
       "comment": "craft-agent global flags"
     },
     {
+      "pattern": "^depot\\s+label\\s+(list|get|auto-rule-list|auto-rule-validate)\\b",
+      "comment": "depot label read-only operations"
+    },
+    {
+      "pattern": "^depot\\s+source\\s+(list|get|validate|test|auth-help)\\b",
+      "comment": "depot source read-only operations"
+    },
+    {
+      "pattern": "^depot\\s+skill\\s+(list|get|validate|where)\\b",
+      "comment": "depot skill read-only operations"
+    },
+    {
+      "pattern": "^depot\\s+automation\\s+(list|get|validate|history|last-executed|test|lint)\\b",
+      "comment": "depot automation read-only operations"
+    },
+    {
+      "pattern": "^depot\\s+permission\\s+(list|get|validate)\\b",
+      "comment": "depot permission read-only operations"
+    },
+    {
+      "pattern": "^depot\\s+theme\\s+(get|validate|list-presets|get-preset)\\b",
+      "comment": "depot theme read-only operations"
+    },
+    {
+      "pattern": "^depot\\s*$",
+      "comment": "depot bare invocation (prints help)"
+    },
+    {
+      "pattern": "^depot\\s+(label|source|skill|automation|permission|theme)\\s*$",
+      "comment": "depot entity help"
+    },
+    {
+      "pattern": "^depot\\s+(label|source|skill|automation|permission|theme)\\s+--help\\b",
+      "comment": "depot entity help flags"
+    },
+    {
+      "pattern": "^depot\\s+--(help|version|discover)\\b",
+      "comment": "depot global flags"
+    },
+    {
       "pattern": "^find\\b",
       "comment": "Search for files in directory hierarchy"
     },

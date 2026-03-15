@@ -9,7 +9,7 @@ Depot is a desktop application for running AI agents organized around **skills**
 
 ## Why Fork
 
-Depot is a fork of [Depot Agents](https://github.com/lukilabs/craft-agents-oss) by Depot Docs Ltd., diverging in several key ways:
+Depot is a fork of [Craft Agents](https://github.com/lukilabs/craft-agents-oss) by [Craft Docs Ltd.](https://github.com/lukilabs), diverging in several key ways:
 
 - **Skill-first UX**: Skills are the home screen, not chat sessions. The primary interaction model is selecting a skill and running it, rather than opening a blank conversation.
 - **AWS Bedrock native support**: First-class integration with AWS Bedrock as an LLM provider, alongside Anthropic, Google AI Studio, and others.
@@ -142,7 +142,9 @@ depot/
 
 Licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
 
-Depot is a fork of [Depot Agents](https://github.com/lukilabs/craft-agents-oss) by Depot Docs Ltd. The original project is also licensed under Apache 2.0. "Depot" and "Depot Agents" are trademarks of Depot Docs Ltd.
+## Acknowledgments
+
+Depot is a fork of [Craft Agents](https://github.com/lukilabs/craft-agents-oss) by [Craft Docs Ltd.](https://github.com/lukilabs). We're grateful to the Craft Agents team for building and open-sourcing the foundation that Depot builds on. The original project is also licensed under Apache 2.0. "Craft Agents" is a trademark of Craft Docs Ltd.
 
 ## Contributing
 

@@ -390,7 +390,7 @@ describe('CliRpcClient', () => {
 function generateSelfSignedCert(): { cert: string; key: string } | null {
   try {
     const keyResult = Bun.spawnSync({
-      cmd: ['openssl', 'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1',
+      cmd: ['openssl', 'req', '-x509', '-newkey', 'rsa:2048',
         '-keyout', '/dev/stdout', '-out', '/dev/stdout',
         '-days', '1', '-nodes', '-subj', '/CN=localhost', '-batch'],
       stderr: 'pipe',
@@ -399,7 +399,7 @@ function generateSelfSignedCert(): { cert: string; key: string } | null {
 
     const pem = keyResult.stdout.toString()
     const certMatch = pem.match(/(-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----)/)
-    const keyMatch = pem.match(/(-----BEGIN (?:EC )?PRIVATE KEY-----[\s\S]+?-----END (?:EC )?PRIVATE KEY-----)/)
+    const keyMatch = pem.match(/(-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC )?PRIVATE KEY-----)/)
     if (!certMatch || !keyMatch) return null
 
     return { cert: certMatch[1], key: keyMatch[1] }
