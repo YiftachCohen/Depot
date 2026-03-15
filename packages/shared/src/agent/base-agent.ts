@@ -953,6 +953,8 @@ ${formattedMessages}
 
   /** Maximum size of a single context file to inject (10KB) */
   private static readonly MAX_PROJECT_CONTEXT_FILE_SIZE = 10 * 1024;
+  /** Maximum total injected project context across all skills and paths (50KB) */
+  private static readonly MAX_TOTAL_PROJECT_CONTEXT_SIZE = 50 * 1024;
 
   /**
    * Resolve project context for a skill that has project_paths configured.
@@ -960,6 +962,21 @@ ${formattedMessages}
    */
   protected resolveProjectContext(skills: LoadedSkill[]): string {
     const blocks: string[] = [];
+    let totalBytes = 0;
+
+    const appendBlock = (block: string): boolean => {
+      const blockBytes = Buffer.byteLength(block, 'utf-8');
+      if (totalBytes + blockBytes > BaseAgent.MAX_TOTAL_PROJECT_CONTEXT_SIZE) {
+        this.debug(
+          `[resolveProjectContext] Reached total project context size cap (${BaseAgent.MAX_TOTAL_PROJECT_CONTEXT_SIZE} bytes, per-file cap ${BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE} bytes)`,
+        );
+        return false;
+      }
+
+      blocks.push(block);
+      totalBytes += blockBytes;
+      return true;
+    };
 
     for (const skill of skills) {
       const projectPaths = skill.manifest?.project_paths;
@@ -980,7 +997,8 @@ ${formattedMessages}
         if (!contextFileName) {
           this.debug(`[resolveProjectContext] No CLAUDE.md found in: ${projectPath}`);
           // Still include the path so the agent knows about this project
-          blocks.push(`<agent_project_context path="${configuredProjectPath}">\nNo CLAUDE.md found in this project.\n</agent_project_context>`);
+          const block = `<agent_project_context path="${configuredProjectPath}">\nNo CLAUDE.md found in this project.\n</agent_project_context>`;
+          if (!appendBlock(block)) return blocks.join('\n\n');
           continue;
         }
 
@@ -992,16 +1010,18 @@ ${formattedMessages}
             // Read only the first N bytes to avoid loading large files into memory
             const buf = Buffer.alloc(BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE);
             const fd = openSync(filePath, 'r');
+            let bytesRead = 0;
             try {
-              readSync(fd, buf, 0, BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE, 0);
+              bytesRead = readSync(fd, buf, 0, BaseAgent.MAX_PROJECT_CONTEXT_FILE_SIZE, 0);
             } finally {
               closeSync(fd);
             }
-            content = buf.toString('utf-8') + '\n... (truncated)';
+            content = buf.subarray(0, bytesRead).toString('utf-8') + '\n... (truncated)';
           } else {
             content = readFileSync(filePath, 'utf-8');
           }
-          blocks.push(`<agent_project_context path="${configuredProjectPath}" file="${contextFileName}">\n${content}\n</agent_project_context>`);
+          const block = `<agent_project_context path="${configuredProjectPath}" file="${contextFileName}">\n${content}\n</agent_project_context>`;
+          if (!appendBlock(block)) return blocks.join('\n\n');
           this.debug(`[resolveProjectContext] Loaded ${contextFileName} from ${configuredProjectPath} (${content.length} bytes)`);
         } catch {
           this.debug(`[resolveProjectContext] Failed to read context from: ${configuredProjectPath}`);
@@ -1040,18 +1060,18 @@ ${formattedMessages}
     }
 
     // Set working directory from the first matched skill's project_paths (if any).
+    outer:
     for (const skill of matchedSkills) {
-      const configuredPath = skill.manifest?.project_paths?.[0];
-      if (!configuredPath) continue;
-
-      const resolvedPath = expandPath(configuredPath, this.config.workspace.rootPath);
-      if (existsSync(resolvedPath) && statSync(resolvedPath).isDirectory()) {
-        this.debug(`[chat] Setting working directory from skill project_paths: ${configuredPath}`);
-        this.updateWorkingDirectory(resolvedPath);
-        break;
-      }
-      if (existsSync(resolvedPath)) {
-        this.debug(`[chat] Skipping non-directory project_paths entry: ${configuredPath}`);
+      for (const configuredPath of skill.manifest?.project_paths ?? []) {
+        const resolvedPath = expandPath(configuredPath, this.config.workspace.rootPath);
+        if (existsSync(resolvedPath) && statSync(resolvedPath).isDirectory()) {
+          this.debug(`[chat] Setting working directory from skill project_paths: ${configuredPath}`);
+          this.updateWorkingDirectory(resolvedPath);
+          break outer;
+        }
+        if (existsSync(resolvedPath)) {
+          this.debug(`[chat] Skipping non-directory project_paths entry: ${configuredPath}`);
+        }
       }
     }
 

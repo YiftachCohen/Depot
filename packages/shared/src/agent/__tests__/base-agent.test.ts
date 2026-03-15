@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { loadSkill } from '../../skills/storage.ts';
 import {
   TestAgent,
   createMockBackendConfig,
@@ -337,6 +338,56 @@ ${projectPathsBlock}quick_commands:
 
         expect((skillAgent as any).config.session?.workingDirectory).toBeUndefined();
         expect(debugMessages).toContain(`[chat] Skipping non-directory project_paths entry: ${filePath}`);
+      } finally {
+        skillAgent.destroy();
+      }
+    });
+
+    it('falls back to later project_paths entries when the first candidate is invalid', async () => {
+      const workspaceRoot = join(tempDir, 'workspace-fallback-path');
+      const missingPath = join(tempDir, 'missing-project');
+      const validPath = join(tempDir, 'valid-project');
+      mkdirSync(validPath, { recursive: true });
+      writeSkill(workspaceRoot, 'fallback-skill', { projectPaths: [missingPath, validPath] });
+
+      const skillAgent = createAgentForWorkspace(workspaceRoot);
+
+      try {
+        await collectEvents(skillAgent.chat('[skill:fallback-skill] inspect the repo'));
+
+        expect((skillAgent as any).config.session?.workingDirectory).toBe(validPath);
+      } finally {
+        skillAgent.destroy();
+      }
+    });
+
+    it('caps total injected project context across project paths', () => {
+      const workspaceRoot = join(tempDir, 'workspace-context-cap');
+      const projectPaths = Array.from({ length: 6 }, (_, index) => {
+        const projectPath = join(tempDir, `project-${index + 1}`);
+        mkdirSync(projectPath, { recursive: true });
+        writeFileSync(
+          join(projectPath, 'CLAUDE.md'),
+          `MARKER_${index + 1} `.repeat(1500),
+        );
+        return projectPath;
+      });
+      writeSkill(workspaceRoot, 'context-cap-skill', { projectPaths });
+
+      const loadedSkill = loadSkill(workspaceRoot, 'context-cap-skill');
+      expect(loadedSkill).toBeTruthy();
+
+      const skillAgent = createAgentForWorkspace(workspaceRoot);
+      const debugMessages: string[] = [];
+      skillAgent.onDebug = (message) => { debugMessages.push(message); };
+
+      try {
+        const context = (skillAgent as any).resolveProjectContext([loadedSkill]);
+
+        expect(Buffer.byteLength(context, 'utf-8')).toBeLessThanOrEqual(50 * 1024);
+        expect(context).toContain('MARKER_1');
+        expect(context).not.toContain('MARKER_6');
+        expect(debugMessages.some((message) => message.includes('Reached total project context size cap'))).toBe(true);
       } finally {
         skillAgent.destroy();
       }
