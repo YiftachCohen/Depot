@@ -5,20 +5,74 @@
  * Tests model/thinking configuration, permission mode, source management,
  * and lifecycle management.
  */
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import {
   TestAgent,
   createMockBackendConfig,
   createMockSource,
+  createMockSession,
+  createMockWorkspace,
   collectEvents,
 } from './test-utils.ts';
 
 describe('BaseAgent', () => {
   let agent: TestAgent;
+  let tempDir: string;
 
   beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'base-agent-test-'));
     agent = new TestAgent(createMockBackendConfig());
   });
+
+  afterEach(() => {
+    if (tempDir && existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  function createAgentForWorkspace(workspaceRoot: string): TestAgent {
+    return new TestAgent(createMockBackendConfig({
+      workspace: createMockWorkspace({ rootPath: workspaceRoot }),
+      session: createMockSession({ workspaceRootPath: workspaceRoot }),
+    }));
+  }
+
+  function writeSkill(
+    workspaceRoot: string,
+    slug: string,
+    options?: { projectPaths?: string[] },
+  ): void {
+    const skillDir = join(workspaceRoot, 'skills', slug);
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      `---
+name: ${slug}
+description: ${slug} skill
+---
+
+Instructions for ${slug}.
+`,
+    );
+
+    const projectPathsBlock = options?.projectPaths?.length
+      ? `project_paths:\n${options.projectPaths.map((path) => `  - "${path}"`).join('\n')}\n`
+      : '';
+
+    writeFileSync(
+      join(skillDir, 'depot.yaml'),
+      `name: ${slug}
+icon: zap
+description: ${slug} skill
+${projectPathsBlock}quick_commands:
+  - name: Run
+    prompt: "Do it"
+`,
+    );
+  }
 
   describe('Model Configuration', () => {
     it('should initialize with config model', () => {
@@ -208,6 +262,64 @@ describe('BaseAgent', () => {
     it('should cleanup on dispose (alias)', () => {
       // Should not throw
       agent.dispose();
+    });
+
+    it('updates the session working directory from the first valid skill project path', async () => {
+      const workspaceRoot = join(tempDir, 'workspace');
+      const projectRoot = join(tempDir, 'project');
+      mkdirSync(projectRoot, { recursive: true });
+      const skillPath = join(projectRoot, 'repo');
+      mkdirSync(skillPath, { recursive: true });
+      writeSkill(workspaceRoot, 'scout', { projectPaths: [skillPath] });
+
+      const skillAgent = createAgentForWorkspace(workspaceRoot);
+      const debugMessages: string[] = [];
+      skillAgent.onDebug = (message) => { debugMessages.push(message); };
+
+      try {
+        await collectEvents(skillAgent.chat('[skill:scout] inspect the repo'));
+
+        expect(skillAgent.chatCalls[0]?.message).toContain('inspect the repo');
+        expect((skillAgent as any).config.session?.workingDirectory).toBe(skillPath);
+        expect(debugMessages).toContain(`[chat] Setting working directory from skill project_paths: ${skillPath}`);
+        expect(debugMessages).toContain(`Working directory updated: ${skillPath}`);
+      } finally {
+        skillAgent.destroy();
+      }
+    });
+
+    it('does not update the working directory when a matched skill has no project paths', async () => {
+      const workspaceRoot = join(tempDir, 'workspace-no-paths');
+      writeSkill(workspaceRoot, 'planner');
+
+      const skillAgent = createAgentForWorkspace(workspaceRoot);
+
+      try {
+        await collectEvents(skillAgent.chat('[skill:planner] plan this task'));
+
+        expect((skillAgent as any).config.session?.workingDirectory).toBeUndefined();
+      } finally {
+        skillAgent.destroy();
+      }
+    });
+
+    it('does not update the working directory when skill project paths do not exist', async () => {
+      const workspaceRoot = join(tempDir, 'workspace-missing-path');
+      const missingPath = join(tempDir, 'missing-project');
+      writeSkill(workspaceRoot, 'broken-skill', { projectPaths: [missingPath] });
+
+      const skillAgent = createAgentForWorkspace(workspaceRoot);
+      const debugMessages: string[] = [];
+      skillAgent.onDebug = (message) => { debugMessages.push(message); };
+
+      try {
+        await collectEvents(skillAgent.chat('[skill:broken-skill] inspect the repo'));
+
+        expect((skillAgent as any).config.session?.workingDirectory).toBeUndefined();
+        expect(debugMessages.some((message) => message.includes('Working directory updated:'))).toBe(false);
+      } finally {
+        skillAgent.destroy();
+      }
     });
   });
 

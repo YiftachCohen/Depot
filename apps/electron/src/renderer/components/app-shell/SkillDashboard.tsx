@@ -13,6 +13,7 @@ import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles } from 'l
 import { toast } from 'sonner'
 import { getCommandIcon, ICON_NAME_MAP, resolveIconComponent } from '@/lib/command-icon'
 import { useEntityIcon } from '@/lib/icon-cache'
+import { InlineSvg } from '@/lib/inline-svg'
 import { skillsAtom } from '@/atoms/skills'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
 import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
@@ -151,11 +152,9 @@ function AgentIcon({ skill, accent, workspaceId }: { skill: LoadedSkill; accent:
       {icon.kind === 'emoji' ? (
         <span className="text-base leading-none">{icon.value}</span>
       ) : icon.kind === 'file' && icon.colorable && icon.rawSvg ? (
-        <span
-          className="[&>svg]:h-[18px] [&>svg]:w-[18px]"
-          style={{ color: accent }}
-          dangerouslySetInnerHTML={{ __html: icon.rawSvg }}
-        />
+        <span className="[&>svg]:h-[18px] [&>svg]:w-[18px]" style={{ color: accent }}>
+          <InlineSvg svg={icon.rawSvg} />
+        </span>
       ) : icon.kind === 'file' ? (
         <img src={icon.value} alt={skill.metadata.name} className="h-[18px] w-[18px] rounded" />
       ) : (
@@ -279,11 +278,11 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   const headerActions = (
     <div className="flex items-center gap-1">
-      <button type="button" onClick={() => setShowCreateForm((v) => !v)}
+      <button type="button" onClick={() => setShowCreateForm((v) => !v)} aria-label="Create Agent"
         className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Create Agent">
         <Plus className="h-4 w-4 text-muted-foreground" />
       </button>
-      <button type="button" onClick={() => setPickerOpen(true)}
+      <button type="button" onClick={() => setPickerOpen(true)} aria-label="Manage Agents"
         className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Manage Agents">
         <Settings2 className="h-4 w-4 text-muted-foreground" />
       </button>
@@ -307,37 +306,43 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   const iconEntries = useMemo(() => Object.entries(ICON_NAME_MAP), [])
 
-  const saveFocusedManifest = useCallback(async (updates: Partial<DepotSkillManifest>) => {
-    if (!focusedSkill?.manifest || !activeWorkspaceId) return
+  const saveFocusedManifest = useCallback(async (updates: Partial<DepotSkillManifest>): Promise<boolean> => {
+    if (!focusedSkill?.manifest || !activeWorkspaceId) return false
     setSavingPath(true)
     try {
       const updated: DepotSkillManifest = { ...focusedSkill.manifest, ...updates }
       await window.electronAPI.promoteSkillToAgent(activeWorkspaceId, focusedSkill.slug, updated)
+      return true
     } catch (err) {
       toast.error('Failed to save', { description: err instanceof Error ? err.message : 'Unknown error' })
+      return false
     } finally { setSavingPath(false) }
   }, [focusedSkill, activeWorkspaceId])
 
   const handleFocusedIconSelect = useCallback(async (iconName: string) => {
+    const previousIcon = iconOverride
     setIconOverride(iconName)
     setShowIconPicker(false)
-    await saveFocusedManifest({ icon: iconName })
-  }, [saveFocusedManifest])
+    const saved = await saveFocusedManifest({ icon: iconName })
+    if (!saved) setIconOverride(previousIcon)
+  }, [iconOverride, saveFocusedManifest])
 
-  const handleAddPath = useCallback(() => {
+  const handleAddPath = useCallback(async () => {
     const trimmed = newPathValue.trim()
     if (!trimmed || focusedPaths.includes(trimmed)) return
     const updated = [...focusedPaths, trimmed]
+    const saved = await saveFocusedManifest({ project_paths: updated })
+    if (!saved) return
     setFocusedPaths(updated)
     setNewPathValue('')
     setAddingPath(false)
-    saveFocusedManifest({ project_paths: updated })
   }, [newPathValue, focusedPaths, saveFocusedManifest])
 
-  const handleRemovePath = useCallback((index: number) => {
+  const handleRemovePath = useCallback(async (index: number) => {
     const updated = focusedPaths.filter((_, i) => i !== index)
+    const saved = await saveFocusedManifest({ project_paths: updated.length > 0 ? updated : undefined })
+    if (!saved) return
     setFocusedPaths(updated)
-    saveFocusedManifest({ project_paths: updated.length > 0 ? updated : undefined })
   }, [focusedPaths, saveFocusedManifest])
 
   const handleImproveAgent = useCallback(async () => {
@@ -380,6 +385,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                   <button
                     type="button"
                     onClick={() => focusedSkill.manifest && setShowIconPicker(v => !v)}
+                    aria-label="Change icon"
                     className="cursor-pointer rounded-xl hover:ring-2 hover:ring-foreground/10 transition-all"
                     title="Change icon"
                   >
@@ -405,9 +411,11 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                           <span className="truncate max-w-[180px]">{p}</span>
                           <button
                             type="button"
-                            onClick={() => handleRemovePath(i)}
+                            onClick={() => void handleRemovePath(i)}
                             disabled={savingPath}
-                            className="opacity-0 group-hover/path:opacity-100 transition-opacity hover:text-destructive"
+                            aria-label={`Remove project path ${p}`}
+                            title="Remove project path"
+                            className="opacity-0 group-hover/path:opacity-100 group-focus-within/path:opacity-100 focus-visible:opacity-100 transition-opacity rounded hover:text-destructive focus-visible:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                           >
                             <X className="h-2.5 w-2.5" />
                           </button>
@@ -422,7 +430,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                             value={newPathValue}
                             onChange={(e) => setNewPathValue(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleAddPath()
+                              if (e.key === 'Enter') void handleAddPath()
                               if (e.key === 'Escape') { setAddingPath(false); setNewPathValue('') }
                             }}
                             onBlur={() => { if (!newPathValue.trim()) { setAddingPath(false); setNewPathValue('') } }}
@@ -497,6 +505,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                         key={name}
                         type="button"
                         onClick={() => handleFocusedIconSelect(name)}
+                        aria-label={`Select icon ${name}`}
                         title={name}
                         className={cn(
                           'flex items-center justify-center h-8 w-8 rounded-md transition-colors cursor-pointer',
@@ -713,4 +722,3 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     </div>
   )
 }
-

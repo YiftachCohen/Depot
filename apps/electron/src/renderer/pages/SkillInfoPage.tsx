@@ -292,7 +292,7 @@ function ProjectPathsSection({
     setPaths(skill.manifest?.project_paths ?? [])
   }, [skill.manifest?.project_paths])
 
-  const save = useCallback(async (updatedPaths: string[]) => {
+  const save = useCallback(async (updatedPaths: string[]): Promise<boolean> => {
     setSaving(true)
     try {
       const updated: DepotSkillManifest = {
@@ -301,22 +301,24 @@ function ProjectPathsSection({
       }
       await window.electronAPI.promoteSkillToAgent(workspaceId, skill.slug, updated)
       setPaths(updatedPaths)
+      return true
     } catch (err) {
       toast.error('Failed to update project paths', {
         description: err instanceof Error ? err.message : 'Unknown error',
       })
+      return false
     } finally {
       setSaving(false)
     }
   }, [manifest, workspaceId, skill.slug])
 
-  const addPath = useCallback(() => {
+  const addPath = useCallback(async () => {
     if (saving) return
     const trimmed = newPath.trim()
     if (!trimmed || paths.includes(trimmed)) return
     const updated = [...paths, trimmed]
-    setNewPath('')
-    save(updated)
+    const saved = await save(updated)
+    if (saved) setNewPath('')
   }, [newPath, paths, save, saving])
 
   const removePath = useCallback((index: number) => {
@@ -340,11 +342,11 @@ function ProjectPathsSection({
                 <span className="flex-1 text-xs font-mono truncate">{p}</span>
                 <button
                   type="button"
-                  onClick={() => removePath(i)}
+                  onClick={() => void removePath(i)}
                   disabled={saving}
                   aria-label={`Remove project path ${p}`}
                   title="Remove project path"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/10"
+                  className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/10 focus-visible:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <Trash2 className="h-3 w-3 text-destructive" />
                 </button>
@@ -359,13 +361,13 @@ function ProjectPathsSection({
             placeholder="~/projects/my-app"
             value={newPath}
             onChange={(e) => setNewPath(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !saving && addPath()}
+            onKeyDown={(e) => e.key === 'Enter' && !saving && void addPath()}
             disabled={saving}
             className={PATH_INPUT_CLS}
           />
           <button
             type="button"
-            onClick={addPath}
+            onClick={() => void addPath()}
             disabled={!newPath.trim() || saving}
             className={cn(
               'shrink-0 h-7 px-2 text-xs rounded-md',

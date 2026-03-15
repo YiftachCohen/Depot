@@ -7,7 +7,6 @@
 
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
 import yaml from 'js-yaml';
 import type { DepotSkillManifest, QuickCommand } from './types.ts';
 
@@ -175,12 +174,7 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
   const projectPaths = Array.isArray(data.project_paths)
     ? data.project_paths
         .filter((p): p is string => typeof p === 'string' && p.trim() !== '')
-        .map((p) => {
-          const trimmed = p.trim();
-          if (trimmed === '~') return homedir();
-          if (trimmed.startsWith('~/')) return join(homedir(), trimmed.slice(2));
-          return trimmed;
-        })
+        .map((p) => p.trim())
     : undefined;
 
   const provider = typeof data.provider === 'string' && data.provider.trim() !== ''

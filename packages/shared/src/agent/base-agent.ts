@@ -26,6 +26,7 @@ import { buildCallLlmRequest, type LLMQueryRequest, type LLMQueryResult } from '
 import { getLlmConnections, getDefaultLlmConnection } from '../config/storage.ts';
 import { loadAllSources } from '../sources/storage.ts';
 import type { ApiServerConfig } from '../mcp/mcp-pool.ts';
+import { expandPath } from '../utils/paths.ts';
 
 import type {
   AgentBackend,
@@ -964,9 +965,10 @@ ${formattedMessages}
       const projectPaths = skill.manifest?.project_paths;
       if (!projectPaths || projectPaths.length === 0) continue;
 
-      for (const projectPath of projectPaths) {
+      for (const configuredProjectPath of projectPaths) {
+        const projectPath = expandPath(configuredProjectPath, this.config.workspace.rootPath);
         if (!existsSync(projectPath)) {
-          this.debug(`[resolveProjectContext] Path does not exist: ${projectPath}`);
+          this.debug(`[resolveProjectContext] Path does not exist: ${configuredProjectPath}`);
           continue;
         }
 
@@ -974,7 +976,7 @@ ${formattedMessages}
         if (!contextFileName) {
           this.debug(`[resolveProjectContext] No CLAUDE.md found in: ${projectPath}`);
           // Still include the path so the agent knows about this project
-          blocks.push(`<agent_project_context path="${projectPath}">\nNo CLAUDE.md found in this project.\n</agent_project_context>`);
+          blocks.push(`<agent_project_context path="${configuredProjectPath}">\nNo CLAUDE.md found in this project.\n</agent_project_context>`);
           continue;
         }
 
@@ -995,10 +997,10 @@ ${formattedMessages}
           } else {
             content = readFileSync(filePath, 'utf-8');
           }
-          blocks.push(`<agent_project_context path="${projectPath}" file="${contextFileName}">\n${content}\n</agent_project_context>`);
-          this.debug(`[resolveProjectContext] Loaded ${contextFileName} from ${projectPath} (${content.length} bytes)`);
+          blocks.push(`<agent_project_context path="${configuredProjectPath}" file="${contextFileName}">\n${content}\n</agent_project_context>`);
+          this.debug(`[resolveProjectContext] Loaded ${contextFileName} from ${configuredProjectPath} (${content.length} bytes)`);
         } catch {
-          this.debug(`[resolveProjectContext] Failed to read context from: ${projectPath}`);
+          this.debug(`[resolveProjectContext] Failed to read context from: ${configuredProjectPath}`);
         }
       }
     }
@@ -1035,10 +1037,13 @@ ${formattedMessages}
 
     // Set working directory from the first matched skill's project_paths (if any).
     for (const skill of matchedSkills) {
-      const firstPath = skill.manifest?.project_paths?.[0];
-      if (firstPath && existsSync(firstPath)) {
-        this.debug(`[chat] Setting working directory from skill project_paths: ${firstPath}`);
-        this.updateWorkingDirectory(firstPath);
+      const configuredPath = skill.manifest?.project_paths?.[0];
+      if (!configuredPath) continue;
+
+      const resolvedPath = expandPath(configuredPath, this.config.workspace.rootPath);
+      if (existsSync(resolvedPath)) {
+        this.debug(`[chat] Setting working directory from skill project_paths: ${configuredPath}`);
+        this.updateWorkingDirectory(resolvedPath);
         break;
       }
     }

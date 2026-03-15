@@ -4,6 +4,7 @@ import { homedir } from 'os'
 import { execSync } from 'child_process'
 import { RPC_CHANNELS } from '@depot/shared/protocol'
 import { getGitBashPath, setGitBashPath, clearGitBashPath } from '@depot/shared/config'
+import { getSupportedDeepLinkSchemes, isSupportedDeepLinkProtocol } from '@depot/shared/utils'
 import { isUsableGitBashPath, validateGitBashPath } from '@depot/server-core/services'
 import { validateFilePath } from '@depot/server-core/handlers'
 import type { RpcServer } from '@depot/server-core/transport'
@@ -43,26 +44,6 @@ interface ParsedInternalDeepLink {
   requiresExternalOpen?: boolean
   /** True when URL is intentionally consumed without navigation (auth callbacks). */
   handledNoop?: boolean
-}
-
-function normalizeScheme(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  const normalized = value.trim().replace(/:$/, '').toLowerCase()
-  return normalized || undefined
-}
-
-function getSupportedDeepLinkSchemes(): string[] {
-  return [...new Set([
-    normalizeScheme(process.env.CRAFT_DEEPLINK_SCHEME),
-    normalizeScheme(process.env.DEPOT_DEEPLINK_SCHEME),
-    'craftagents',
-    'depot',
-  ].filter((value): value is string => Boolean(value)))]
-}
-
-function isSupportedDeepLinkProtocol(protocol: string): boolean {
-  const normalizedProtocol = protocol.endsWith(':') ? protocol.slice(0, -1).toLowerCase() : protocol.toLowerCase()
-  return getSupportedDeepLinkSchemes().includes(normalizedProtocol)
 }
 
 const COMPOUND_ROUTE_PREFIXES = new Set([

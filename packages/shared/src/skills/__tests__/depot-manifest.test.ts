@@ -127,7 +127,7 @@ describe('parseDepotManifest — valid', () => {
     expect(manifest.project_paths).toBeUndefined();
   });
 
-  it('should parse project_paths and expand ~ to homedir', () => {
+  it('should parse project_paths without expanding portable home paths', () => {
     const yaml = `
 name: Scout Agent
 icon: search
@@ -140,10 +140,9 @@ quick_commands:
     prompt: "Do something"
 `;
     const manifest = parseDepotManifest(yaml);
-    const home = require('os').homedir();
 
     expect(manifest.project_paths).toHaveLength(2);
-    expect(manifest.project_paths![0]).toBe(`${home}/projects/scout`);
+    expect(manifest.project_paths![0]).toBe('~/projects/scout');
     expect(manifest.project_paths![1]).toBe('/absolute/path/to/shared');
   });
 
