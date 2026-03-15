@@ -46,6 +46,25 @@ export function isIconUrl(str: string): boolean {
 }
 
 /**
+ * Known Lucide icon names accepted in skill/source icon fields.
+ * Kept in sync with ICON_NAME_MAP in command-icon.tsx.
+ */
+const LUCIDE_ICON_NAMES = new Set([
+  'zap', 'git-pull-request', 'hammer', 'refresh-cw', 'flask-conical',
+  'shield', 'rocket', 'bug', 'bar-chart-3', 'circle-check', 'package-plus',
+  'alert-triangle', 'server', 'search', 'message-square', 'eye', 'file-code',
+  'settings', 'layers', 'database', 'code-2', 'code', 'bot', 'wrench',
+  'book-open', 'globe', 'terminal', 'sparkles', 'folder-kanban',
+]);
+
+/**
+ * Check if a string is a known Lucide icon name (kebab-case).
+ */
+export function isLucideIconName(str: string): boolean {
+  return LUCIDE_ICON_NAMES.has(str);
+}
+
+/**
  * Check if an icon value is invalid (inline SVG or relative path).
  * These are explicitly not supported to keep configs clean.
  */

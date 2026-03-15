@@ -95,6 +95,7 @@ function PromoteSkillForm({ skill, workspaceId, onPromoted, onCancel }: PromoteS
   const [icon, setIcon] = useState('bot')
   const [cmdName, setCmdName] = useState('Run')
   const [cmdPrompt, setCmdPrompt] = useState('')
+  const [projectPath, setProjectPath] = useState('')
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = useCallback(async () => {
@@ -106,6 +107,7 @@ function PromoteSkillForm({ skill, workspaceId, onPromoted, onCancel }: PromoteS
         icon: icon.trim() || 'bot',
         description: skill.metadata.description,
         quick_commands: [{ name: cmdName.trim(), prompt: cmdPrompt.trim() }],
+        ...(projectPath.trim() ? { project_paths: [projectPath.trim()] } : {}),
       }
       await window.electronAPI.promoteSkillToAgent(workspaceId, skill.slug, manifest)
       onPromoted()
@@ -114,7 +116,7 @@ function PromoteSkillForm({ skill, workspaceId, onPromoted, onCancel }: PromoteS
     } finally {
       setSaving(false)
     }
-  }, [skill, workspaceId, icon, cmdName, cmdPrompt, onPromoted])
+  }, [skill, workspaceId, icon, cmdName, cmdPrompt, projectPath, onPromoted])
 
   return (
     <div className="border border-border/60 rounded-lg p-3 space-y-2 bg-foreground/[0.02]">
@@ -128,6 +130,8 @@ function PromoteSkillForm({ skill, workspaceId, onPromoted, onCancel }: PromoteS
         onChange={(e) => setCmdName(e.target.value)} className={INPUT_CLS} />
       <input type="text" placeholder="Prompt template for this command" value={cmdPrompt}
         onChange={(e) => setCmdPrompt(e.target.value)} className={INPUT_CLS} />
+      <input type="text" placeholder="Project path (e.g. ~/projects/my-app)" value={projectPath}
+        onChange={(e) => setProjectPath(e.target.value)} className={INPUT_CLS} />
       <div className="flex items-center justify-end gap-2 pt-1">
         <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
         <Button size="sm" disabled={!cmdName.trim() || !cmdPrompt.trim() || saving} onClick={handleSubmit}>
@@ -185,15 +189,28 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
   }, [open, enabledSlugs, allSkills])
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return allSkills
     const q = search.toLowerCase()
-    return allSkills.filter(
-      (s) =>
-        s.metadata.name.toLowerCase().includes(q) ||
-        s.metadata.description.toLowerCase().includes(q) ||
-        s.slug.toLowerCase().includes(q),
-    )
-  }, [allSkills, search])
+    const matches = !search.trim()
+      ? allSkills
+      : allSkills.filter(
+          (s) =>
+            s.metadata.name.toLowerCase().includes(q) ||
+            s.metadata.description.toLowerCase().includes(q) ||
+            s.slug.toLowerCase().includes(q),
+        )
+
+    const getPriority = (skill: LoadedSkill): number => {
+      if (isAgent(skill) && selected.has(skill.slug)) return 0
+      if (isAgent(skill)) return 1
+      return 2
+    }
+
+    return [...matches].sort((a, b) => {
+      const priorityDiff = getPriority(a) - getPriority(b)
+      if (priorityDiff !== 0) return priorityDiff
+      return a.metadata.name.localeCompare(b.metadata.name, undefined, { sensitivity: 'base' })
+    })
+  }, [allSkills, search, selected])
 
   const toggleSkill = useCallback((slug: string) => {
     setSelected((prev) => {

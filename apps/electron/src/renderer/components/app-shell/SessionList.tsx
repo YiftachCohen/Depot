@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { isToday, isYesterday, format, startOfDay } from "date-fns"
 import { useAction } from "@/actions"
-import { Inbox, Archive, Zap } from "lucide-react"
+import { Inbox, Archive } from "lucide-react"
+import { resolveIconComponent } from "@/lib/command-icon"
+import { getAccentColor } from "./SkillDashboard"
+import { isEmoji } from "@depot/shared/utils/icon-constants"
 
 import { getSessionStatus } from "@/utils/session"
 import * as storage from "@/lib/local-storage"
@@ -113,31 +116,43 @@ function SkillFilterBar({
 }) {
   if (skills.length === 0) return null
   return (
-    <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto shrink-0 border-b border-border/30">
+    <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto shrink-0 border-b border-border/20 scrollbar-hide">
       <button
         onClick={() => onChange(null)}
-        className={`inline-flex items-center gap-1 h-6 px-2 text-xs rounded-full whitespace-nowrap transition-colors ${
+        className={`inline-flex items-center gap-1.5 h-7 px-2.5 text-xs rounded-[8px] whitespace-nowrap transition-colors ${
           !activeSlug
-            ? 'bg-foreground/10 text-foreground font-medium'
-            : 'text-muted-foreground hover:bg-foreground/5'
+            ? 'bg-foreground/8 text-foreground font-medium shadow-minimal'
+            : 'text-muted-foreground hover:bg-foreground/4'
         }`}
       >
         All
       </button>
-      {skills.map(skill => (
-        <button
-          key={skill.slug}
-          onClick={() => onChange(activeSlug === skill.slug ? null : skill.slug)}
-          className={`inline-flex items-center gap-1 h-6 px-2 text-xs rounded-full whitespace-nowrap transition-colors ${
-            activeSlug === skill.slug
-              ? 'bg-foreground/10 text-foreground font-medium'
-              : 'text-muted-foreground hover:bg-foreground/5'
-          }`}
-        >
-          <Zap className="h-3 w-3" />
-          {skill.metadata?.name || skill.slug}
-        </button>
-      ))}
+      {skills.map(skill => {
+        const hasEmojiIcon = !!(skill.metadata?.icon && isEmoji(skill.metadata.icon))
+        const IconComponent = hasEmojiIcon
+          ? null
+          : resolveIconComponent(skill.manifest?.icon, skill.metadata?.name)
+        const accentColor = getAccentColor(skill.slug)
+        const isActive = activeSlug === skill.slug
+        return (
+          <button
+            key={skill.slug}
+            onClick={() => onChange(isActive ? null : skill.slug)}
+            className={`inline-flex items-center gap-1.5 h-7 px-2.5 text-xs rounded-[8px] whitespace-nowrap transition-colors ${
+              isActive
+                ? 'bg-foreground/8 text-foreground font-medium shadow-minimal'
+                : 'text-muted-foreground hover:bg-foreground/4'
+            }`}
+          >
+            {hasEmojiIcon ? (
+              <span className="text-[11px] leading-none">{skill.metadata!.icon}</span>
+            ) : IconComponent ? (
+              <IconComponent className="h-3 w-3" style={{ color: accentColor }} />
+            ) : null}
+            {skill.metadata?.name || skill.slug}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -405,7 +420,7 @@ export function SessionList({
       const orderedGroups: EntityListGroup<SessionListRow>[] = []
       for (const [key, { rows: groupRows, slug }] of groupsBySlug) {
         const label = slug === '__ungrouped__'
-          ? 'Ungrouped'
+          ? 'Other Chats'
           : (skillNameMap.get(slug) || slug)
         groupRows.sort((a, b) => (b.item.lastMessageAt || 0) - (a.item.lastMessageAt || 0))
         const collapsedMeta = collapsedGroupsMeta.find(m => m.key === key)
@@ -705,6 +720,28 @@ export function SessionList({
   // --- Empty state (non-search) — render before EntityList ---
   // Don't show empty state when there are collapsed groups with content
   if (flatRows.length === 0 && rowData.groups.length === 0 && !searchActive) {
+    // When a skill filter is active, keep the filter bar visible so the user can clear it
+    if (skillFilter) {
+      return (
+        <div className="flex flex-col flex-1 min-h-0">
+          <SkillFilterBar skills={skills} activeSlug={skillFilter} onChange={onSkillFilterChange!} />
+          <EntityListEmptyScreen
+            icon={<Inbox />}
+            title="No chats with this agent"
+            description="Start a new chat or select a different agent above."
+            className="flex-1"
+          >
+            <button
+              onClick={() => onSkillFilterChange?.(null)}
+              className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-[8px] bg-background shadow-minimal hover:bg-foreground/[0.03] transition-colors"
+            >
+              Show All Chats
+            </button>
+          </EntityListEmptyScreen>
+        </div>
+      )
+    }
+
     if (currentFilter?.kind === 'archived') {
       return (
         <EntityListEmptyScreen

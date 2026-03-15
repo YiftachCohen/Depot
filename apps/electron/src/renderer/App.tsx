@@ -59,6 +59,7 @@ import { TransportConnectionBanner, shouldShowTransportConnectionBanner } from '
 import { getFileManagerName } from '@/lib/platform'
 import { ActionRegistryProvider } from '@/actions'
 import { toast } from 'sonner'
+import { useSyncDepotAppIcon } from '@/components/icons/CraftAgentsSymbol'
 
 type AppState = 'loading' | 'onboarding' | 'reauth' | 'ready'
 
@@ -151,6 +152,8 @@ function handleBackgroundTaskEvent(
 }
 
 export default function App() {
+  useSyncDepotAppIcon()
+
   // Initialize renderer perf tracking early (debug mode = running from source)
   // Uses useEffect with empty deps to run once on mount before any session switches
   useEffect(() => {

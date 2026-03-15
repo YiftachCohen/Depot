@@ -402,7 +402,10 @@ html[data-font="inter"] {
 
   /* === SEMANTIC SURFACE COLORS === */
   /* Subtle hover background for sidebar list items (2% foreground opacity) */
-  --color-sidebar-hover: oklch(from var(--foreground) l c h / 0.02);
+  --color-sidebar-hover: oklch(from var(--foreground) l c h / 0.06);
+  --color-sidebar-active: oklch(from var(--accent) l c h / 0.10);
+  --color-sidebar-section: oklch(from var(--foreground) l c h / 0.45);
+  --color-sidebar-indent: oklch(from var(--foreground) l c h / 0.10);
   /* User message bubble background (overridden on unfocused panels) */
   --color-user-message-bubble: var(--user-message-bubble);
 

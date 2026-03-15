@@ -25,6 +25,7 @@ import { sessionMetaMapAtom, type SessionMeta } from '@/atoms/sessions'
 import { StoplightProvider } from '@/context/StoplightContext'
 import {
   useNavigationState,
+  useNavigation,
   isSessionsNavigation,
   isSourcesNavigation,
   isSettingsNavigation,
@@ -38,14 +39,21 @@ import type { SessionStatusId } from '@/config/session-status-config'
 import { SourceInfoPage, ChatPage } from '@/pages'
 import SkillInfoPage from '@/pages/SkillInfoPage'
 import { getSettingsPageComponent } from '@/pages/settings/settings-pages'
+import SettingsNavigator from '@/pages/settings/SettingsNavigator'
+import { routes } from '@/lib/navigate'
 import { AutomationInfoPage } from '../automations/AutomationInfoPage'
 import type { ExecutionEntry } from '../automations/types'
 import { automationsAtom } from '@/atoms/automations'
 import { SkillDashboard } from './SkillDashboard'
+import { SessionList } from './SessionList'
+import { PanelHeader } from './PanelHeader'
+import { useSessionListProps } from '@/context/SessionListPropsContext'
+import { Search } from 'lucide-react'
+import { HeaderIconButton } from '@/components/ui/HeaderIconButton'
 
 export interface MainContentPanelProps {
   /** Whether both sidebar and navigator are hidden (focus mode / CMD+.) */
-  isSidebarAndNavigatorHidden?: boolean
+  isSidebarHidden?: boolean
   /** Optional className for the container */
   className?: string
   /**
@@ -57,12 +65,13 @@ export interface MainContentPanelProps {
 }
 
 export function MainContentPanel({
-  isSidebarAndNavigatorHidden = false,
+  isSidebarHidden = false,
   className,
   navStateOverride,
 }: MainContentPanelProps) {
   const globalNavState = useNavigationState()
   const navState = navStateOverride ?? globalNavState
+  const { navigate } = useNavigation()
   const {
     activeWorkspaceId,
     onSessionStatusChange,
@@ -77,6 +86,12 @@ export function MainContentPanel({
     onReplayAutomation,
     automationTestResults,
     getAutomationHistory,
+    onDeleteSession,
+    onFlagSession,
+    onUnflagSession,
+    onUnarchiveSession,
+    onMarkSessionUnread,
+    onRenameSession,
   } = useAppShellContext()
 
   // Session multi-select state
@@ -86,6 +101,7 @@ export function MainContentPanel({
   const { clearMultiSelect } = useSessionSelection()
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
   const automations = useAtomValue(automationsAtom)
+  const sessionListProps = useSessionListProps()
 
   // Execution history for the selected automation
   const selectedAutomationId = isAutomationsNavigation(navState) ? navState.details?.automationId : undefined
@@ -188,17 +204,27 @@ export function MainContentPanel({
 
   // Wrap content with StoplightProvider so PanelHeaders auto-compensate in focused mode
   const wrapWithStoplight = (content: React.ReactNode) => (
-    <StoplightProvider value={isSidebarAndNavigatorHidden}>
+    <StoplightProvider value={isSidebarHidden}>
       {content}
     </StoplightProvider>
   )
 
-  // Settings navigator - uses component map from settings-pages.ts
+  // Settings navigator - split layout with navigator + page content
   if (isSettingsNavigation(navState)) {
     const SettingsPageComponent = getSettingsPageComponent(navState.subpage)
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
-        <SettingsPageComponent />
+        <div className="flex h-full">
+          <div className="w-[240px] shrink-0 border-r border-border/50 overflow-y-auto">
+            <SettingsNavigator
+              selectedSubpage={navState.subpage}
+              onSelectSubpage={(subpage) => navigate(routes.view.settings(subpage))}
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <SettingsPageComponent />
+          </div>
+        </div>
       </Panel>
     )
   }
@@ -331,7 +357,61 @@ export function MainContentPanel({
         </Panel>
       )
     }
-    // No session selected - show skill dashboard as home screen
+    // No session selected - show session list
+    if (sessionListProps) {
+      return wrapWithStoplight(
+        <Panel variant="grow" className={className}>
+          <PanelHeader
+            title={sessionListProps.listTitle}
+            actions={
+              <HeaderIconButton
+                icon={<Search className="h-4 w-4" />}
+                onClick={sessionListProps.searchActive ? sessionListProps.onSearchClose : sessionListProps.onSearchOpen}
+                className={sessionListProps.searchActive ? 'bg-foreground/5' : undefined}
+              />
+            }
+          />
+          <div className="flex justify-center flex-1 min-h-0">
+            <div className="w-full max-w-[560px] h-full">
+              <SessionList
+                key={navState.filter?.kind}
+                items={sessionListProps.items}
+                onDelete={onDeleteSession}
+                onFlag={onFlagSession}
+                onUnflag={onUnflagSession}
+                onArchive={onArchiveSession}
+                onUnarchive={onUnarchiveSession}
+                onMarkUnread={onMarkSessionUnread}
+                onSessionStatusChange={onSessionStatusChange}
+                onRename={onRenameSession}
+                onFocusChatInput={sessionListProps.onFocusChatInput}
+                onOpenInNewWindow={sessionListProps.onOpenInNewWindow}
+                sessionOptions={sessionListProps.sessionOptions}
+                searchActive={sessionListProps.searchActive}
+                searchQuery={sessionListProps.searchQuery}
+                onSearchChange={sessionListProps.onSearchChange}
+                onSearchClose={sessionListProps.onSearchClose}
+                sessionStatuses={sessionListProps.sessionStatuses}
+                evaluateViews={sessionListProps.evaluateViews}
+                labels={sessionListProps.labels}
+                onLabelsChange={sessionListProps.onLabelsChange}
+                groupingMode={sessionListProps.groupingMode}
+                workspaceId={sessionListProps.workspaceId}
+                statusFilter={sessionListProps.statusFilter}
+                labelFilterMap={sessionListProps.labelFilterMap}
+                focusedSessionId={sessionListProps.focusedSessionId}
+                onNavigateToSession={sessionListProps.onNavigateToSession}
+                hasPendingPrompt={sessionListProps.hasPendingPrompt}
+                skills={sessionListProps.skills}
+                skillFilter={sessionListProps.skillFilter}
+                onSkillFilterChange={sessionListProps.onSkillFilterChange}
+              />
+            </div>
+          </div>
+        </Panel>
+      )
+    }
+    // Fallback when context unavailable
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
         <SkillDashboard />

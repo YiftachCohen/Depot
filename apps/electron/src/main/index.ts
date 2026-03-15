@@ -87,6 +87,7 @@ import { setBundledAssetsRoot } from '@depot/shared/utils'
 import { initializeBackendHostRuntime } from '@depot/shared/agent/backend'
 import { setPowerShellValidatorRoot } from '@depot/shared/agent'
 import { handleDeepLink } from './deep-link'
+import { getPrimaryDeepLinkScheme, isSupportedDeepLinkUrl } from './deep-link-scheme'
 import { BrowserPaneManager } from './browser-pane-manager'
 import { OAuthFlowStore } from '@depot/shared/auth'
 import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-protocol'
@@ -176,8 +177,8 @@ registerPiModelResolver((piAuthProvider) =>
 )
 
 // Custom URL scheme for deeplinks (e.g., depot://auth-complete)
-// Supports multi-instance dev: DEPOT_DEEPLINK_SCHEME env var (depot1, depot2, etc.)
-const DEEPLINK_SCHEME = process.env.DEPOT_DEEPLINK_SCHEME || 'depot'
+// Supports multi-instance dev via CRAFT_DEEPLINK_SCHEME and legacy DEPOT_DEEPLINK_SCHEME.
+const DEEPLINK_SCHEME = getPrimaryDeepLinkScheme()
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
@@ -273,7 +274,7 @@ if (!gotTheLock) {
   app.on('second-instance', (_event, commandLine, _workingDirectory) => {
     // Someone tried to run a second instance, we should focus our window.
     // On Windows/Linux, the deeplink is in commandLine
-    const url = commandLine.find(arg => arg.startsWith(`${DEEPLINK_SCHEME}://`))
+    const url = commandLine.find(arg => isSupportedDeepLinkUrl(arg))
     if (url && windowManager) {
       mainLog.info('Received deeplink from second instance:', url)
       handleDeepLink(url, windowManager, moduleSink ?? undefined, moduleClientResolver ?? undefined).catch(err => {

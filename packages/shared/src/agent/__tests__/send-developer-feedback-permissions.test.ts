@@ -5,8 +5,23 @@
  * in ALL permission modes, including safe/Explore, so product issues can be
  * reported without requiring mode switches.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { shouldAllowToolInMode } from '../../agent/mode-manager.ts';
+
+let origDevFeedback: string | undefined;
+
+beforeAll(() => {
+  origDevFeedback = process.env.DEPOT_FEATURE_DEVELOPER_FEEDBACK;
+  process.env.DEPOT_FEATURE_DEVELOPER_FEEDBACK = '1';
+});
+
+afterAll(() => {
+  if (origDevFeedback === undefined) {
+    delete process.env.DEPOT_FEATURE_DEVELOPER_FEEDBACK;
+  } else {
+    process.env.DEPOT_FEATURE_DEVELOPER_FEEDBACK = origDevFeedback;
+  }
+});
 
 describe('send_developer_feedback permission mode handling', () => {
   const toolName = 'mcp__session__send_developer_feedback';

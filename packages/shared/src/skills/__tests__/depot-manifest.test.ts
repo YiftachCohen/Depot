@@ -124,6 +124,45 @@ describe('parseDepotManifest — valid', () => {
     expect(manifest.provider).toBeUndefined();
     expect(manifest.sources).toBeUndefined();
     expect(manifest.context_files).toBeUndefined();
+    expect(manifest.project_paths).toBeUndefined();
+  });
+
+  it('should parse project_paths and expand ~ to homedir', () => {
+    const yaml = `
+name: Scout Agent
+icon: search
+description: Manages the Scout project
+project_paths:
+  - "~/projects/scout"
+  - "/absolute/path/to/shared"
+quick_commands:
+  - name: Run
+    prompt: "Do something"
+`;
+    const manifest = parseDepotManifest(yaml);
+    const home = require('os').homedir();
+
+    expect(manifest.project_paths).toHaveLength(2);
+    expect(manifest.project_paths![0]).toBe(`${home}/projects/scout`);
+    expect(manifest.project_paths![1]).toBe('/absolute/path/to/shared');
+  });
+
+  it('should ignore empty project_paths entries', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+project_paths:
+  - ""
+  - "  "
+  - "/valid/path"
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+
+    expect(manifest.project_paths).toEqual(['/valid/path']);
   });
 
   it('should parse quick command variables correctly', () => {

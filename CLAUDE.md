@@ -1,188 +1,97 @@
-# Claude Code Configuration - RuFlo V3
+# CLAUDE.md
 
-## Behavioral Rules (Always Enforced)
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-- Do what has been asked; nothing more, nothing less
-- NEVER create files unless they're absolutely necessary for achieving your goal
-- ALWAYS prefer editing an existing file to creating a new one
-- NEVER proactively create documentation files (*.md) or README files unless explicitly requested
-- NEVER save working files, text/mds, or tests to the root folder
-- Never continuously check status after spawning a swarm — wait for results
-- ALWAYS read a file before editing it
-- NEVER commit secrets, credentials, or .env files
+## What is Depot
 
-## File Organization
+Depot is a skill-first desktop agent interface for enterprise teams, built as an Electron app. Skills are reusable task templates (`depot.yaml`) that encode how an agent should accomplish specific work. Fork of Craft Agents with divergent UX (skill dashboard as home screen), AWS Bedrock support, and `depot.yaml` manifest format.
 
-- NEVER save to root folder — use the directories below
-- Use `/src` for source code files
-- Use `/tests` for test files
-- Use `/docs` for documentation and markdown files
-- Use `/config` for configuration files
-- Use `/scripts` for utility scripts
-- Use `/examples` for example code
+## Build & Development Commands
 
-## Project Architecture
-
-- Follow Domain-Driven Design with bounded contexts
-- Keep files under 500 lines
-- Use typed interfaces for all public APIs
-- Prefer TDD London School (mock-first) for new code
-- Use event sourcing for state changes
-- Ensure input validation at system boundaries
-
-### Project Config
-
-- **Topology**: hierarchical-mesh
-- **Max Agents**: 15
-- **Memory**: hybrid
-- **HNSW**: Enabled
-- **Neural**: Enabled
-
-## Build & Test
+Runtime is **Bun** (not npm/node). All commands from repo root:
 
 ```bash
-# Build
-npm run build
-
-# Test
-npm test
-
-# Lint
-npm run lint
+bun install                    # Install dependencies
+bun run electron:dev           # Dev mode with hot reload
+bun run electron:build         # Build main/preload/renderer bundles
+bun run electron:start         # Build + launch Electron
+bun run server:dev             # Headless server with debug flags
+bun test                       # Run all tests (includes isolated test files)
+bun run typecheck:all          # TypeScript checks across all packages/apps
+bun run lint                   # IPC send checks + ESLint (electron/shared/ui)
+bun run validate:dev           # Full validation: typecheck + shared tests + doc tools
 ```
 
-- ALWAYS run tests after making code changes
-- ALWAYS verify build succeeds before committing
-
-## Security Rules
-
-- NEVER hardcode API keys, secrets, or credentials in source files
-- NEVER commit .env files or any file containing secrets
-- Always validate user input at system boundaries
-- Always sanitize file paths to prevent directory traversal
-- Run `npx @claude-flow/cli@latest security scan` after security-related changes
-
-## Concurrency: 1 MESSAGE = ALL RELATED OPERATIONS
-
-- All operations MUST be concurrent/parallel in a single message
-- Use Claude Code's Task tool for spawning agents, not just MCP
-- ALWAYS batch ALL todos in ONE TodoWrite call (5-10+ minimum)
-- ALWAYS spawn ALL agents in ONE message with full instructions via Task tool
-- ALWAYS batch ALL file reads/writes/edits in ONE message
-- ALWAYS batch ALL Bash commands in ONE message
-
-## Swarm Orchestration
-
-- MUST initialize the swarm using CLI tools when starting complex tasks
-- MUST spawn concurrent agents using Claude Code's Task tool
-- Never use CLI tools alone for execution — Task tool agents do the actual work
-- MUST call CLI tools AND Task tool in ONE message for complex work
-
-### 3-Tier Model Routing (ADR-026)
-
-| Tier | Handler | Latency | Cost | Use Cases |
-|------|---------|---------|------|-----------|
-| **1** | Agent Booster (WASM) | <1ms | $0 | Simple transforms (var→const, add types) — Skip LLM |
-| **2** | Haiku | ~500ms | $0.0002 | Simple tasks, low complexity (<30%) |
-| **3** | Sonnet/Opus | 2-5s | $0.003-0.015 | Complex reasoning, architecture, security (>30%) |
-
-- Always check for `[AGENT_BOOSTER_AVAILABLE]` or `[TASK_MODEL_RECOMMENDATION]` before spawning agents
-- Use Edit tool directly when `[AGENT_BOOSTER_AVAILABLE]`
-
-## Swarm Configuration & Anti-Drift
-
-- ALWAYS use hierarchical topology for coding swarms
-- Keep maxAgents at 6-8 for tight coordination
-- Use specialized strategy for clear role boundaries
-- Use `raft` consensus for hive-mind (leader maintains authoritative state)
-- Run frequent checkpoints via `post-task` hooks
-- Keep shared memory namespace for all agents
+### Single-package commands
 
 ```bash
-npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 8 --strategy specialized
+cd packages/shared && bun test                    # Shared package tests only
+cd packages/shared && bun run tsc --noEmit        # Typecheck shared only
+cd packages/core && bun run tsc --noEmit          # Typecheck core only
+cd apps/electron && bun run typecheck             # Typecheck electron only
+bun run test:shared:all                           # Shared config/LLM tests
+bun run test:doc-tools                            # Python doc tool smoke tests
 ```
 
-## Swarm Execution Rules
-
-- ALWAYS use `run_in_background: true` for all agent Task calls
-- ALWAYS put ALL agent Task calls in ONE message for parallel execution
-- After spawning, STOP — do NOT add more tool calls or check status
-- Never poll TaskOutput or check swarm status — trust agents to return
-- When agent results arrive, review ALL results before proceeding
-
-## V3 CLI Commands
-
-### Core Commands
-
-| Command | Subcommands | Description |
-|---------|-------------|-------------|
-| `init` | 4 | Project initialization |
-| `agent` | 8 | Agent lifecycle management |
-| `swarm` | 6 | Multi-agent swarm coordination |
-| `memory` | 11 | AgentDB memory with HNSW search |
-| `task` | 6 | Task creation and lifecycle |
-| `session` | 7 | Session state management |
-| `hooks` | 17 | Self-learning hooks + 12 workers |
-| `hive-mind` | 6 | Byzantine fault-tolerant consensus |
-
-### Quick CLI Examples
+### Distribution builds
 
 ```bash
-npx @claude-flow/cli@latest init --wizard
-npx @claude-flow/cli@latest agent spawn -t coder --name my-coder
-npx @claude-flow/cli@latest swarm init --v3-mode
-npx @claude-flow/cli@latest memory search --query "authentication patterns"
-npx @claude-flow/cli@latest doctor --fix
+bun run electron:dist:dev:mac   # Unsigned dev build for macOS
+bun run electron:dist:mac       # Signed production build
 ```
 
-## Available Agents (60+ Types)
+## Monorepo Structure
 
-### Core Development
-`coder`, `reviewer`, `tester`, `planner`, `researcher`
+Bun workspaces monorepo. Packages reference each other via TypeScript path imports (no build step between packages).
 
-### Specialized
-`security-architect`, `security-auditor`, `memory-specialist`, `performance-engineer`
+### `packages/core` — Type layer (`@depot/core`)
+Shared type definitions (workspaces, sessions, messages, agent events). Dependency-light; prefer type-only changes. Public exports from `src/index.ts`.
 
-### Swarm Coordination
-`hierarchical-coordinator`, `mesh-coordinator`, `adaptive-coordinator`
+### `packages/shared` — Business logic (`@depot/shared`)
+Core domain logic: agent backends (`src/agent/`), sessions, config, credentials, MCP integration, skills, sources, permissions. `ClaudeAgent` in `src/agent/claude-agent.ts` is the primary agent class. Permission modes: `safe`, `ask`, `allow-all`. Source types: `mcp`, `api`, `local`. Has many subpath exports (e.g., `@depot/shared/agent`, `@depot/shared/auth`).
 
-### GitHub & Repository
-`pr-manager`, `code-review-swarm`, `issue-tracker`, `release-manager`
+### `packages/server-core` — Server runtime
+RPC handler implementations in `src/handlers/rpc/` (sessions, skills, auth, settings, sources, etc.). Domain services in `src/domain/`, session management in `src/sessions/`, transport layer in `src/transport/`.
 
-### SPARC Methodology
-`sparc-coord`, `sparc-coder`, `specification`, `pseudocode`, `architecture`
+### `packages/server` — Server entrypoint
+Thin wrapper that boots the server-core runtime.
 
-## Memory Commands Reference
+### `packages/session-tools-core` — Agent tools
+Tool definitions and runtime for session-scoped agent tools. Tool defs in `src/tool-defs.ts`, handler implementations in `src/handlers/`.
 
-```bash
-# Store (REQUIRED: --key, --value; OPTIONAL: --namespace, --ttl, --tags)
-npx @claude-flow/cli@latest memory store --key "pattern-auth" --value "JWT with refresh" --namespace patterns
+### `packages/ui` — Shared UI components (`@depot/ui`)
+Reusable React components and styles shared across apps.
 
-# Search (REQUIRED: --query; OPTIONAL: --namespace, --limit, --threshold)
-npx @claude-flow/cli@latest memory search --query "authentication patterns"
+### `apps/electron` — Desktop app (`@depot/electron`)
+Electron app with standard main/preload/renderer split:
+- **Main process** (`src/main/`): window management, deep links, notifications, auto-update, browser pane management, network proxy
+- **Preload** (`src/preload/`): `bootstrap.ts` and `browser-toolbar.ts` bridge IPC
+- **Renderer** (`src/renderer/`): React SPA with Jotai atoms for state, Radix UI primitives, TailwindCSS v4 styling
+- **Transport** (`src/transport/`): `channel-map.ts` maps API methods to IPC channels via `buildClientApi()`
 
-# List (OPTIONAL: --namespace, --limit)
-npx @claude-flow/cli@latest memory list --namespace patterns --limit 10
+### `apps/cli` — CLI app
+### `apps/viewer` — Web viewer app
 
-# Retrieve (REQUIRED: --key; OPTIONAL: --namespace)
-npx @claude-flow/cli@latest memory retrieve --key "pattern-auth" --namespace patterns
-```
+## Architecture Patterns
 
-## Quick Setup
+### IPC / RPC System
+`packages/shared/src/protocol/channels.ts` defines `RPC_CHANNELS` — the canonical channel name registry organized by domain (sessions, workspaces, window, settings, etc.). Wire-format strings are the stable API contract. `apps/electron/src/transport/channel-map.ts` maps renderer method names to these channels. A lint script (`bun run lint:ipc-sends`) ensures no raw IPC sends bypass the channel map.
 
-```bash
-claude mcp add claude-flow -- npx -y @claude-flow/cli@latest
-npx @claude-flow/cli@latest daemon start
-npx @claude-flow/cli@latest doctor --fix
-```
+### Skill System
+Skills use a `depot.yaml` manifest with metadata, sources, and quick commands with template variables (`{{var_name}}`). Skills resolve from three layers: `~/.depot/skills/` (global), workspace-level, and project-level (deeper overrides shallower). Skill types defined in `packages/shared/src/skills/types.ts`. Manifest parsing in `packages/shared/src/skills/depot-manifest.ts`.
 
-## Claude Code vs CLI Tools
+### State Management (Renderer)
+Jotai atoms in `apps/electron/src/renderer/atoms/` for sessions, skills, sources, browser pane, panel stack, overlays, and automations.
 
-- Claude Code's Task tool handles ALL execution: agents, file ops, code generation, git
-- CLI tools handle coordination via Bash: swarm init, memory, hooks, routing
-- NEVER use CLI tools as a substitute for Task tool agents
+### Agent System
+`BaseAgent` in `packages/shared/src/agent/base-agent.ts` is the abstract base. `ClaudeAgent` (Anthropic), `PiAgent` (Pi AI) are concrete implementations. Agent tools are defined in `packages/session-tools-core/src/tool-defs.ts`.
 
-## Support
+## Key Conventions
 
-- Documentation: https://github.com/ruvnet/claude-flow
-- Issues: https://github.com/ruvnet/claude-flow/issues
+- TypeScript strict mode with `noUncheckedIndexedAccess` enabled
+- `bunfig.toml` preloads the network interceptor (`packages/shared/src/unified-network-interceptor.ts`) for all Bun processes
+- React 18 with JSX transform (`react-jsx`), not React 19
+- TailwindCSS v4 (via `@tailwindcss/vite` plugin)
+- UI components use Radix primitives + `class-variance-authority` + `tailwind-merge`
+- Path alias `@/*` maps to `src/*` in tsconfig
+- ESM throughout (`"type": "module"` in all packages), except Electron main process outputs CJS (`dist/main.cjs`)

@@ -3,6 +3,12 @@ icon: "code-2"
 description: "Thorough PR reviews, security scanning, and architecture analysis from a senior engineer perspective"
 sources:
   - "github"
+# project_paths tells the agent which directories it operates in.
+# The agent's working directory is set to the first path, and CLAUDE.md
+# files from each path are loaded as context automatically.
+# project_paths:
+#   - "~/projects/my-app"
+#   - "~/projects/my-shared-lib"
 quick_commands:
   - name: "Deep PR Review"
     prompt: "Perform a deep review of PR #{{pr_number}}. Evaluate correctness, security, performance, maintainability, and test coverage. Classify each finding as blocker, suggestion, or nit. Reference specific lines and propose alternatives where applicable."

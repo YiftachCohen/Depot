@@ -279,6 +279,7 @@ export const RPC_CHANNELS = {
   appearance: {
     GET_RICH_TOOL_DESCRIPTIONS: 'appearance:getRichToolDescriptions',
     SET_RICH_TOOL_DESCRIPTIONS: 'appearance:setRichToolDescriptions',
+    SET_APP_ICON: 'appearance:setAppIcon',
   },
   badge: {
     REFRESH: 'badge:refresh',

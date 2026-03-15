@@ -79,8 +79,18 @@ export interface LinkItem {
   contextMenu?: SidebarContextMenuConfig
   // Drag-and-drop: flat list reorder (e.g., statuses)
   sortable?: SortableConfig
+  // Muted text style for subordinate items (e.g., conversations under agents)
+  muted?: boolean
   // Optional element rendered after the title (e.g., label type icon), revealed on hover
   afterTitle?: React.ReactNode
+  /** Subtitle text shown below the title (e.g., relative time) */
+  subtitle?: string
+  /** Action button shown on hover (right side) */
+  hoverAction?: {
+    icon: LucideIcon
+    onClick: (e: React.MouseEvent) => void
+    label: string
+  }
 }
 
 export interface SeparatorItem {
@@ -90,7 +100,7 @@ export interface SeparatorItem {
 
 export type SidebarItem = LinkItem | SeparatorItem
 
-export const isSeparatorItem = (item: SidebarItem): item is SeparatorItem =>
+const isSeparatorItem = (item: SidebarItem): item is SeparatorItem =>
   'type' in item && item.type === 'separator'
 
 interface LeftSidebarProps {
@@ -149,7 +159,7 @@ const itemVariants: Variants = {
  *
  * Styling matches agent items in the sidebar for consistency:
  * - py-[7px] px-2 text-[13px] rounded-md
- * - Icon: h-3.5 w-3.5
+ * - Icon: h-4 w-4
  *
  * Link variants:
  * - "default": Highlighted style (used for active/selected items)
@@ -179,8 +189,8 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
     <div className={cn("flex flex-col select-none", !isNested && "py-1")}>
       <NavWrapper
         className={cn(
-          "grid gap-0.5",
-          isNested ? "pl-5 pr-0 relative" : "px-2"
+          "grid gap-1",
+          isNested ? "pl-6 pr-0 relative" : "px-2"
         )}
         role="navigation"
         aria-label={isNested ? "Sub navigation" : "Main navigation"}
@@ -189,7 +199,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
         {/* Vertical line for nested items - 4px left of chevron center */}
         {isNested && (
           <div
-            className="absolute left-[13px] top-1 bottom-1 w-px bg-foreground/10"
+            className="absolute left-[15px] top-1 bottom-1 w-[1.5px] rounded-full bg-sidebar-indent"
             aria-hidden="true"
           />
         )}
@@ -197,9 +207,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
           // Handle separator items
           if (isSeparatorItem(item)) {
             return (
-              <div key={item.id} className="py-1 px-2" aria-hidden="true">
-                <div className="h-px bg-foreground/5" />
-              </div>
+              <div key={item.id} className="py-1.5" aria-hidden="true" />
             )
           }
 
@@ -262,7 +270,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
                   {link.expanded && (
                     <motion.div
                       initial={{ height: 0, opacity: 0, marginTop: 0, marginBottom: 0 }}
-                      animate={{ height: 'auto', opacity: 1, marginTop: 2, marginBottom: isNested ? 4 : 8 }}
+                      animate={{ height: 'auto', opacity: 1, marginTop: 2, marginBottom: isNested ? 2 : 8 }}
                       exit={{ height: 0, opacity: 0, marginTop: 0, marginBottom: 0 }}
                       transition={{ duration: 0.2, ease: 'easeInOut' }}
                       className="overflow-hidden"
@@ -369,7 +377,7 @@ function SortableStatusList({ items, onReorder, getItemProps, focusedItemId, tra
 
   return (
     <div className="flex flex-col select-none">
-      <div className="pl-5 pr-0 relative">
+      <div className="pl-6 pr-0 relative">
         {/* Vertical line for nested items */}
         <div
           className="absolute left-[13px] top-1 bottom-1 w-px bg-foreground/10"
@@ -378,7 +386,7 @@ function SortableStatusList({ items, onReorder, getItemProps, focusedItemId, tra
         <SortableList
           items={sortableItems}
           onReorder={handleReorder}
-          className="grid gap-0.5"
+          className="grid gap-1"
           renderItem={(item) => (
             <div className="group/section">
               {item.contextMenu ? (
@@ -486,20 +494,27 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
         onClick={isOverlay ? undefined : link.onClick}
         data-tutorial={link.dataTutorial}
         className={cn(
-          "group flex w-full items-center gap-2 rounded-[6px] text-[13px] select-none outline-none",
+          "group flex w-full gap-2.5 rounded-[6px] text-[13px] select-none outline-none",
+          link.subtitle ? "items-start" : "items-center",
           "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
-          // Compact mode: 4px less total height (py-[3px] vs py-[5px])
-          link.compact ? "py-[3px]" : "py-[5px]",
+          // Compact mode: reduced vertical padding; subtitle items get more room
+          link.subtitle ? "py-[6px]" : link.compact ? "py-[5px]" : "py-[7px]",
+          // Section headers: small uppercase labels for expandable top-level items
+          link.expandable && !link.compact && "text-[11px] font-semibold uppercase tracking-wider text-sidebar-section",
+          // Leaf items (non-compact) get medium weight
+          !link.expandable && !link.compact && "font-medium",
+          // Muted style for subordinate items (lighter text)
+          link.muted && "text-foreground/55",
           "px-2",
           link.variant === "default"
-            ? "bg-foreground/[0.07]"
+            ? "bg-sidebar-active text-foreground"
             // Highlight on hover, context menu open (data-state), or EditPopover active (data-edit-active)
             : "hover:bg-sidebar-hover data-[state=open]:bg-sidebar-hover data-[edit-active=true]:bg-sidebar-hover",
           extraClassName,
         )}
       >
         {/* Icon container with hover toggle for expandable items */}
-        <span className="relative h-3.5 w-3.5 shrink-0 flex items-center justify-center">
+        <span className={cn("relative h-4 w-4 shrink-0 flex items-center justify-center", link.subtitle && "mt-[2px]")}>
           {link.expandable && !isOverlay ? (
             <>
               {/* Main icon - hidden on hover */}
@@ -517,7 +532,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
               >
                 <ChevronRight
                   className={cn(
-                    "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                    "h-4 w-4 text-muted-foreground transition-transform duration-200",
                     link.expanded && "rotate-90"
                   )}
                 />
@@ -527,7 +542,15 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
             renderIcon(link)
           )}
         </span>
-        {link.title}
+        {/* Title (with optional subtitle underneath) */}
+        {link.subtitle ? (
+          <span className="flex flex-col min-w-0 text-left">
+            <span className="truncate">{link.title}</span>
+            <span className="text-[10px] leading-tight text-foreground/30 truncate">{link.subtitle}</span>
+          </span>
+        ) : (
+          link.title
+        )}
         {/* After-title element: type indicator icon, right-aligned before count badge, revealed on hover */}
         {link.afterTitle && (
           <span className="ml-auto opacity-0 group-hover/section:opacity-100 group-data-[state=open]:opacity-100 group-data-[edit-active=true]:opacity-100 transition-opacity">
@@ -536,9 +559,25 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
         )}
         {/* Label Badge: Shows count or status on the right, revealed on section hover */}
         {link.label && (
-          <span className={cn(link.afterTitle ? 'ml-0' : 'ml-auto', 'text-xs text-foreground/30 opacity-0 group-hover/section:opacity-100 group-data-[state=open]:opacity-100 group-data-[edit-active=true]:opacity-100 transition-opacity')}>
+          <span className={cn(
+            link.afterTitle ? 'ml-0' : 'ml-auto',
+            'transition-opacity',
+            link.expandable
+              ? 'text-[9px] text-foreground/35 bg-foreground/[0.04] rounded-full px-1.5 py-px opacity-100'
+              : 'text-xs text-foreground/30 opacity-0 group-hover/section:opacity-100 group-data-[state=open]:opacity-100 group-data-[edit-active=true]:opacity-100'
+          )}>
             {link.label}
           </span>
+        )}
+        {/* Hover action button (e.g., archive) */}
+        {link.hoverAction && (
+          <button
+            className="ml-auto shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-foreground/10"
+            onClick={(e) => { e.stopPropagation(); link.hoverAction!.onClick(e) }}
+            aria-label={link.hoverAction.label}
+          >
+            <link.hoverAction.icon className="h-3.5 w-3.5 text-foreground/40" />
+          </button>
         )}
       </button>
     )
@@ -553,7 +592,7 @@ function renderIcon(link: LinkItem) {
   const isComponent = typeof link.icon === 'function' ||
     (typeof link.icon === 'object' && link.icon !== null && 'render' in link.icon)
   // Default color for items without explicit iconColor (foreground at 60% opacity)
-  const defaultColor = 'color-mix(in oklch, var(--foreground) 60%, transparent)'
+  const defaultColor = 'color-mix(in oklch, var(--foreground) 70%, transparent)'
 
   // Lucide components are always colorable; ReactNode icons check iconColorable
   // Default to true for backwards compatibility (most icons are colorable)
@@ -564,7 +603,7 @@ function renderIcon(link: LinkItem) {
     const Icon = link.icon as React.ComponentType<{ className?: string; style?: React.CSSProperties }>
     return (
       <Icon
-        className="h-3.5 w-3.5 shrink-0"
+        className="h-4 w-4 shrink-0"
         style={colorStyle}
       />
     )
@@ -581,7 +620,7 @@ function renderIcon(link: LinkItem) {
     : iconElement
   return (
     <span
-      className="h-3.5 w-3.5 shrink-0 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
+      className="h-4 w-4 shrink-0 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
       style={colorStyle}
     >
       {bareIcon}

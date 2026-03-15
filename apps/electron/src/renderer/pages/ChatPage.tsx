@@ -17,7 +17,7 @@ import { PanelHeaderCenterButton } from '@/components/ui/PanelHeaderCenterButton
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { StyledDropdownMenuContent, StyledDropdownMenuItem, StyledDropdownMenuSeparator } from '@/components/ui/styled-dropdown'
 import { useAppShellContext, usePendingPermission, usePendingCredential, useSessionOptionsFor, useSession as useSessionData } from '@/context/AppShellContext'
-import { useNavigation, useNavigationState, isSkillsNavigation } from '@/contexts/NavigationContext'
+import { useNavigation, useNavigationState, isSkillsNavigation, isSessionsNavigation } from '@/contexts/NavigationContext'
 import { rendererPerf } from '@/lib/perf'
 import { routes } from '@/lib/navigate'
 import { ensureSessionMessagesLoadedAtom, loadedSessionsAtom, sessionMetaMapAtom } from '@/atoms/sessions'
@@ -306,7 +306,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
 
   // Navigation context for skill-scoped sessions
   const navState = useNavigationState()
-  const { navigate } = useNavigation()
+  const { navigate, goBack } = useNavigation()
   const isInSkillContext = isSkillsNavigation(navState) && !!navState.details?.skillSlug
   const skillSlugFromNav = isInSkillContext ? navState.details!.skillSlug : undefined
 
@@ -332,19 +332,31 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     )
   }, [activeSkill, navigate])
 
-  // Back button for skill-scoped sessions (works for both nav context and session metadata)
+  // Back button — context-aware:
+  // In skills navigator: back to agent dashboard
+  // In sessions navigator: use goBack() to return to session list
+  const isInSessionsContext = isSessionsNavigation(navState)
   const backToAgentButton = React.useMemo(() => {
-    if (!effectiveSkillSlug) return undefined
+    // Always show back button when there's a skill or when in sessions context
+    if (!effectiveSkillSlug && !isInSessionsContext) return undefined
+    const handleBack = () => {
+      if (isInSessionsContext) {
+        // In sessions navigator: go back to session list (or browser history)
+        goBack()
+      } else if (effectiveSkillSlug) {
+        navigate(routes.view.skills(effectiveSkillSlug))
+      }
+    }
     return (
       <button
-        onClick={() => navigate(routes.view.skills(effectiveSkillSlug))}
+        onClick={handleBack}
         className="flex items-center gap-1 px-1.5 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04] transition-colors titlebar-no-drag"
-        aria-label="Back to agent dashboard"
+        aria-label="Back"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
       </button>
     )
-  }, [effectiveSkillSlug, navigate])
+  }, [effectiveSkillSlug, isInSessionsContext, goBack, navigate])
 
   // Get display title for header - use getSessionTitle for consistent fallback logic with SessionList
   // Priority: name > first user message > preview > "New chat"

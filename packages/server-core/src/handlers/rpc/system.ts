@@ -45,6 +45,20 @@ interface ParsedInternalDeepLink {
   handledNoop?: boolean
 }
 
+function getSupportedDeepLinkSchemes(): string[] {
+  return [...new Set([
+    process.env.CRAFT_DEEPLINK_SCHEME,
+    process.env.DEPOT_DEEPLINK_SCHEME,
+    'craftagents',
+    'depot',
+  ].filter((value): value is string => Boolean(value)))]
+}
+
+function isSupportedDeepLinkProtocol(protocol: string): boolean {
+  const normalizedProtocol = protocol.endsWith(':') ? protocol.slice(0, -1) : protocol
+  return getSupportedDeepLinkSchemes().includes(normalizedProtocol)
+}
+
 const COMPOUND_ROUTE_PREFIXES = new Set([
   'allSessions',
   'flagged',
@@ -66,8 +80,8 @@ function collectDeepLinkParams(parsed: URL, pathId?: string): Record<string, str
   return Object.keys(params).length > 0 ? params : undefined
 }
 
-function parseInternalDepotDeepLink(parsed: URL): ParsedInternalDeepLink | null {
-  if (parsed.protocol !== 'depot:') return null
+function parseInternalAppDeepLink(parsed: URL): ParsedInternalDeepLink | null {
+  if (!isSupportedDeepLinkProtocol(parsed.protocol)) return null
 
   const host = parsed.hostname
   const pathParts = parsed.pathname.split('/').filter(Boolean)
@@ -274,8 +288,8 @@ export function registerSystemCoreHandlers(server: RpcServer, deps: HandlerDeps)
     try {
       const parsed = new URL(url)
 
-      if (parsed.protocol === 'depot:') {
-        const deepLink = parseInternalDepotDeepLink(parsed)
+      const deepLink = parseInternalAppDeepLink(parsed)
+      if (deepLink) {
 
         if (deepLink?.handledNoop) {
           deps.platform.logger.info('[OPEN_URL] Ignoring auth-callback deep link in OPEN_URL handler')
@@ -287,14 +301,14 @@ export function registerSystemCoreHandlers(server: RpcServer, deps: HandlerDeps)
             ? { to: 'workspace' as const, workspaceId: deepLink.workspaceId }
             : { to: 'client' as const, clientId: ctx.clientId }
 
-          deps.platform.logger.info('[OPEN_URL] Routing depot:// URL internally via deeplink:navigate')
+          deps.platform.logger.info('[OPEN_URL] Routing app deep link internally via deeplink:navigate')
           server.push(RPC_CHANNELS.deeplink.NAVIGATE, target, deepLink.navigation)
           return
         }
 
         // For links requiring window management (e.g. window=focused/full), or
         // unknown deep-link shapes, fall back to the client protocol handler.
-        deps.platform.logger.info('[OPEN_URL] Falling back to client openExternal for depot:// URL')
+        deps.platform.logger.info('[OPEN_URL] Falling back to client openExternal for app deep link')
         const deepLinkResult = await requestClientOpenExternal(server, ctx.clientId, url)
         if (!deepLinkResult.opened) {
           deps.platform.logger.error(`[OPEN_URL] Client capability failed: ${deepLinkResult.error}`)
@@ -304,7 +318,8 @@ export function registerSystemCoreHandlers(server: RpcServer, deps: HandlerDeps)
       }
 
       if (!['http:', 'https:', 'mailto:', 'depotdocs:'].includes(parsed.protocol)) {
-        throw new Error('Only http, https, mailto, depotdocs, depot URLs are allowed')
+        const deepLinkSchemes = getSupportedDeepLinkSchemes().join(', ')
+        throw new Error(`Only http, https, mailto, depotdocs, and ${deepLinkSchemes} URLs are allowed`)
       }
 
       const result = await requestClientOpenExternal(server, ctx.clientId, url)

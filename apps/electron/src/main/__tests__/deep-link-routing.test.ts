@@ -20,6 +20,31 @@ function createMockWindow(webContentsId: number) {
 }
 
 describe('handleDeepLink routing', () => {
+  it('accepts legacy depot deep links', async () => {
+    const targetWindow = createMockWindow(18)
+
+    const windowManager = {
+      focusOrCreateWindow: () => targetWindow,
+      getFocusedWindow: () => targetWindow,
+      getLastActiveWindow: () => targetWindow,
+      getWorkspaceForWindow: () => 'ws-target',
+    } as unknown as WindowManager
+
+    const sent: Array<{ channel: string; target: unknown; args: unknown[] }> = []
+    const sink: EventSink = (channel, target, ...args) => {
+      sent.push({ channel, target, args })
+    }
+
+    await handleDeepLink(
+      'depot://workspace/ws-target/allSessions',
+      windowManager,
+      sink,
+    )
+
+    expect(sent.length).toBe(1)
+    expect(sent[0]?.channel).toBe(RPC_CHANNELS.deeplink.NAVIGATE)
+  })
+
   it('prefers resolved target client over preferred caller client', async () => {
     const targetWindow = createMockWindow(22)
 

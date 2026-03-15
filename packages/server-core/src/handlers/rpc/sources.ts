@@ -218,7 +218,7 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
         activeSourceSlugs: [sourceSlug],
       })
 
-      const toolsWithPermission = tools.map(tool => {
+      const toolsWithPermission = tools.map((tool: { name: string; description?: string }) => {
         const allowed = mergedConfig.readOnlyMcpPatterns.some((pattern: RegExp) => pattern.test(tool.name))
         return {
           name: tool.name,

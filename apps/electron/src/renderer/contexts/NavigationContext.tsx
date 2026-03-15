@@ -92,6 +92,8 @@ export type { Route }
 export type { NavigationState, SessionFilter }
 export { isSessionsNavigation, isSourcesNavigation, isSettingsNavigation, isSkillsNavigation, isAutomationsNavigation }
 
+const DEFAULT_LANDING_ROUTE: ViewRoute = routes.view.skills()
+
 // =============================================================================
 // Context
 // =============================================================================
@@ -641,13 +643,8 @@ export function NavigationProvider({
         }
       }
 
-      // Sessions: auto-select last/first session
-      if (isSessionsNavigation(nextState) && !nextState.details && !options?.skipAutoSelect) {
-        const lastSelectedSessionId = getLastSelectedSessionId(nextState.filter)
-        const fallbackSessionId = lastSelectedSessionId ?? getFirstSessionId(nextState.filter)
-        if (fallbackSessionId) {
-          return { ...nextState, details: { type: 'session', sessionId: fallbackSessionId } }
-        }
+      // Sessions: show session list (no auto-select — the SessionList is the landing view)
+      if (isSessionsNavigation(nextState) && !nextState.details) {
         return nextState
       }
 
@@ -1037,12 +1034,12 @@ export function NavigationProvider({
         // Replace all params with the saved workspace's URL
         url.search = savedSearch
       } else {
-        // No saved state — default to allSessions
+        // No saved state — land on the agent dashboard.
         for (const key of [...url.searchParams.keys()]) {
           url.searchParams.delete(key)
         }
         url.searchParams.set('ws', workspaceSlug)
-        url.searchParams.set('route', 'allSessions')
+        url.searchParams.set('route', DEFAULT_LANDING_ROUTE)
       }
 
       // Push a new history entry for the workspace switch
@@ -1089,7 +1086,7 @@ export function NavigationProvider({
 
     // If nothing was in the URL, navigate to default
     if (!params.get('route') && !params.get('panels')) {
-      navigate(routes.view.skills())
+      navigate(DEFAULT_LANDING_ROUTE)
     }
 
     // Initialize history with seq=0 (replaceState so we don't create an extra entry)
@@ -1262,29 +1259,8 @@ export function NavigationProvider({
   }, [navigationState, navigate, store])
 
   // =========================================================================
-  // AUTO-SELECT ON SESSION LOAD
+  // AUTO-SELECT ON SESSION LOAD (disabled — session list is now the landing view)
   // =========================================================================
-
-  useEffect(() => {
-    if (suppressAutoSelectRef.current) return
-    if (!isReady || !workspaceId) return
-    // Don't auto-select when panel stack is empty (user closed all panels)
-    if (store.get(panelStackAtom).length === 0) return
-    if (!isSessionsNavigation(navigationState) || navigationState.details) return
-
-    const lastSelectedSessionId = getLastSelectedSessionId(navigationState.filter)
-    const fallbackSessionId = lastSelectedSessionId ?? getFirstSessionId(navigationState.filter)
-    if (!fallbackSessionId) return
-
-    navigateToSession(fallbackSessionId)
-  }, [
-    isReady,
-    workspaceId,
-    navigationState,
-    getLastSelectedSessionId,
-    getFirstSessionId,
-    navigateToSession,
-  ])
 
   // =========================================================================
   // CONTEXT VALUE

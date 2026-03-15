@@ -13,7 +13,7 @@
  * - Runtime source switching without session restart
  */
 
-import { CraftMcpClient, type McpClientConfig, type PoolClient } from './client.ts';
+import { DepotMcpClient, type McpClientConfig, type PoolClient } from './client.ts';
 import { ApiSourcePoolClient } from './api-source-pool-client.ts';
 import type { SdkMcpServerConfig } from '../agent/backend/types.ts';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -54,7 +54,7 @@ export interface McpToolResult {
 }
 
 /**
- * Convert SdkMcpServerConfig (used by backend types) to CraftMcpClient config.
+ * Convert SdkMcpServerConfig (used by backend types) to DepotMcpClient config.
  */
 function sdkConfigToClientConfig(config: SdkMcpServerConfig): McpClientConfig | null {
   if (config.type === 'http' || config.type === 'sse') {
@@ -151,7 +151,7 @@ export class McpClientPool {
    * Shared logic for both remote MCP and in-process API sources.
    */
   protected async registerClient(slug: string, client: PoolClient): Promise<void> {
-    // listTools() triggers connect() internally for both CraftMcpClient and ApiSourcePoolClient
+    // listTools() triggers connect() internally for both DepotMcpClient and ApiSourcePoolClient
     const tools = await client.listTools();
     this.clients.set(slug, client);
     this.toolCache.set(slug, tools);
@@ -175,7 +175,7 @@ export class McpClientPool {
       this.debug(`Unknown MCP server type for ${slug}: ${(config as { type: string }).type}`);
       return;
     }
-    await this.registerClient(slug, new CraftMcpClient(clientConfig));
+    await this.registerClient(slug, new DepotMcpClient(clientConfig));
     this.activeConfigs.set(slug, config);
   }
 

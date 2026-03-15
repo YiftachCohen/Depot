@@ -140,6 +140,29 @@ export function initBadgeIcon(iconPath: string): void {
   }
 }
 
+export function setBaseDockIcon(dataUrl: string): void {
+  try {
+    baseIconPath = null
+    baseIconDataUrl = dataUrl
+
+    if (process.platform !== 'darwin') return
+
+    if (currentBadgeCount > 0) {
+      if (eventSink) {
+        eventSink(RPC_CHANNELS.badge.DRAW, { to: 'all' }, { count: currentBadgeCount, iconDataUrl: dataUrl })
+      }
+      return
+    }
+
+    const icon = nativeImage.createFromDataURL(dataUrl)
+    if (!icon.isEmpty()) {
+      app.dock?.setIcon(icon)
+    }
+  } catch (error) {
+    mainLog.error('Failed to set base dock icon:', error)
+  }
+}
+
 /**
  * Update the app badge count (cross-platform)
  *
@@ -177,10 +200,17 @@ function updateBadgeCountMacOS(count: number): void {
         eventSink(RPC_CHANNELS.badge.DRAW, { to: 'all' }, { count, iconDataUrl: baseIconDataUrl })
       }
     } else {
-      // Reset to original icon (no badge)
-      if (baseIconPath) {
+      // Reset to the current base icon (no badge)
+      if (baseIconDataUrl) {
+        const originalIcon = nativeImage.createFromDataURL(baseIconDataUrl)
+        if (!originalIcon.isEmpty()) {
+          app.dock?.setIcon(originalIcon)
+        }
+      } else if (baseIconPath) {
         const originalIcon = nativeImage.createFromPath(baseIconPath)
-        app.dock?.setIcon(originalIcon)
+        if (!originalIcon.isEmpty()) {
+          app.dock?.setIcon(originalIcon)
+        }
       }
     }
     mainLog.info('Badge count updated (macOS):', count)

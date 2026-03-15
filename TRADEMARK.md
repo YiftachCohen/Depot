@@ -40,7 +40,7 @@ If you create a fork or derivative work, you **must**:
 
 - Choose a different name that does not include "Depot"
 - Remove or replace all Depot logos and icons
-- Update the bundle identifier (e.g., `com.lukilabs.depot`) to your own
+- Update the bundle identifier to your own
 - Remove references to `depot.do` domains unless connecting to official Depot services
 
 ### Imply Official Endorsement

@@ -68,6 +68,10 @@ export interface QuickCommand {
   prompt: string;
   /** Variable definitions for template placeholders */
   variables?: QuickCommandVariable[];
+  /** Optional Lucide icon name (e.g. "rocket", "shield", "git-pull-request") */
+  icon?: string;
+  /** Optional CSS color for the button (e.g. "#10b981") */
+  color?: string;
 }
 
 /**
@@ -89,6 +93,8 @@ export interface DepotSkillManifest {
   quick_commands: QuickCommand[];
   /** Relative file paths to include as context */
   context_files?: string[];
+  /** Absolute or ~-prefixed paths to project directories this agent operates in */
+  project_paths?: string[];
 }
 
 /**
