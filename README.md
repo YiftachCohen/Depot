@@ -29,14 +29,28 @@ Depot is a fork of [Craft Agents](https://github.com/lukilabs/craft-agents-oss) 
 - **Permission modes**: Three-level system (Explore, Ask to Edit, Auto)
 - **Automations**: Event-driven automation triggered by label changes, schedules, tool use, and more
 
-## Getting Started
+## Installation
+
+Download the latest release for your platform from the [GitHub Releases](../../releases) page:
+
+| Platform | Download |
+|----------|----------|
+| macOS | `.dmg` installer |
+| Windows | `.exe` installer |
+| Linux | `.AppImage` |
+
+Open the downloaded file and follow your platform's standard install process. Once installed, Depot checks for updates automatically and installs them in the background.
+
+## Development Setup
+
+To build Depot from source:
 
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) 20+
 - [Bun](https://bun.sh/) runtime
 
-### Install and Run
+### Clone and Install
 
 ```bash
 git clone <repo-url>
