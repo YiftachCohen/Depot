@@ -23,6 +23,7 @@ export interface SessionItemProps {
   isSelected: boolean
   isFirstInGroup: boolean
   isInMultiSelect: boolean
+  isArchiving?: boolean
   onSelect: () => void
   onToggleSelect?: () => void
   onRangeSelect?: () => void
@@ -34,6 +35,7 @@ export function SessionItem({
   isSelected,
   isFirstInGroup,
   isInMultiSelect,
+  isArchiving = false,
   onSelect,
   onToggleSelect,
   onRangeSelect,
@@ -81,7 +83,10 @@ export function SessionItem({
   return (
     <EntityRow
       className="session-item"
-      dataAttributes={{ 'data-session-id': item.id }}
+      dataAttributes={{
+        'data-session-id': item.id,
+        'data-archiving': isArchiving ? 'true' : undefined,
+      }}
       showSeparator={!isFirstInGroup}
       separatorClassName="pl-[42px] pr-4"
       isSelected={isSelected}

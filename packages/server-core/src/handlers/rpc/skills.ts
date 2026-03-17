@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { readdirSync, statSync } from 'fs'
+import { readdirSync, rmSync, statSync } from 'fs'
 import { RPC_CHANNELS, type SkillFile } from '@depot/shared/protocol'
 import { getWorkspaceByNameOrId } from '@depot/shared/config'
 import type { RpcServer } from '@depot/server-core/transport'
@@ -39,10 +39,14 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
       return []
     }
 
-    const { getWorkspaceSkillsPath } = await import('@depot/shared/workspaces')
+    const { loadSkillBySlug } = await import('@depot/shared/skills')
+    const skill = loadSkillBySlug(workspace.rootPath, skillSlug)
+    if (!skill) {
+      deps.platform.logger?.error(`SKILLS_GET_FILES: Skill not found: ${skillSlug}`)
+      return []
+    }
 
-    const skillsDir = getWorkspaceSkillsPath(workspace.rootPath)
-    const skillDir = join(skillsDir, skillSlug)
+    const skillDir = skill.path
 
     function scanDirectory(dirPath: string): SkillFile[] {
       try {
@@ -85,9 +89,12 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) throw new Error('Workspace not found')
 
-    const { deleteSkill } = await import('@depot/shared/skills')
-    deleteSkill(workspace.rootPath, skillSlug)
-    deps.platform.logger?.info(`Deleted skill: ${skillSlug}`)
+    const { loadSkillBySlug } = await import('@depot/shared/skills')
+    const skill = loadSkillBySlug(workspace.rootPath, skillSlug)
+    if (!skill) throw new Error(`Skill not found: ${skillSlug}`)
+
+    rmSync(skill.path, { recursive: true, force: true })
+    deps.platform.logger?.info(`Deleted skill: ${skillSlug} at ${skill.path}`)
   })
 
   // Open skill SKILL.md in editor
@@ -95,10 +102,11 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) throw new Error('Workspace not found')
 
-    const { getWorkspaceSkillsPath } = await import('@depot/shared/workspaces')
+    const { loadSkillBySlug } = await import('@depot/shared/skills')
+    const skill = loadSkillBySlug(workspace.rootPath, skillSlug)
+    if (!skill) throw new Error(`Skill not found: ${skillSlug}`)
 
-    const skillsDir = getWorkspaceSkillsPath(workspace.rootPath)
-    const skillFile = join(skillsDir, skillSlug, 'SKILL.md')
+    const skillFile = join(skill.path, 'SKILL.md')
     await deps.platform.openPath?.(skillFile)
   })
 
@@ -107,11 +115,11 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) throw new Error('Workspace not found')
 
-    const { getWorkspaceSkillsPath } = await import('@depot/shared/workspaces')
+    const { loadSkillBySlug } = await import('@depot/shared/skills')
+    const skill = loadSkillBySlug(workspace.rootPath, skillSlug)
+    if (!skill) throw new Error(`Skill not found: ${skillSlug}`)
 
-    const skillsDir = getWorkspaceSkillsPath(workspace.rootPath)
-    const skillDir = join(skillsDir, skillSlug)
-    await deps.platform.showItemInFolder?.(skillDir)
+    await deps.platform.showItemInFolder?.(skill.path)
   })
 
   // Import skills from Claude Code (~/.claude/skills/)

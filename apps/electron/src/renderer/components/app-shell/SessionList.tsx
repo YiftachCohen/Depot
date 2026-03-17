@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { isToday, isYesterday, format, startOfDay } from "date-fns"
 import { useAction } from "@/actions"
 import { Inbox, Archive } from "lucide-react"
+import { toast } from "sonner"
 import { resolveIconComponent } from "@/lib/command-icon"
 import { getAccentColor } from "./SkillDashboard"
 import { isEmoji } from "@depot/shared/utils/icon-constants"
@@ -39,6 +40,8 @@ export interface SessionListRow {
 
 /** Grouping mode for chat list */
 export type ChatGroupingMode = 'date' | 'status' | 'skill'
+
+const ARCHIVE_HIDE_DELAY_MS = 180
 
 interface SessionListProps {
   items: SessionMeta[]
@@ -229,6 +232,8 @@ export function SessionList({
   const [renameName, setRenameName] = useState("")
   // Track if search input has actual DOM focus (for proper keyboard navigation gating)
   const [isSearchInputFocused, setIsSearchInputFocused] = useState(false)
+  const [archivingSessionIds, setArchivingSessionIds] = useState<Set<string>>(() => new Set())
+  const archiveTimeoutsRef = useRef<Map<string, number>>(new Map())
 
   // Collapsed group keys (for collapsible group headers) — persisted per workspace/filter/grouping context
   const collapseScopeSuffix = useMemo(() => {
@@ -536,10 +541,80 @@ export function SessionList({
   const {
     handleFlagWithToast,
     handleUnflagWithToast,
-    handleArchiveWithToast,
     handleUnarchiveWithToast,
     handleDeleteWithToast,
   } = useSessionActions({ onFlag, onUnflag, onArchive, onUnarchive, onDelete })
+
+  const clearPendingArchive = useCallback((sessionId: string) => {
+    const timeoutId = archiveTimeoutsRef.current.get(sessionId)
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId)
+      archiveTimeoutsRef.current.delete(sessionId)
+    }
+    setArchivingSessionIds(prev => {
+      if (!prev.has(sessionId)) return prev
+      const next = new Set(prev)
+      next.delete(sessionId)
+      return next
+    })
+  }, [])
+
+  const handleArchiveUndo = useCallback((sessionId: string) => {
+    const timeoutId = archiveTimeoutsRef.current.get(sessionId)
+    if (timeoutId !== undefined) {
+      clearPendingArchive(sessionId)
+      return
+    }
+    onUnarchive?.(sessionId)
+  }, [clearPendingArchive, onUnarchive])
+
+  const handleArchiveWithTransition = useCallback((sessionId: string) => {
+    if (!onArchive || archiveTimeoutsRef.current.has(sessionId)) return
+
+    setArchivingSessionIds(prev => {
+      if (prev.has(sessionId)) return prev
+      const next = new Set(prev)
+      next.add(sessionId)
+      return next
+    })
+
+    const timeoutId = window.setTimeout(() => {
+      archiveTimeoutsRef.current.delete(sessionId)
+      onArchive(sessionId)
+    }, ARCHIVE_HIDE_DELAY_MS)
+
+    archiveTimeoutsRef.current.set(sessionId, timeoutId)
+
+    toast('Session archived', {
+      description: 'Moved to archive',
+      action: onUnarchive ? {
+        label: 'Undo',
+        onClick: () => handleArchiveUndo(sessionId),
+      } : undefined,
+    })
+  }, [onArchive, onUnarchive, handleArchiveUndo])
+
+  useEffect(() => {
+    return () => {
+      archiveTimeoutsRef.current.forEach(timeoutId => window.clearTimeout(timeoutId))
+      archiveTimeoutsRef.current.clear()
+    }
+  }, [])
+
+  useEffect(() => {
+    const itemIds = new Set(items.map(item => item.id))
+    setArchivingSessionIds(prev => {
+      let changed = false
+      const next = new Set(prev)
+      prev.forEach(sessionId => {
+        if (!itemIds.has(sessionId) && !archiveTimeoutsRef.current.has(sessionId)) {
+          next.delete(sessionId)
+          changed = true
+        }
+      })
+      return changed ? next : prev
+    })
+  }, [items])
 
   // --- Focus zone ---
   const { focusZone } = useFocusContext()
@@ -688,7 +763,7 @@ export function SessionList({
     onSessionStatusChange,
     onFlag: onFlag ? handleFlagWithToast : undefined,
     onUnflag: onUnflag ? handleUnflagWithToast : undefined,
-    onArchive: onArchive ? handleArchiveWithToast : undefined,
+    onArchive: onArchive ? handleArchiveWithTransition : undefined,
     onUnarchive: onUnarchive ? handleUnarchiveWithToast : undefined,
     onMarkUnread,
     onDelete: handleDeleteWithToast,
@@ -709,7 +784,7 @@ export function SessionList({
   }), [
     handleRenameClick, onSessionStatusChange,
     onFlag, handleFlagWithToast, onUnflag, handleUnflagWithToast,
-    onArchive, handleArchiveWithToast, onUnarchive, handleUnarchiveWithToast,
+    onArchive, handleArchiveWithTransition, onUnarchive, handleUnarchiveWithToast,
     onMarkUnread, handleDeleteWithToast, onLabelsChange,
     handleSelectSessionById, handleOpenInNewWindow, handleFocusZone, handleKeyDown,
     sessionStatuses, flatLabels, labels, resolvedSearchQuery,
@@ -793,6 +868,7 @@ export function SessionList({
               isSelected={rowProps.isSelected}
               isFirstInGroup={isFirstInGroup}
               isInMultiSelect={rowProps.isInMultiSelect ?? false}
+              isArchiving={archivingSessionIds.has(row.item.id)}
               onSelect={() => handleSelectSession(row, flatIndex)}
               onToggleSelect={() => handleToggleSelect(row, flatIndex)}
               onRangeSelect={() => handleRangeSelect(flatIndex)}

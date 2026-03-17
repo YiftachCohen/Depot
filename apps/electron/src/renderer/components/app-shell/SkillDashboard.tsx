@@ -5,7 +5,7 @@
  * a greeting header, recent sessions feed, and agent management actions.
  */
 import * as React from 'react'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
@@ -26,6 +26,39 @@ import { navigate, routes } from '@/lib/navigate'
 import { cn } from '@/lib/utils'
 import { isAgent } from '../../../shared/types'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../shared/types'
+
+// ---------------------------------------------------------------------------
+// Skill Creator Prompt
+// ---------------------------------------------------------------------------
+const SKILL_CREATOR_PROMPT = `/skill-creator
+
+I want to create a new agent for Depot. Depot agents are standard Claude Code skills with one addition: a \`depot.yaml\` manifest file alongside the SKILL.md.
+
+**Important — after creating the SKILL.md, also create a \`depot.yaml\` in the same directory** with this format:
+\`\`\`yaml
+name: "Agent Name"
+icon: "bot"  # Lucide icon name (e.g. code-2, git-pull-request, shield, rocket, bug, server, database, terminal, sparkles, wrench, globe, search, layers, settings, book-open, zap, flask-conical, bar-chart-3, clipboard-list, eye, message-square, file-code, folder-kanban, hammer, refresh-cw, circle-check, package-plus, alert-triangle)
+description: "Brief description"
+sources:  # Optional: MCP sources to auto-connect
+  - "github"
+quick_commands:
+  - name: "Command Name"
+    prompt: "Prompt template with {{variable}} placeholders"
+    icon: "zap"  # Optional Lucide icon
+    variables:  # Optional: only if prompt has {{placeholders}}
+      - name: "variable"
+        type: "text"  # text | select | number
+        label: "Human Label"
+        placeholder: "e.g. example value"
+  - name: "Another Command"
+    prompt: "A simpler prompt with no variables"
+\`\`\`
+
+The skill directory should be created at **~/.depot/skills/{slug}/** (not ~/.claude/skills/).
+
+After creating both files, run \`skill_validate\` to verify the result.
+
+Let's start — what kind of agent would you like to create?`
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -175,12 +208,10 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const { activeWorkspaceId, onCreateSession, onSendMessage } = useAppShellContext()
   const [searchQuery, setSearchQuery] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [createName, setCreateName] = useState('')
-  const [createDesc, setCreateDesc] = useState('')
-  const [creating, setCreating] = useState(false)
   const [enabledSlugs, setEnabledSlugs] = useState<string[] | undefined>(undefined)
   const [userName, setUserName] = useState('')
+  const previousSkillSlugsRef = useRef<Set<string>>(new Set())
+  const hasInitializedSkillFilterRef = useRef(false)
 
   useEffect(() => {
     if (!activeWorkspaceId) return
@@ -189,11 +220,48 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   }, [activeWorkspaceId])
 
   useEffect(() => {
+    previousSkillSlugsRef.current = new Set()
+    hasInitializedSkillFilterRef.current = false
+  }, [activeWorkspaceId])
+
+  useEffect(() => {
     window.electronAPI.readPreferences()
       .then(({ content }) => {
         try { const prefs = JSON.parse(content); if (prefs.name) setUserName(prefs.name) } catch {}
       }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    const currentSkillSlugs = new Set(skills.map((skill) => skill.slug))
+
+    if (!enabledSlugs || enabledSlugs.length === 0) {
+      previousSkillSlugsRef.current = currentSkillSlugs
+      hasInitializedSkillFilterRef.current = false
+      return
+    }
+
+    if (!hasInitializedSkillFilterRef.current) {
+      previousSkillSlugsRef.current = currentSkillSlugs
+      hasInitializedSkillFilterRef.current = true
+      return
+    }
+
+    const enabledSet = new Set(enabledSlugs)
+    const addedSkillSlugs = Array.from(currentSkillSlugs).filter((slug) =>
+      !previousSkillSlugsRef.current.has(slug) && !enabledSet.has(slug),
+    )
+
+    previousSkillSlugsRef.current = currentSkillSlugs
+
+    if (!activeWorkspaceId || addedSkillSlugs.length === 0) {
+      return
+    }
+
+    const nextEnabledSlugs = Array.from(new Set([...enabledSlugs, ...addedSkillSlugs]))
+    setEnabledSlugs(nextEnabledSlugs)
+    window.electronAPI.updateWorkspaceSetting(activeWorkspaceId, 'enabledSkillSlugs', nextEnabledSlugs)
+      .catch((err: unknown) => console.error('Failed to auto-enable new skills:', err))
+  }, [activeWorkspaceId, enabledSlugs, skills])
 
   const skillStats = useMemo(() => {
     const stats = new Map<string, SkillSessionStats>()
@@ -259,26 +327,20 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       .catch((err: unknown) => console.error('Failed to save enabledSkillSlugs:', err))
   }, [activeWorkspaceId])
 
-  const handleCreateSkill = useCallback(async () => {
-    if (!createName.trim()) return
-    const slug = createName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    if (!slug) return
-    setCreating(true)
-    try {
-      await window.electronAPI.createSkill(slug, createName.trim(), createDesc.trim())
-      if (activeWorkspaceId && enabledSlugs && enabledSlugs.length > 0) {
-        const updated = [...enabledSlugs, slug]
-        setEnabledSlugs(updated)
-        await window.electronAPI.updateWorkspaceSetting(activeWorkspaceId, 'enabledSkillSlugs', updated)
-      }
-      setCreateName(''); setCreateDesc(''); setShowCreateForm(false)
-    } catch (err) { console.error('Failed to create skill:', err) }
-    finally { setCreating(false) }
-  }, [createName, createDesc, activeWorkspaceId, enabledSlugs])
+  const handleCreateAgentSession = useCallback(async () => {
+    if (!activeWorkspaceId) return
+    const session = await onCreateSession(activeWorkspaceId, {
+      name: 'Create New Agent',
+    })
+    if (session?.id) {
+      onSendMessage(session.id, SKILL_CREATOR_PROMPT)
+      navigate(routes.view.allSessions(session.id))
+    }
+  }, [activeWorkspaceId, onCreateSession, onSendMessage])
 
   const headerActions = (
     <div className="flex items-center gap-1">
-      <button type="button" onClick={() => setShowCreateForm((v) => !v)} aria-label="Create Agent"
+      <button type="button" onClick={handleCreateAgentSession} aria-label="Create Agent"
         className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Create Agent">
         <Plus className="h-4 w-4 text-muted-foreground" />
       </button>
@@ -592,22 +654,6 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             )}
           </motion.div>
 
-          {/* Inline create form */}
-          {showCreateForm && (
-            <div className="border border-border/60 rounded-xl p-4 space-y-2 bg-foreground/[0.02]">
-              <input type="text" placeholder="Agent name" value={createName} onChange={(e) => setCreateName(e.target.value)} autoFocus className={INPUT_CLS} />
-              <input type="text" placeholder="What does this agent do?" value={createDesc} onChange={(e) => setCreateDesc(e.target.value)} className={INPUT_CLS} />
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button type="button" onClick={() => { setShowCreateForm(false); setCreateName(''); setCreateDesc('') }}
-                  className="h-7 px-3 text-xs font-medium rounded-md hover:bg-foreground/[0.05] transition-colors">Cancel</button>
-                <button type="button" disabled={!createName.trim() || creating} onClick={handleCreateSkill}
-                  className={cn('h-7 px-3 text-xs font-medium rounded-md transition-colors bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 disabled:pointer-events-none')}>
-                  {creating ? 'Creating...' : 'Create'}
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Agent list */}
           {filteredAgents.length > 0 && (
             <motion.div className={gridCls} variants={containerVariants} initial="hidden" animate="visible">
@@ -722,7 +768,8 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       </ScrollArea>
 
       <SkillPicker open={pickerOpen} onOpenChange={setPickerOpen}
-        workspaceId={activeWorkspaceId ?? ''} enabledSlugs={enabledSlugs} onSave={handleSaveEnabledSlugs} />
+        workspaceId={activeWorkspaceId ?? ''} enabledSlugs={enabledSlugs} onSave={handleSaveEnabledSlugs}
+        onCreateAgent={handleCreateAgentSession} />
     </div>
   )
 }

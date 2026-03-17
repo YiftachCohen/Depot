@@ -9,9 +9,10 @@
  * - ~/.craft-agent/preferences.json - User preferences
  * - ~/.craft-agent/theme.json - App-level theme overrides
  * - ~/.craft-agent/themes/*.json - Preset theme files (app-level)
+ * - ~/.depot/skills/ - Global Depot skills (recursive)
  * - ~/.craft-agent/workspaces/{slug}/ - Workspace directory (recursive)
  *   - sources/{slug}/config.json, guide.md, permissions.json
- *   - skills/{slug}/SKILL.md, icon.*
+ *   - skills/{slug}/SKILL.md, depot.yaml, icon.*
  *   - sessions/{id}/session.jsonl (header metadata only)
  *   - permissions.json
  */
@@ -43,7 +44,14 @@ import {
 import { permissionsConfigCache, getAppPermissionsDir } from '../agent/permissions-config.ts';
 import { getWorkspacePath, getWorkspaceSourcesPath, getWorkspaceSkillsPath } from '../workspaces/storage.ts';
 import type { LoadedSkill } from '../skills/types.ts';
-import { loadSkill, loadAllSkills, skillNeedsIconDownload, downloadSkillIcon } from '../skills/storage.ts';
+import {
+  GLOBAL_AGENT_SKILLS_DIR,
+  GLOBAL_DEPOT_SKILLS_DIR,
+  loadSkill,
+  loadAllSkills,
+  skillNeedsIconDownload,
+  downloadSkillIcon,
+} from '../skills/storage.ts';
 import {
   loadStatusConfig,
   statusNeedsIconDownload,
@@ -254,6 +262,10 @@ export class ConfigWatcher {
     this.watchWorkspaceDir();
     span.mark('watchWorkspaceDir');
 
+    // Watch global Depot/agent skills so UI updates when agents are created outside the workspace
+    this.watchGlobalSkillDirs();
+    span.mark('watchGlobalSkillDirs');
+
     // Watch app-level themes directory
     this.watchAppThemesDir();
     span.mark('watchAppThemesDir');
@@ -385,6 +397,40 @@ export class ConfigWatcher {
   }
 
   /**
+   * Watch global skill directories that participate in loadAllSkills().
+   */
+  private watchGlobalSkillDirs(): void {
+    // The primary Depot skills directory is where the "Create Agent" flow writes new agents.
+    mkdirSync(GLOBAL_DEPOT_SKILLS_DIR, { recursive: true });
+    this.watchGlobalSkillDir(GLOBAL_DEPOT_SKILLS_DIR, 'depot');
+
+    // Only watch the fallback directory if it already exists.
+    if (existsSync(GLOBAL_AGENT_SKILLS_DIR)) {
+      this.watchGlobalSkillDir(GLOBAL_AGENT_SKILLS_DIR, 'agents');
+    }
+  }
+
+  /**
+   * Watch a global skills directory recursively and map changes back to the merged skill list.
+   */
+  private watchGlobalSkillDir(skillsDir: string, scope: 'depot' | 'agents'): void {
+    debug('[ConfigWatcher] Setting up global skill watcher for:', skillsDir);
+    try {
+      const watcher = watch(skillsDir, { recursive: true }, (eventType, filename) => {
+        if (!filename) return;
+
+        const normalizedPath = filename.replace(/\\/g, '/');
+        this.handleGlobalSkillFileChange(normalizedPath, eventType, scope);
+      });
+
+      this.watchers.push(watcher);
+      debug('[ConfigWatcher] Watching global skills recursively:', skillsDir);
+    } catch (error) {
+      debug('[ConfigWatcher] Error watching global skill directory:', skillsDir, error);
+    }
+  }
+
+  /**
    * Handle a file change within the workspace directory
    */
   private handleWorkspaceFileChange(relativePath: string, eventType: string): void {
@@ -492,6 +538,26 @@ export class ConfigWatcher {
         return;
       }
 
+    }
+  }
+
+  /**
+   * Handle a file change within a global skills directory.
+   */
+  private handleGlobalSkillFileChange(relativePath: string, _eventType: string, scope: 'depot' | 'agents'): void {
+    const parts = relativePath.split('/');
+    const slug = parts[0];
+    const file = parts[1];
+
+    if (!slug) return;
+
+    if (parts.length === 1) {
+      this.debounce(`global-skills-dir:${scope}`, () => this.handleGlobalSkillsChange(scope));
+      return;
+    }
+
+    if (file === 'SKILL.md' || file === 'depot.yaml' || (file && /^icon\.(svg|png|jpg|jpeg)$/i.test(file))) {
+      this.debounce(`global-skill:${scope}:${slug}`, () => this.handleGlobalSkillsChange(scope, slug));
     }
   }
 
@@ -788,6 +854,24 @@ export class ConfigWatcher {
         .catch((error) => {
           debug('[ConfigWatcher] Icon download failed for skill:', slug, error);
         });
+    }
+  }
+
+  /**
+   * Handle any change under a global skills directory by reloading the merged skill list.
+   */
+  private handleGlobalSkillsChange(scope: 'depot' | 'agents', slug?: string): void {
+    debug('[ConfigWatcher] Global skills changed:', scope, slug ?? '(list)');
+
+    try {
+      const allSkills = loadAllSkills(this.workspaceDir);
+      if (slug) {
+        this.callbacks.onSkillChange?.(slug, allSkills.find((skill) => skill.slug === slug) ?? null);
+      }
+      this.callbacks.onSkillsListChange?.(allSkills);
+    } catch (error) {
+      debug('[ConfigWatcher] Error handling global skills change:', error);
+      this.callbacks.onError?.(`${scope}-global-skills/`, error as Error);
     }
   }
 
