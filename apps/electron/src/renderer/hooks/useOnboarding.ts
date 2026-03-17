@@ -390,18 +390,35 @@ export function useOnboarding({
     const isBedrockProfileFlow = state.apiSetupMethod === 'bedrock_profile'
 
     try {
-      // Bedrock AWS Profile — no API key validation or connection test needed.
-      // Profile name is packed into apiKey, region into piAuthProvider by the form.
+      // Bedrock AWS Profile — save config then run a connection test to catch
+      // typoed profiles or expired SSO sessions before marking complete.
       if (isBedrockProfileFlow) {
-        const saved = await handleSaveConfig(undefined, {
-          awsProfile: data.apiKey || 'default',
-          awsRegion: data.piAuthProvider,
-        })
-        if (saved) {
-          setState(s => ({ ...s, credentialStatus: 'success', step: 'complete' }))
-        } else {
+        const awsProfile = data.apiKey.trim() || 'default'
+        const awsRegion = data.piAuthProvider?.trim()
+        const connectionSlug = apiSetupMethodToConnectionSetup(
+          'bedrock_profile',
+          { awsProfile, awsRegion },
+          editingSlug,
+          existingSlugs,
+        ).slug
+
+        const saved = await handleSaveConfig(undefined, { awsProfile, awsRegion })
+        if (!saved) {
           setState(s => ({ ...s, credentialStatus: 'error' }))
+          return
         }
+
+        const testResult = await window.electronAPI.testLlmConnection(connectionSlug)
+        if (!testResult.success) {
+          setState(s => ({
+            ...s,
+            credentialStatus: 'error',
+            errorMessage: testResult.error || 'Connection test failed',
+          }))
+          return
+        }
+
+        setState(s => ({ ...s, credentialStatus: 'success', step: 'complete' }))
         return
       }
 
@@ -494,7 +511,7 @@ export function useOnboarding({
         errorMessage: error instanceof Error ? error.message : 'Validation failed',
       }))
     }
-  }, [handleSaveConfig, state.apiSetupMethod])
+  }, [handleSaveConfig, state.apiSetupMethod, editingSlug, existingSlugs])
 
   // Save config, validate the connection, and update state accordingly.
   // Shared by all OAuth flows after tokens are captured.
