@@ -26,7 +26,9 @@ module.exports = async function afterPack(context) {
   }
 
   const appPath = context.appOutDir;
-  const resourcesDir = path.join(appPath, 'Depot Agents.app', 'Contents', 'Resources');
+  // Product name from electron-builder.yml determines the .app bundle name
+  const productName = context.packager.appInfo.productName;
+  const resourcesDir = path.join(appPath, `${productName}.app`, 'Contents', 'Resources');
   const precompiledAssets = path.join(context.packager.projectDir, 'resources', 'Assets.car');
 
   console.log(`afterPack: projectDir=${context.packager.projectDir}`);
