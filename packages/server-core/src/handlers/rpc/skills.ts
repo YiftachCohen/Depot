@@ -42,8 +42,7 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
     const { loadSkillBySlug } = await import('@depot/shared/skills')
     const skill = loadSkillBySlug(workspace.rootPath, skillSlug)
     if (!skill) {
-      deps.platform.logger?.error(`SKILLS_GET_FILES: Skill not found: ${skillSlug}`)
-      return []
+      throw new Error(`Skill not found: ${skillSlug}`)
     }
 
     const skillDir = skill.path

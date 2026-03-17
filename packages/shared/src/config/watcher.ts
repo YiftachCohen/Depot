@@ -483,7 +483,7 @@ export class ConfigWatcher {
       }
 
       // File-level changes
-      if (file === 'SKILL.md') {
+      if (file === 'SKILL.md' || file === 'depot.yaml') {
         this.debounce(`skill:${slug}`, () => this.handleSkillChange(slug));
       } else if (file && /^icon\.(svg|png|jpg|jpeg)$/i.test(file)) {
         // Icon file changes also trigger a skill change (to update iconPath)

@@ -194,8 +194,9 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
   }, [allSkills, selected, onSave, onOpenChange])
 
   const handleCreateAgent = useCallback(() => {
+    if (!onCreateAgent) return
     onOpenChange(false)
-    onCreateAgent?.()
+    onCreateAgent()
   }, [onOpenChange, onCreateAgent])
 
   const handlePromoted = useCallback(() => {
@@ -340,7 +341,7 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
             )}
 
         {/* Create Agent button */}
-        {!promotingSlug && (
+        {!promotingSlug && onCreateAgent && (
           <button
             type="button"
             onClick={handleCreateAgent}

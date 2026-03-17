@@ -560,12 +560,11 @@ export function SessionList({
   }, [])
 
   const handleArchiveUndo = useCallback((sessionId: string) => {
-    const timeoutId = archiveTimeoutsRef.current.get(sessionId)
-    if (timeoutId !== undefined) {
-      clearPendingArchive(sessionId)
-      return
+    const hadPendingTimeout = archiveTimeoutsRef.current.has(sessionId)
+    clearPendingArchive(sessionId)
+    if (!hadPendingTimeout) {
+      onUnarchive?.(sessionId)
     }
-    onUnarchive?.(sessionId)
   }, [clearPendingArchive, onUnarchive])
 
   const handleArchiveWithTransition = useCallback((sessionId: string) => {
