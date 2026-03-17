@@ -10,6 +10,7 @@ import { describe, it, expect } from 'bun:test'
 import {
   resolveAuthEnvVars,
   isValidProviderAuthCombination,
+  authTypeToCredentialStorageType,
   getDefaultModelsForConnection,
   getDefaultModelForConnection,
   isAnthropicProvider,
@@ -361,5 +362,102 @@ describe('getDefaultModelForConnection — bedrock', () => {
 describe('isAnthropicProvider — bedrock', () => {
   it('returns true for bedrock', () => {
     expect(isAnthropicProvider('bedrock')).toBe(true)
+  })
+})
+
+// ============================================================
+// resolveAuthEnvVars — Bedrock + aws_profile
+// ============================================================
+
+describe('resolveAuthEnvVars — bedrock + aws_profile', () => {
+  it('sets AWS_PROFILE and CLAUDE_CODE_USE_BEDROCK=1', async () => {
+    const connection = createBedrockConnection({
+      authType: 'aws_profile',
+      awsProfile: 'my-corp-profile',
+    })
+
+    const credentialManager = createMockCredentialManager()
+
+    const result = await resolveAuthEnvVars(
+      connection,
+      'bedrock-test',
+      credentialManager,
+      createNoopGetValidOAuthToken(),
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.envVars.CLAUDE_CODE_USE_BEDROCK).toBe('1')
+    expect(result.envVars.AWS_PROFILE).toBe('my-corp-profile')
+    // Should NOT inject explicit credentials — SDK resolves from profile
+    expect(result.envVars.AWS_ACCESS_KEY_ID).toBeUndefined()
+    expect(result.envVars.AWS_SECRET_ACCESS_KEY).toBeUndefined()
+    expect(result.envVars.AWS_SESSION_TOKEN).toBeUndefined()
+  })
+
+  it('propagates awsRegion from connection config', async () => {
+    const connection = createBedrockConnection({
+      authType: 'aws_profile',
+      awsProfile: 'default',
+      awsRegion: 'eu-central-1',
+    })
+
+    const credentialManager = createMockCredentialManager()
+
+    const result = await resolveAuthEnvVars(
+      connection,
+      'bedrock-test',
+      credentialManager,
+      createNoopGetValidOAuthToken(),
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.envVars.AWS_PROFILE).toBe('default')
+    expect(result.envVars.AWS_REGION).toBe('eu-central-1')
+  })
+
+  it('does not set AWS_PROFILE when awsProfile is undefined', async () => {
+    const connection = createBedrockConnection({
+      authType: 'aws_profile',
+      // no awsProfile set
+    })
+
+    const credentialManager = createMockCredentialManager()
+
+    const result = await resolveAuthEnvVars(
+      connection,
+      'bedrock-test',
+      credentialManager,
+      createNoopGetValidOAuthToken(),
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.envVars.AWS_PROFILE).toBeUndefined()
+    expect(result.envVars.CLAUDE_CODE_USE_BEDROCK).toBe('1')
+  })
+})
+
+// ============================================================
+// isValidProviderAuthCombination — aws_profile
+// ============================================================
+
+describe('isValidProviderAuthCombination — bedrock + aws_profile', () => {
+  it('accepts aws_profile for bedrock', () => {
+    expect(isValidProviderAuthCombination('bedrock', 'aws_profile')).toBe(true)
+  })
+
+  it('rejects aws_profile for non-bedrock providers', () => {
+    expect(isValidProviderAuthCombination('anthropic', 'aws_profile')).toBe(false)
+    expect(isValidProviderAuthCombination('pi', 'aws_profile')).toBe(false)
+    expect(isValidProviderAuthCombination('vertex', 'aws_profile')).toBe(false)
+  })
+})
+
+// ============================================================
+// authTypeToCredentialStorageType — aws_profile
+// ============================================================
+
+describe('authTypeToCredentialStorageType — aws_profile', () => {
+  it('returns null (no credential storage needed)', () => {
+    expect(authTypeToCredentialStorageType('aws_profile')).toBeNull()
   })
 })

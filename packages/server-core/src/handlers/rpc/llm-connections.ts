@@ -99,6 +99,15 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         updates.modelSelectionMode = setup.modelSelectionMode
       }
 
+      // AWS Profile auth — set authType and store profile name on connection
+      if (setup.awsProfile !== undefined) {
+        updates.authType = 'aws_profile'
+        updates.awsProfile = setup.awsProfile || 'default'
+      }
+      if (setup.awsRegion !== undefined) {
+        updates.awsRegion = setup.awsRegion || undefined
+      }
+
       const customEndpoint = hasConfiguredBaseUrl ? setup.customEndpoint : undefined
       const isCustomEndpointCompat = !!customEndpoint
       if (customEndpoint) {
