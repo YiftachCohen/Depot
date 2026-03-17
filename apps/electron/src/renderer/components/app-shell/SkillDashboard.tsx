@@ -251,13 +251,23 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const handleVariableSubmit = useCallback(async (resolvedPrompt: string) => {
     if (!activeWorkspaceId || !pendingVarCommand) return
     const { skill, cmd } = pendingVarCommand
-    setPendingVarCommand(null)
-    const session = await onCreateSession(activeWorkspaceId, {
-      name: cmd.name, skillSlug: skill.slug,
-      enabledSourceSlugs: skill.manifest?.sources ?? skill.metadata.requiredSources,
-    })
-    if (session?.id && resolvedPrompt) onSendMessage(session.id, resolvedPrompt, undefined, [skill.slug])
-    if (session?.id) navigate(routes.view.skills(skill.slug, session.id))
+    try {
+      const session = await onCreateSession(activeWorkspaceId, {
+        name: cmd.name, skillSlug: skill.slug,
+        enabledSourceSlugs: skill.manifest?.sources ?? skill.metadata.requiredSources,
+      })
+      if (!session?.id) {
+        toast.error('Failed to create session')
+        return
+      }
+      if (resolvedPrompt) onSendMessage(session.id, resolvedPrompt, undefined, [skill.slug])
+      setPendingVarCommand(null)
+      navigate(routes.view.skills(skill.slug, session.id))
+    } catch (err) {
+      toast.error('Failed to run command', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+    }
   }, [activeWorkspaceId, pendingVarCommand, onCreateSession, onSendMessage])
 
   const handleSkillClick = useCallback(async (skill: LoadedSkill) => {
