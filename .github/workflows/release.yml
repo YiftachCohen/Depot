@@ -63,14 +63,15 @@ jobs:
 
       - name: Build Electron app
         env:
-          # macOS code signing (set these secrets in your repo for signed builds)
-          CSC_LINK: ${{ secrets.CSC_LINK }}
+          # macOS code signing — only pass CSC_LINK when password is also configured,
+          # otherwise electron-builder tries to use the cert with an empty password and fails
+          CSC_LINK: ${{ secrets.CSC_KEY_PASSWORD != '' && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Skip macOS code signing when CSC_LINK is not configured
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+          # Disable Keychain auto-discovery unless both cert and password are configured
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' && secrets.CSC_KEY_PASSWORD != '' }}
           # Windows code signing
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
