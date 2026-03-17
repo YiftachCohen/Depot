@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Depot Icon Variations — Round 2</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif; padding: 40px; }
+  h1 { text-align: center; font-size: 28px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .subtitle { text-align: center; color: #64748b; margin-bottom: 48px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 32px; max-width: 1400px; margin: 0 auto; }
+  .card {
+    background: #13131a; border: 1px solid #1e1e2e; border-radius: 16px; padding: 32px;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .card:hover { border-color: #6366f1; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(99,102,241,0.15); }
+  .card.selected { border-color: #06b6d4; box-shadow: 0 0 0 2px #06b6d4, 0 8px 32px rgba(6,182,212,0.2); }
+  .previews { display: flex; gap: 16px; align-items: center; }
+  .preview-dark { background: #0c0a1d; padding: 16px; border-radius: 18px; }
+  .preview-light { background: #f0f0f5; padding: 16px; border-radius: 18px; }
+  .preview-sm { background: #0c0a1d; padding: 8px; border-radius: 10px; }
+  .label { font-size: 15px; font-weight: 600; }
+  .desc { font-size: 12px; color: #64748b; text-align: center; line-height: 1.5; }
+  .number { background: #1e1e2e; color: #818cf8; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+  .selected-banner { display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #06b6d4; color: #000; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 14px; z-index: 10; box-shadow: 0 4px 24px rgba(6,182,212,0.4); }
+  .selected-banner.show { display: block; }
+  .section-title { text-align: center; color: #818cf8; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin: 40px 0 24px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>Depot Icon Variations — Round 2</h1>
+<p class="subtitle">20 new explorations. Click to select. Dark + light + small previews.</p>
+
+<div class="grid" id="grid"></div>
+<div class="selected-banner" id="banner"></div>
+
+<script>
+const V = [
+  {
+    name: "Beacon Tower",
+    desc: "Vertical beacon with radiating signal arcs. A depot broadcasting to its agents.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect x="230" y="180" width="52" height="240" rx="10" fill="#6366f1"/>
+      <rect x="238" y="150" width="36" height="60" rx="8" fill="#818cf8"/>
+      <circle cx="256" cy="140" r="18" fill="#06b6d4"/>
+      <circle cx="256" cy="140" r="8" fill="#fff"/>
+      <path d="M200,120 A70,70 0 0,1 312,120" fill="none" stroke="#818cf8" stroke-width="5" opacity="0.5"/>
+      <path d="M170,100 A100,100 0 0,1 342,100" fill="none" stroke="#a78bfa" stroke-width="4" opacity="0.35"/>
+      <path d="M142,82 A128,128 0 0,1 370,82" fill="none" stroke="#a78bfa" stroke-width="3" opacity="0.2"/>
+      <rect x="210" y="380" width="92" height="40" rx="8" fill="#4f46e5"/>
+    </svg>`
+  },
+  {
+    name: "Vault Door",
+    desc: "Circular vault with radial locking bars. Security and storage — a true depot.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="256" cy="256" r="180" fill="#1e1b4b"/>
+      <circle cx="256" cy="256" r="170" fill="none" stroke="#4f46e5" stroke-width="8"/>
+      <circle cx="256" cy="256" r="130" fill="none" stroke="#6366f1" stroke-width="3"/>
+      <line x1="256" y1="126" x2="256" y2="86" stroke="#818cf8" stroke-width="10" stroke-linecap="round"/>
+      <line x1="256" y1="386" x2="256" y2="426" stroke="#818cf8" stroke-width="10" stroke-linecap="round"/>
+      <line x1="126" y1="256" x2="86" y2="256" stroke="#818cf8" stroke-width="10" stroke-linecap="round"/>
+      <line x1="386" y1="256" x2="426" y2="256" stroke="#818cf8" stroke-width="10" stroke-linecap="round"/>
+      <line x1="164" y1="164" x2="136" y2="136" stroke="#6366f1" stroke-width="8" stroke-linecap="round"/>
+      <line x1="348" y1="164" x2="376" y2="136" stroke="#6366f1" stroke-width="8" stroke-linecap="round"/>
+      <line x1="164" y1="348" x2="136" y2="376" stroke="#6366f1" stroke-width="8" stroke-linecap="round"/>
+      <line x1="348" y1="348" x2="376" y2="376" stroke="#6366f1" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="256" cy="256" r="50" fill="#4f46e5"/>
+      <circle cx="256" cy="256" r="30" fill="#06b6d4"/>
+      <circle cx="256" cy="256" r="12" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Starburst Grid",
+    desc: "3x3 tiles with starburst glow from center. The original grid, supercharged.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="sb1" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.4"/>
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <circle cx="256" cy="256" r="200" fill="url(#sb1)"/>
+      <rect x="108" y="108" width="80" height="80" rx="14" fill="#a78bfa" opacity="0.6"/>
+      <rect x="216" y="108" width="80" height="80" rx="14" fill="#818cf8" opacity="0.75"/>
+      <rect x="324" y="108" width="80" height="80" rx="14" fill="#a78bfa" opacity="0.6"/>
+      <rect x="108" y="216" width="80" height="80" rx="14" fill="#818cf8" opacity="0.75"/>
+      <rect x="216" y="216" width="80" height="80" rx="18" fill="#06b6d4"/>
+      <rect x="324" y="216" width="80" height="80" rx="14" fill="#818cf8" opacity="0.75"/>
+      <rect x="108" y="324" width="80" height="80" rx="14" fill="#a78bfa" opacity="0.6"/>
+      <rect x="216" y="324" width="80" height="80" rx="14" fill="#818cf8" opacity="0.75"/>
+      <rect x="324" y="324" width="80" height="80" rx="14" fill="#a78bfa" opacity="0.6"/>
+      <circle cx="256" cy="256" r="16" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Warehouse Box",
+    desc: "Isometric 3D box. A literal depot/warehouse rendered in brand colors.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="256,100 420,190 420,360 256,450 92,360 92,190" fill="none"/>
+      <polygon points="256,100 420,190 420,360 256,270" fill="#6366f1"/>
+      <polygon points="256,100 92,190 92,360 256,270" fill="#818cf8"/>
+      <polygon points="256,270 420,360 256,450 92,360" fill="#4f46e5"/>
+      <polygon points="256,270 420,360 256,450 92,360" fill="#06b6d4" opacity="0.3"/>
+      <line x1="256" y1="100" x2="256" y2="270" stroke="#a78bfa" stroke-width="2" opacity="0.5"/>
+      <line x1="92" y1="190" x2="256" y2="270" stroke="#a78bfa" stroke-width="2" opacity="0.3"/>
+      <line x1="420" y1="190" x2="256" y2="270" stroke="#a78bfa" stroke-width="2" opacity="0.3"/>
+      <circle cx="256" cy="270" r="16" fill="#06b6d4"/>
+      <circle cx="256" cy="270" r="7" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Keystone Arch",
+    desc: "Architectural keystone shape. Structural support — the depot holds everything together.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="ka1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#818cf8"/>
+          <stop offset="100%" stop-color="#4f46e5"/>
+        </linearGradient>
+      </defs>
+      <path d="M120,400 L120,220 C120,140 180,80 256,80 C332,80 392,140 392,220 L392,400 Z M200,400 L200,230 C200,190 224,160 256,160 C288,160 312,190 312,230 L312,400 Z" fill="url(#ka1)" fill-rule="evenodd"/>
+      <rect x="230" y="84" width="52" height="44" rx="8" fill="#06b6d4"/>
+      <circle cx="256" cy="106" r="10" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Aperture",
+    desc: "Camera aperture blades forming a D-shaped opening. Precision and focus.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <path d="M256,76 L350,120 L256,190 Z" fill="#a78bfa"/>
+      <path d="M350,120 L436,220 L310,220 Z" fill="#818cf8"/>
+      <path d="M436,220 L436,340 L310,280 Z" fill="#6366f1"/>
+      <path d="M436,340 L350,436 L310,310 Z" fill="#4f46e5"/>
+      <path d="M350,436 L190,436 L256,340 Z" fill="#3b82f6"/>
+      <path d="M190,436 L76,340 L200,310 Z" fill="#0ea5e9"/>
+      <path d="M76,340 L76,220 L200,280 Z" fill="#06b6d4"/>
+      <path d="M76,220 L160,120 L200,220 Z" fill="#22d3ee"/>
+      <path d="M160,120 L256,76 L210,190 Z" fill="#67e8f9" opacity="0.7"/>
+      <circle cx="256" cy="256" r="60" fill="#0c0a1d"/>
+      <circle cx="256" cy="256" r="32" fill="#06b6d4"/>
+      <circle cx="256" cy="256" r="14" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Nested Squares",
+    desc: "Three concentric rounded squares, rotated slightly. Depth through layering.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect x="96" y="96" width="320" height="320" rx="60" fill="none" stroke="#4f46e5" stroke-width="12" transform="rotate(3 256 256)"/>
+      <rect x="146" y="146" width="220" height="220" rx="42" fill="none" stroke="#6366f1" stroke-width="10" transform="rotate(-2 256 256)"/>
+      <rect x="196" y="196" width="120" height="120" rx="28" fill="none" stroke="#818cf8" stroke-width="8" transform="rotate(1 256 256)"/>
+      <circle cx="256" cy="256" r="22" fill="#06b6d4"/>
+      <circle cx="256" cy="256" r="9" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Signal Wave",
+    desc: "Horizontal sound/signal wave with a bright peak. Data flowing through the depot.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect x="100" y="230" width="28" height="52" rx="8" fill="#a78bfa" opacity="0.5"/>
+      <rect x="144" y="200" width="28" height="112" rx="8" fill="#a78bfa" opacity="0.6"/>
+      <rect x="188" y="160" width="28" height="192" rx="8" fill="#818cf8" opacity="0.75"/>
+      <rect x="232" y="110" width="28" height="292" rx="10" fill="#6366f1"/>
+      <rect x="276" y="130" width="28" height="252" rx="10" fill="#06b6d4"/>
+      <rect x="320" y="170" width="28" height="172" rx="8" fill="#3b82f6" opacity="0.75"/>
+      <rect x="364" y="205" width="28" height="102" rx="8" fill="#06b6d4" opacity="0.6"/>
+      <rect x="408" y="234" width="28" height="44" rx="8" fill="#22d3ee" opacity="0.5"/>
+      <circle cx="246" cy="256" r="14" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Propeller",
+    desc: "Three curved blades spinning from center. Motion, speed, orchestration.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <path d="M256,256 Q200,100 300,120 Q340,130 256,256" fill="#818cf8"/>
+      <path d="M256,256 Q400,300 340,390 Q310,430 256,256" fill="#6366f1"/>
+      <path d="M256,256 Q120,370 160,270 Q170,230 256,256" fill="#06b6d4"/>
+      <circle cx="256" cy="256" r="32" fill="#1e1b4b"/>
+      <circle cx="256" cy="256" r="18" fill="#4f46e5"/>
+      <circle cx="256" cy="256" r="8" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Droplet Array",
+    desc: "Six droplet shapes arranged in a hex pattern. Fluid, organic micro-agents.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(256,155)"><path d="M0,-55 C18,-30 30,0 30,20 C30,37 17,50 0,50 C-17,50 -30,37 -30,20 C-30,0 -18,-30 0,-55Z" fill="#a78bfa" transform="scale(1.4)"/></g>
+      <g transform="translate(168,210)"><path d="M0,-55 C18,-30 30,0 30,20 C30,37 17,50 0,50 C-17,50 -30,37 -30,20 C-30,0 -18,-30 0,-55Z" fill="#818cf8" transform="scale(1.2)"/></g>
+      <g transform="translate(344,210)"><path d="M0,-55 C18,-30 30,0 30,20 C30,37 17,50 0,50 C-17,50 -30,37 -30,20 C-30,0 -18,-30 0,-55Z" fill="#6366f1" transform="scale(1.2)"/></g>
+      <g transform="translate(168,330)"><path d="M0,-55 C18,-30 30,0 30,20 C30,37 17,50 0,50 C-17,50 -30,37 -30,20 C-30,0 -18,-30 0,-55Z" fill="#3b82f6" transform="scale(1.2)"/></g>
+      <g transform="translate(344,330)"><path d="M0,-55 C18,-30 30,0 30,20 C30,37 17,50 0,50 C-17,50 -30,37 -30,20 C-30,0 -18,-30 0,-55Z" fill="#06b6d4" transform="scale(1.2)"/></g>
+      <g transform="translate(256,385)"><path d="M0,-55 C18,-30 30,0 30,20 C30,37 17,50 0,50 C-17,50 -30,37 -30,20 C-30,0 -18,-30 0,-55Z" fill="#0ea5e9" transform="scale(1.4)"/></g>
+      <circle cx="256" cy="272" r="18" fill="#fff" opacity="0.9"/>
+    </svg>`
+  },
+  {
+    name: "Tile Cascade",
+    desc: "Overlapping rounded rectangles cascading diagonally. Layered tasks stacking up.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect x="90" y="90" width="200" height="140" rx="24" fill="#4f46e5" opacity="0.5"/>
+      <rect x="140" y="150" width="200" height="140" rx="24" fill="#6366f1" opacity="0.65"/>
+      <rect x="190" y="210" width="200" height="140" rx="24" fill="#818cf8" opacity="0.8"/>
+      <rect x="240" y="270" width="200" height="140" rx="24" fill="#06b6d4"/>
+      <circle cx="340" cy="340" r="20" fill="#fff" opacity="0.9"/>
+      <circle cx="340" cy="340" r="9" fill="#06b6d4"/>
+    </svg>`
+  },
+  {
+    name: "DNA Helix",
+    desc: "Double helix with connected rungs. Blueprint of agent behavior encoded in the depot.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <path d="M180,80 C180,160 332,200 332,280 C332,360 180,400 180,432" fill="none" stroke="#818cf8" stroke-width="10" stroke-linecap="round"/>
+      <path d="M332,80 C332,160 180,200 180,280 C180,360 332,400 332,432" fill="none" stroke="#06b6d4" stroke-width="10" stroke-linecap="round"/>
+      <line x1="205" y1="130" x2="307" y2="130" stroke="#6366f1" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+      <line x1="190" y1="195" x2="322" y2="195" stroke="#4f46e5" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="195" y1="256" x2="317" y2="256" stroke="#3b82f6" stroke-width="5" stroke-linecap="round" opacity="0.8"/>
+      <line x1="190" y1="317" x2="322" y2="317" stroke="#0ea5e9" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+      <line x1="205" y1="380" x2="307" y2="380" stroke="#06b6d4" stroke-width="5" stroke-linecap="round" opacity="0.6"/>
+      <circle cx="256" cy="256" r="14" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Compass Rose",
+    desc: "Four-pointed star compass with gradient arms. Navigation and direction for agents.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="256,80 280,220 256,200 232,220" fill="#818cf8"/>
+      <polygon points="432,256 292,232 312,256 292,280" fill="#6366f1"/>
+      <polygon points="256,432 232,292 256,312 280,292" fill="#4f46e5"/>
+      <polygon points="80,256 220,280 200,256 220,232" fill="#06b6d4"/>
+      <polygon points="256,130 270,230 256,215 242,230" fill="#a78bfa" opacity="0.5"/>
+      <polygon points="382,256 282,242 297,256 282,270" fill="#818cf8" opacity="0.5"/>
+      <polygon points="256,382 242,282 256,297 270,282" fill="#3b82f6" opacity="0.5"/>
+      <polygon points="130,256 230,270 215,256 230,242" fill="#22d3ee" opacity="0.5"/>
+      <circle cx="256" cy="256" r="28" fill="#1e1b4b"/>
+      <circle cx="256" cy="256" r="16" fill="#06b6d4"/>
+      <circle cx="256" cy="256" r="7" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Fingerprint D",
+    desc: "Concentric arcs forming a D-shaped fingerprint. Identity, uniqueness, security.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <path d="M180,110 C320,110 400,170 400,256" fill="none" stroke="#a78bfa" stroke-width="8" stroke-linecap="round" opacity="0.4"/>
+      <path d="M160,150 C290,150 370,200 370,270" fill="none" stroke="#818cf8" stroke-width="8" stroke-linecap="round" opacity="0.5"/>
+      <path d="M150,190 C260,190 340,230 340,280 C340,340 280,370 220,370" fill="none" stroke="#6366f1" stroke-width="8" stroke-linecap="round" opacity="0.65"/>
+      <path d="M150,230 C230,230 310,255 310,300 C310,350 260,380 200,400" fill="none" stroke="#4f46e5" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
+      <path d="M150,270 C200,270 270,285 270,320 C270,360 230,390 180,410" fill="none" stroke="#3b82f6" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+      <path d="M150,310 C190,310 230,325 230,350 C230,380 200,400 170,410" fill="none" stroke="#06b6d4" stroke-width="8" stroke-linecap="round"/>
+      <path d="M150,350 C170,350 195,360 195,380" fill="none" stroke="#22d3ee" stroke-width="8" stroke-linecap="round"/>
+      <rect x="130" y="100" width="12" height="320" rx="6" fill="#6366f1" opacity="0.6"/>
+    </svg>`
+  },
+  {
+    name: "Horizon Glow",
+    desc: "Glowing horizon line with a D silhouette above. Dawn of AI, futuristic.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="hg1" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.6"/>
+          <stop offset="40%" stop-color="#6366f1" stop-opacity="0.15"/>
+          <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+        </linearGradient>
+        <radialGradient id="hg2" cx="50%" cy="68%" r="30%">
+          <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.5"/>
+          <stop offset="100%" stop-color="#06b6d4" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect x="0" y="300" width="512" height="212" fill="url(#hg1)"/>
+      <ellipse cx="256" cy="340" rx="200" ry="60" fill="url(#hg2)"/>
+      <line x1="80" y1="340" x2="432" y2="340" stroke="#06b6d4" stroke-width="3" opacity="0.8"/>
+      <path d="M160,120 L265,120 C335,120 378,170 378,245 C378,320 335,340 265,340 L160,340 Z M210,175 L258,175 C300,175 320,200 320,245 C320,290 300,315 258,315 L210,315 Z" fill="#6366f1" fill-rule="evenodd"/>
+      <path d="M265,120 C335,120 378,170 378,245 C378,320 335,340 265,340" fill="none" stroke="#818cf8" stroke-width="3" opacity="0.5"/>
+    </svg>`
+  },
+  {
+    name: "Crosshair Hub",
+    desc: "Precision crosshair with four quadrant accents. Targeted agent deployment.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="256" cy="256" r="160" fill="none" stroke="#312e81" stroke-width="6"/>
+      <circle cx="256" cy="256" r="110" fill="none" stroke="#4f46e5" stroke-width="4"/>
+      <circle cx="256" cy="256" r="60" fill="none" stroke="#6366f1" stroke-width="3"/>
+      <line x1="256" y1="80" x2="256" y2="190" stroke="#818cf8" stroke-width="4" opacity="0.6"/>
+      <line x1="256" y1="322" x2="256" y2="432" stroke="#818cf8" stroke-width="4" opacity="0.6"/>
+      <line x1="80" y1="256" x2="190" y2="256" stroke="#818cf8" stroke-width="4" opacity="0.6"/>
+      <line x1="322" y1="256" x2="432" y2="256" stroke="#818cf8" stroke-width="4" opacity="0.6"/>
+      <rect x="120" y="120" width="60" height="60" rx="12" fill="#818cf8" opacity="0.3"/>
+      <rect x="332" y="120" width="60" height="60" rx="12" fill="#6366f1" opacity="0.3"/>
+      <rect x="120" y="332" width="60" height="60" rx="12" fill="#06b6d4" opacity="0.3"/>
+      <rect x="332" y="332" width="60" height="60" rx="12" fill="#3b82f6" opacity="0.3"/>
+      <circle cx="256" cy="256" r="22" fill="#06b6d4"/>
+      <circle cx="256" cy="256" r="9" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Molecule",
+    desc: "Three interconnected atoms in a triangle. Chemical bond of skills + agents + depot.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <line x1="256" y1="140" x2="150" y2="340" stroke="#334155" stroke-width="12" stroke-linecap="round"/>
+      <line x1="256" y1="140" x2="362" y2="340" stroke="#334155" stroke-width="12" stroke-linecap="round"/>
+      <line x1="150" y1="340" x2="362" y2="340" stroke="#334155" stroke-width="12" stroke-linecap="round"/>
+      <circle cx="256" cy="140" r="48" fill="#818cf8"/>
+      <circle cx="256" cy="140" r="24" fill="#a78bfa"/>
+      <circle cx="256" cy="140" r="10" fill="#fff"/>
+      <circle cx="150" cy="340" r="48" fill="#6366f1"/>
+      <circle cx="150" cy="340" r="24" fill="#4f46e5"/>
+      <circle cx="150" cy="340" r="10" fill="#fff"/>
+      <circle cx="362" cy="340" r="48" fill="#06b6d4"/>
+      <circle cx="362" cy="340" r="24" fill="#0ea5e9"/>
+      <circle cx="362" cy="340" r="10" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Ribbon D",
+    desc: "Continuous Mobius-style ribbon forming a D. Infinite loop of agent workflows.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="rb1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#818cf8"/>
+          <stop offset="100%" stop-color="#06b6d4"/>
+        </linearGradient>
+        <linearGradient id="rb2" x1="1" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#6366f1"/>
+          <stop offset="100%" stop-color="#4f46e5"/>
+        </linearGradient>
+      </defs>
+      <path d="M160,110 L160,402 L270,402 C350,402 398,345 398,280 C398,220 360,190 310,190 L210,190 L210,110 Z" fill="url(#rb2)" stroke="none"/>
+      <path d="M160,110 L290,110 C370,110 398,170 398,230 C398,285 360,320 310,320 L210,320 L210,402" fill="none" stroke="url(#rb1)" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+      <circle cx="210" cy="256" r="12" fill="#fff"/>
+    </svg>`
+  },
+  {
+    name: "Pixel Art D",
+    desc: "Chunky pixel-art style D. Retro charm, modern palette. Fun and approachable.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g>
+        <rect x="128" y="96" width="48" height="48" fill="#818cf8"/>
+        <rect x="176" y="96" width="48" height="48" fill="#818cf8"/>
+        <rect x="224" y="96" width="48" height="48" fill="#818cf8"/>
+        <rect x="272" y="96" width="48" height="48" fill="#6366f1"/>
+        <rect x="128" y="144" width="48" height="48" fill="#818cf8"/>
+        <rect x="320" y="144" width="48" height="48" fill="#6366f1"/>
+        <rect x="128" y="192" width="48" height="48" fill="#6366f1"/>
+        <rect x="368" y="192" width="48" height="48" fill="#4f46e5"/>
+        <rect x="128" y="240" width="48" height="48" fill="#6366f1"/>
+        <rect x="368" y="240" width="48" height="48" fill="#06b6d4"/>
+        <rect x="128" y="288" width="48" height="48" fill="#4f46e5"/>
+        <rect x="368" y="288" width="48" height="48" fill="#06b6d4"/>
+        <rect x="128" y="336" width="48" height="48" fill="#4f46e5"/>
+        <rect x="320" y="336" width="48" height="48" fill="#3b82f6"/>
+        <rect x="128" y="384" width="48" height="48" fill="#3b82f6"/>
+        <rect x="176" y="384" width="48" height="48" fill="#3b82f6"/>
+        <rect x="224" y="384" width="48" height="48" fill="#06b6d4"/>
+        <rect x="272" y="384" width="48" height="48" fill="#06b6d4"/>
+      </g>
+    </svg>`
+  },
+  {
+    name: "Topographic D",
+    desc: "Contour lines forming a D shape. Like a terrain map of agent capability.",
+    svg: (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <path d="M128,100 L270,100 C365,100 410,170 410,256 C410,342 365,412 270,412 L128,412 Z" fill="none" stroke="#312e81" stroke-width="5"/>
+      <path d="M140,130 L268,130 C345,130 388,185 388,256 C388,327 345,382 268,382 L140,382 Z" fill="none" stroke="#4f46e5" stroke-width="5"/>
+      <path d="M152,160 L266,160 C325,160 366,200 366,256 C366,312 325,352 266,352 L152,352 Z" fill="none" stroke="#6366f1" stroke-width="5"/>
+      <path d="M164,190 L262,190 C305,190 340,218 340,256 C340,294 305,322 262,322 L164,322 Z" fill="none" stroke="#818cf8" stroke-width="5"/>
+      <path d="M176,220 L258,220 C285,220 314,236 314,256 C314,276 285,292 258,292 L176,292 Z" fill="none" stroke="#a78bfa" stroke-width="5"/>
+      <ellipse cx="230" cy="256" rx="30" ry="22" fill="#06b6d4" opacity="0.6"/>
+      <circle cx="230" cy="256" r="8" fill="#fff"/>
+    </svg>`
+  }
+];
+
+const grid = document.getElementById('grid');
+const banner = document.getElementById('banner');
+
+V.forEach((v, i) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="number">${i + 1}</div>
+      <div class="label">${v.name}</div>
+    </div>
+    <div class="previews">
+      <div class="preview-dark">${v.svg(96)}</div>
+      <div class="preview-light">${v.svg(96)}</div>
+      <div class="preview-sm">${v.svg(32)}</div>
+    </div>
+    <div class="desc">${v.desc}</div>
+  `;
+  card.onclick = () => {
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    banner.textContent = 'Selected: #' + (i+1) + ' \u2014 ' + v.name;
+    banner.classList.add('show');
+  };
+  grid.appendChild(card);
+});
+</script>
+</body>
+</html>
