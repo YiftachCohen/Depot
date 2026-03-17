@@ -86,6 +86,7 @@ export type LlmAuthType =
   | 'api_key_with_endpoint'
   | 'oauth'
   | 'iam_credentials'
+  | 'aws_profile'
   | 'bearer_token'
   | 'service_account_file'
   | 'environment'
@@ -169,6 +170,9 @@ export interface LlmConnection {
 
   /** AWS region (for 'bedrock' provider) */
   awsRegion?: string;
+
+  /** AWS CLI profile name (for 'bedrock' provider with 'aws_profile' auth) */
+  awsProfile?: string;
 
   /** GCP project ID (for 'vertex' provider) */
   gcpProjectId?: string;
@@ -347,6 +351,7 @@ export function authTypeToCredentialStorageType(authType: LlmAuthType): LlmCrede
       return 'iam_credentials';
     case 'service_account_file':
       return 'service_account';
+    case 'aws_profile':
     case 'environment':
     case 'none':
       return null;
@@ -563,7 +568,7 @@ export function isValidProviderAuthCombination(
   const validCombinations: Record<LlmProviderType, LlmAuthType[]> = {
     anthropic: ['api_key', 'oauth'],
     anthropic_compat: ['api_key_with_endpoint'],
-    bedrock: ['bearer_token', 'iam_credentials', 'environment'],
+    bedrock: ['bearer_token', 'iam_credentials', 'aws_profile', 'environment'],
     vertex: ['oauth', 'service_account_file', 'environment'],
     pi: ['api_key', 'oauth', 'none'],
     pi_compat: ['api_key_with_endpoint', 'none'],
@@ -713,6 +718,11 @@ export async function resolveAuthEnvVars(
       }
     } else {
       return { envVars, success: false, warning: `No IAM credentials found for: ${connectionSlug}` };
+    }
+  } else if (authType === 'aws_profile') {
+    // AWS Profile auth — set AWS_PROFILE so the SDK reads ~/.aws/credentials
+    if (connection.awsProfile) {
+      envVars.AWS_PROFILE = connection.awsProfile;
     }
   } else if (authType === 'environment') {
     // Environment auth — credentials come from process.env, nothing to inject

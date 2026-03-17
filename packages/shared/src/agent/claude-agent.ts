@@ -596,6 +596,7 @@ export class ClaudeAgent extends BaseAgent {
     delete process.env.AWS_ACCESS_KEY_ID;
     delete process.env.AWS_SECRET_ACCESS_KEY;
     delete process.env.AWS_SESSION_TOKEN;
+    delete process.env.AWS_PROFILE;
 
     // Resolve auth env vars via shared utility
     const manager = getCredentialManager();

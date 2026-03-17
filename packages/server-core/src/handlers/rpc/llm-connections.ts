@@ -99,6 +99,21 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         updates.modelSelectionMode = setup.modelSelectionMode
       }
 
+      // AWS Profile auth — only valid for Bedrock connections
+      if (setup.awsProfile !== undefined) {
+        const targetProviderType = updates.providerType ?? connection.providerType
+        if (targetProviderType !== 'bedrock') {
+          return { success: false, error: 'AWS profile auth is only supported for Bedrock connections.' }
+        }
+        const normalizedProfile = setup.awsProfile.trim()
+        updates.authType = 'aws_profile'
+        updates.awsProfile = normalizedProfile || 'default'
+      }
+      if (setup.awsRegion !== undefined) {
+        const normalizedRegion = setup.awsRegion.trim()
+        updates.awsRegion = normalizedRegion || undefined
+      }
+
       const customEndpoint = hasConfiguredBaseUrl ? setup.customEndpoint : undefined
       const isCustomEndpointCompat = !!customEndpoint
       if (customEndpoint) {
