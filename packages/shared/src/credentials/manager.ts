@@ -464,6 +464,7 @@ export class CredentialManager {
       // No credentials needed
       case 'none':
       case 'environment':
+      case 'aws_profile':
         return true;
 
       // API key variants - all use the same storage
@@ -626,7 +627,7 @@ export class CredentialManager {
 
       if (defaultSlug) {
         const connection = getLlmConnection(defaultSlug);
-        if (connection && connection.authType !== 'none' && connection.authType !== 'environment') {
+        if (connection && connection.authType !== 'none' && connection.authType !== 'environment' && connection.authType !== 'aws_profile') {
           const hasCredentials = await this.hasLlmCredentials(
             defaultSlug,
             connection.authType,

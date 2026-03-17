@@ -41,6 +41,7 @@ export type ApiSetupMethod =
   | 'pi_chatgpt_oauth'
   | 'pi_copilot_oauth'
   | 'pi_api_key'
+  | 'bedrock_profile'
   | 'bedrock_iam'
   | 'bedrock_env'
 
@@ -62,6 +63,8 @@ export function apiSetupMethodToConnectionTypes(method: ApiSetupMethod): {
       return { providerType: 'pi', authType: 'oauth' };
     case 'pi_api_key':
       return { providerType: 'pi', authType: 'api_key' };
+    case 'bedrock_profile':
+      return { providerType: 'bedrock', authType: 'aws_profile' };
     case 'bedrock_iam':
       return { providerType: 'bedrock', authType: 'iam_credentials' };
     case 'bedrock_env':
@@ -112,6 +115,13 @@ const API_SETUP_OPTIONS: ApiSetupOption[] = [
     description: 'Use provider presets (Anthropic, OpenAI, Google, etc.) via Depot Backend.',
     icon: <Key className="size-4" />,
     providerType: 'pi',
+  },
+  {
+    id: 'bedrock_profile',
+    name: 'AWS Profile',
+    description: 'Use an AWS CLI profile (~/.aws/credentials, SSO, etc.)',
+    icon: <Cloud className="size-4" />,
+    providerType: 'bedrock',
   },
   {
     id: 'bedrock_iam',

@@ -94,6 +94,7 @@ export const BASE_SLUG_FOR_METHOD: Record<ApiSetupMethod, string> = {
   pi_chatgpt_oauth: 'chatgpt-plus',
   pi_copilot_oauth: 'github-copilot',
   pi_api_key: 'pi-api-key',
+  bedrock_profile: 'amazon-bedrock',
   bedrock_iam: 'amazon-bedrock',
   bedrock_env: 'amazon-bedrock',
 }
@@ -143,6 +144,8 @@ export function apiSetupMethodToConnectionSetup(
     piAuthProvider?: string
     modelSelectionMode?: 'automaticallySyncedFromProvider' | 'userDefined3Tier'
     customEndpoint?: CustomEndpointConfig
+    awsProfile?: string
+    awsRegion?: string
   },
   editingSlug: string | null,
   existingSlugs: Set<string>,
@@ -180,6 +183,12 @@ export function apiSetupMethodToConnectionSetup(
         piAuthProvider: options.piAuthProvider,
         modelSelectionMode: options.modelSelectionMode,
         customEndpoint: options.customEndpoint,
+      }
+    case 'bedrock_profile':
+      return {
+        slug,
+        awsProfile: options.awsProfile,
+        awsRegion: options.awsRegion,
       }
     case 'bedrock_iam':
     case 'bedrock_env':
@@ -248,6 +257,8 @@ export function useOnboarding({
       piAuthProvider?: string
       modelSelectionMode?: 'automaticallySyncedFromProvider' | 'userDefined3Tier'
       customEndpoint?: CustomEndpointConfig
+      awsProfile?: string
+      awsRegion?: string
     },
     methodOverride?: ApiSetupMethod,
     connectionSlugOverride?: string,
@@ -270,6 +281,8 @@ export function useOnboarding({
         piAuthProvider: options?.piAuthProvider,
         modelSelectionMode: options?.modelSelectionMode,
         customEndpoint: options?.customEndpoint,
+        awsProfile: options?.awsProfile,
+        awsRegion: options?.awsRegion,
       }, connectionSlugOverride ?? editingSlug, existingSlugs)
       // Use new unified API
       const result = await window.electronAPI.setupLlmConnection(
@@ -374,8 +387,41 @@ export function useOnboarding({
     setState(s => ({ ...s, credentialStatus: 'validating', errorMessage: undefined }))
 
     const isPiApiKeyFlow = state.apiSetupMethod === 'pi_api_key'
+    const isBedrockProfileFlow = state.apiSetupMethod === 'bedrock_profile'
 
     try {
+      // Bedrock AWS Profile — save config then run a connection test to catch
+      // typoed profiles or expired SSO sessions before marking complete.
+      if (isBedrockProfileFlow) {
+        const awsProfile = data.apiKey.trim() || 'default'
+        const awsRegion = data.piAuthProvider?.trim()
+        const connectionSlug = apiSetupMethodToConnectionSetup(
+          'bedrock_profile',
+          { awsProfile, awsRegion },
+          editingSlug,
+          existingSlugs,
+        ).slug
+
+        const saved = await handleSaveConfig(undefined, { awsProfile, awsRegion })
+        if (!saved) {
+          setState(s => ({ ...s, credentialStatus: 'error' }))
+          return
+        }
+
+        const testResult = await window.electronAPI.testLlmConnection(connectionSlug)
+        if (!testResult.success) {
+          setState(s => ({
+            ...s,
+            credentialStatus: 'error',
+            errorMessage: testResult.error || 'Connection test failed',
+          }))
+          return
+        }
+
+        setState(s => ({ ...s, credentialStatus: 'success', step: 'complete' }))
+        return
+      }
+
       // When editing an existing connection, API key is optional (empty = keep existing credential)
       if (!data.apiKey.trim() && editingSlug) {
         const saved = await handleSaveConfig(undefined, {
@@ -465,7 +511,7 @@ export function useOnboarding({
         errorMessage: error instanceof Error ? error.message : 'Validation failed',
       }))
     }
-  }, [handleSaveConfig, state.apiSetupMethod])
+  }, [handleSaveConfig, state.apiSetupMethod, editingSlug, existingSlugs])
 
   // Save config, validate the connection, and update state accordingly.
   // Shared by all OAuth flows after tokens are captured.

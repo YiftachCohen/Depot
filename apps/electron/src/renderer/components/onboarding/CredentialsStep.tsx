@@ -5,7 +5,7 @@
  * with StepFormLayout for the onboarding wizard context.
  */
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Check, ExternalLink } from "lucide-react"
 import type { ApiSetupMethod } from "./APISetupStep"
 import { StepFormLayout, BackButton, ContinueButton } from "./primitives"
@@ -256,6 +256,18 @@ export function CredentialsStep({
     )
   }
 
+  // --- Bedrock AWS Profile flow ---
+  if (apiSetupMethod === 'bedrock_profile') {
+    return (
+      <BedrockProfileForm
+        status={status as ApiKeyStatus}
+        errorMessage={errorMessage}
+        onSubmit={onSubmit}
+        onBack={onBack}
+      />
+    )
+  }
+
   // --- API Key flow ---
   // Determine provider type and description based on selected method
   const providerType = isPiApiKey ? 'pi_api_key' : 'anthropic'
@@ -297,6 +309,90 @@ export function CredentialsStep({
         providerType={providerType}
         initialValues={editInitialValues}
       />
+    </StepFormLayout>
+  )
+}
+
+// --- Bedrock AWS Profile form ---
+
+function BedrockProfileForm({
+  status,
+  errorMessage,
+  onSubmit,
+  onBack,
+}: {
+  status: ApiKeyStatus
+  errorMessage?: string
+  onSubmit: (data: ApiKeySubmitData) => void
+  onBack: () => void
+}) {
+  const [profileName, setProfileName] = useState('default')
+  const [region, setRegion] = useState('us-east-1')
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    // Pack profile data into ApiKeySubmitData — apiKey carries the profile name,
+    // piAuthProvider carries the region (repurposed fields for the setup pipeline)
+    onSubmit({
+      apiKey: profileName.trim() || 'default',
+      piAuthProvider: region.trim() || undefined,
+    } as ApiKeySubmitData)
+  }
+
+  return (
+    <StepFormLayout
+      title="AWS Bedrock — Profile"
+      description="Enter your AWS CLI profile name. The AWS SDK will read credentials from ~/.aws/credentials or SSO configuration."
+      actions={
+        <>
+          <BackButton onClick={onBack} disabled={status === 'validating'} />
+          <ContinueButton
+            type="submit"
+            form="bedrock-profile-form"
+            disabled={false}
+            loading={status === 'validating'}
+            loadingText="Saving..."
+          />
+        </>
+      }
+    >
+      <form id="bedrock-profile-form" ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <label htmlFor="aws-profile" className="text-sm font-medium text-foreground">
+            Profile Name
+          </label>
+          <input
+            id="aws-profile"
+            type="text"
+            value={profileName}
+            onChange={(e) => setProfileName(e.target.value)}
+            placeholder="default"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="aws-region" className="text-sm font-medium text-foreground">
+            AWS Region
+          </label>
+          <input
+            id="aws-region"
+            type="text"
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+            placeholder="us-east-1"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="rounded-xl bg-foreground-2 p-4 text-sm text-muted-foreground">
+          <p>Works the same as Claude Code — set your AWS_PROFILE and it just works. Supports IAM users, SSO, and any credential source configured in your AWS CLI.</p>
+        </div>
+        {status === 'error' && errorMessage && (
+          <div className="rounded-lg bg-destructive/10 text-destructive text-sm p-3">
+            {errorMessage}
+          </div>
+        )}
+      </form>
     </StepFormLayout>
   )
 }

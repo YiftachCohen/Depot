@@ -316,6 +316,10 @@ export interface LlmConnectionSetup {
   updateOnly?: boolean
   /** Custom endpoint protocol for arbitrary OpenAI/Anthropic-compatible APIs */
   customEndpoint?: CustomEndpointConfig
+  /** AWS CLI profile name (for bedrock aws_profile auth) */
+  awsProfile?: string
+  /** AWS region override (for bedrock connections) */
+  awsRegion?: string
 }
 
 export interface TestLlmConnectionParams {

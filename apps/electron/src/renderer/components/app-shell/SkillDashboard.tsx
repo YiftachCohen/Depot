@@ -26,6 +26,7 @@ import { navigate, routes } from '@/lib/navigate'
 import { cn } from '@/lib/utils'
 import { isAgent } from '../../../shared/types'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../shared/types'
+import { TemplateVariableModal } from './TemplateVariableModal'
 
 // ---------------------------------------------------------------------------
 // Skill Creator Prompt
@@ -212,6 +213,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const [userName, setUserName] = useState('')
   const previousSkillSlugsRef = useRef<Set<string>>(new Set())
   const hasInitializedSkillFilterRef = useRef(false)
+  const [pendingVarCommand, setPendingVarCommand] = useState<{ skill: LoadedSkill; cmd: QuickCommand } | null>(null)
 
   useEffect(() => {
     if (!activeWorkspaceId) return
@@ -302,6 +304,10 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   const handleQuickCommand = useCallback(async (skill: LoadedSkill, cmd: QuickCommand) => {
     if (!activeWorkspaceId) return
+    if (cmd.variables && cmd.variables.length > 0) {
+      setPendingVarCommand({ skill, cmd })
+      return
+    }
     const session = await onCreateSession(activeWorkspaceId, {
       name: cmd.name, skillSlug: skill.slug,
       enabledSourceSlugs: skill.manifest?.sources ?? skill.metadata.requiredSources,
@@ -309,6 +315,28 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     if (session?.id && cmd.prompt) onSendMessage(session.id, cmd.prompt, undefined, [skill.slug])
     if (session?.id) navigate(routes.view.skills(skill.slug, session.id))
   }, [activeWorkspaceId, onCreateSession, onSendMessage])
+
+  const handleVariableSubmit = useCallback(async (resolvedPrompt: string) => {
+    if (!activeWorkspaceId || !pendingVarCommand) return
+    const { skill, cmd } = pendingVarCommand
+    try {
+      const session = await onCreateSession(activeWorkspaceId, {
+        name: cmd.name, skillSlug: skill.slug,
+        enabledSourceSlugs: skill.manifest?.sources ?? skill.metadata.requiredSources,
+      })
+      if (!session?.id) {
+        toast.error('Failed to create session')
+        return
+      }
+      if (resolvedPrompt) onSendMessage(session.id, resolvedPrompt, undefined, [skill.slug])
+      setPendingVarCommand(null)
+      navigate(routes.view.skills(skill.slug, session.id))
+    } catch (err) {
+      toast.error('Failed to run command', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+    }
+  }, [activeWorkspaceId, pendingVarCommand, onCreateSession, onSendMessage])
 
   const handleSkillClick = useCallback(async (skill: LoadedSkill) => {
     if (!activeWorkspaceId) return
@@ -623,6 +651,14 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             )}
           </motion.div>
         </ScrollArea>
+        <TemplateVariableModal
+          open={pendingVarCommand !== null}
+          onOpenChange={(open) => { if (!open) setPendingVarCommand(null) }}
+          commandName={pendingVarCommand?.cmd.name ?? ''}
+          promptTemplate={pendingVarCommand?.cmd.prompt ?? ''}
+          variables={pendingVarCommand?.cmd.variables ?? []}
+          onSubmit={handleVariableSubmit}
+        />
       </div>
     )
   }
@@ -770,6 +806,14 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       <SkillPicker open={pickerOpen} onOpenChange={setPickerOpen}
         workspaceId={activeWorkspaceId ?? ''} enabledSlugs={enabledSlugs} onSave={handleSaveEnabledSlugs}
         onCreateAgent={handleCreateAgentSession} />
+      <TemplateVariableModal
+        open={pendingVarCommand !== null}
+        onOpenChange={(open) => { if (!open) setPendingVarCommand(null) }}
+        commandName={pendingVarCommand?.cmd.name ?? ''}
+        promptTemplate={pendingVarCommand?.cmd.prompt ?? ''}
+        variables={pendingVarCommand?.cmd.variables ?? []}
+        onSubmit={handleVariableSubmit}
+      />
     </div>
   )
 }
