@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
-import { getIconById, DEFAULT_ICON_ID } from './depot-icon-registry'
+import { getIconById, getIconSvg512, DEFAULT_ICON_ID } from './depot-icon-registry'
+import { useTheme } from '@/context/ThemeContext'
 
 const STORAGE_KEY = 'craft-depot-icon'
 
@@ -13,14 +14,14 @@ function getSnapshot(): string {
   return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_ICON_ID
 }
 
-function getIconSvgDataUrl(id: string): string {
+function getIconSvgDataUrl(id: string, isDark: boolean): string {
   const icon = getIconById(id)
-  return `data:image/svg+xml;base64,${btoa(icon.svgString512)}`
+  return `data:image/svg+xml;base64,${btoa(getIconSvg512(icon, isDark))}`
 }
 
-async function getIconPngDataUrl(id: string): Promise<string> {
+async function getIconPngDataUrl(id: string, isDark: boolean): Promise<string> {
   const image = new Image()
-  const svgDataUrl = getIconSvgDataUrl(id)
+  const svgDataUrl = getIconSvgDataUrl(id, isDark)
 
   await new Promise<void>((resolve, reject) => {
     image.onload = () => resolve()
@@ -61,13 +62,14 @@ export function useDepotIconId(): string {
 
 export function useSyncDepotAppIcon(): void {
   const iconId = useDepotIconId()
+  const { isDark } = useTheme()
 
   useEffect(() => {
     let cancelled = false
 
     void (async () => {
       try {
-        const dataUrl = await getIconPngDataUrl(iconId)
+        const dataUrl = await getIconPngDataUrl(iconId, isDark)
         if (!cancelled) {
           await window.electronAPI.setAppIcon(dataUrl)
         }
@@ -79,7 +81,7 @@ export function useSyncDepotAppIcon(): void {
     return () => {
       cancelled = true
     }
-  }, [iconId])
+  }, [iconId, isDark])
 }
 
 interface CraftAgentsSymbolProps {
