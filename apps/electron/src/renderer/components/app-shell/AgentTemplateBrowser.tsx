@@ -6,7 +6,7 @@
  *   2. Customize: pre-filled form to tweak before creating the agent
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useId } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   Search,
@@ -68,6 +68,11 @@ export function AgentTemplateBrowser({
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string>('All')
   const [creating, setCreating] = useState(false)
+
+  // Form element IDs for accessibility
+  const nameInputId = useId()
+  const slugInputId = useId()
+  const descriptionInputId = useId()
 
   // Customize form state
   const [customName, setCustomName] = useState('')
@@ -321,8 +326,9 @@ export function AgentTemplateBrowser({
                       </button>
                     </div>
                     <div className="flex-1">
-                      <label className="text-[11px] text-muted-foreground/60 mb-1.5 block">Name</label>
+                      <label htmlFor={nameInputId} className="text-[11px] text-muted-foreground/60 mb-1.5 block">Name</label>
                       <input
+                        id={nameInputId}
                         type="text"
                         value={customName}
                         onChange={(e) => handleNameChange(e.target.value)}
@@ -359,8 +365,9 @@ export function AgentTemplateBrowser({
 
                   {/* Slug */}
                   <div>
-                    <label className="text-[11px] text-muted-foreground/60 mb-1.5 block">Slug</label>
+                    <label htmlFor={slugInputId} className="text-[11px] text-muted-foreground/60 mb-1.5 block">Slug</label>
                     <input
+                      id={slugInputId}
                       type="text"
                       value={customSlug}
                       onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
@@ -372,8 +379,9 @@ export function AgentTemplateBrowser({
 
                   {/* Description */}
                   <div>
-                    <label className="text-[11px] text-muted-foreground/60 mb-1.5 block">Description</label>
+                    <label htmlFor={descriptionInputId} className="text-[11px] text-muted-foreground/60 mb-1.5 block">Description</label>
                     <textarea
+                      id={descriptionInputId}
                       value={customDescription}
                       onChange={(e) => setCustomDescription(e.target.value)}
                       rows={2}
