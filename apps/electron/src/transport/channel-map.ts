@@ -209,6 +209,8 @@ export const CHANNEL_MAP = {
   createSkill: invoke(RPC_CHANNELS.skills.CREATE),
   promoteSkillToAgent: invoke(RPC_CHANNELS.skills.PROMOTE_TO_AGENT),
   onSkillsChanged: listener(RPC_CHANNELS.skills.CHANGED),
+  createAgentFromTemplate: invoke(RPC_CHANNELS.skills.CREATE_FROM_TEMPLATE),
+  getAgentTemplates: invoke(RPC_CHANNELS.skills.GET_TEMPLATES),
 
   // Statuses
   listStatuses: invoke(RPC_CHANNELS.statuses.LIST),

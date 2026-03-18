@@ -205,6 +205,61 @@ export interface LlmConnectionWithStatus extends LlmConnection {
 }
 
 // ============================================================
+// Bedrock Model ID Mapping
+// ============================================================
+
+/**
+ * Map standard Anthropic model IDs to Bedrock cross-region inference profile IDs.
+ *
+ * The Claude Code SDK expects Bedrock-format model IDs when CLAUDE_CODE_USE_BEDROCK=1 is set.
+ * Standard Anthropic IDs (e.g., "claude-sonnet-4-6") are not valid Bedrock model identifiers —
+ * Bedrock requires inference profile IDs (e.g., "us.anthropic.claude-sonnet-4-6").
+ *
+ * These mappings use US cross-region inference profiles (us.anthropic.) by default.
+ */
+
+// Use global. inference profile IDs where available — they work from ANY AWS region,
+// making Depot resilient to the SDK overriding AWS_REGION from ~/.claude/settings.json.
+// Older models without global profiles fall back to us. prefix (US-region only).
+
+const BEDROCK_MODEL_MAP: Record<string, string> = {
+  'claude-opus-4-6': 'global.anthropic.claude-opus-4-6-v1',
+  'claude-opus-4-5-20251101': 'global.anthropic.claude-opus-4-5-20251101-v1:0',
+  'claude-sonnet-4-6': 'global.anthropic.claude-sonnet-4-6',
+  'claude-haiku-4-5-20251001': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
+  'claude-sonnet-4-5-20250929': 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
+  'claude-sonnet-4-20250514': 'global.anthropic.claude-sonnet-4-20250514-v1:0',
+  // Older models — no global inference profiles, US-region only
+  'claude-opus-4-1-20250805': 'us.anthropic.claude-opus-4-1-20250805-v1:0',
+  'claude-opus-4-20250514': 'us.anthropic.claude-opus-4-20250514-v1:0',
+  'claude-3-7-sonnet-20250219': 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+  'claude-3-5-sonnet-20241022': 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+  'claude-3-5-haiku-20241022': 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+};
+
+/**
+ * Convert a standard Anthropic model ID to the Bedrock inference profile ID.
+ * Returns the original ID only for already-Bedrock/non-Anthropic IDs.
+ * Throws for unmapped `claude-*` IDs.
+ */
+export function toBedrockModelId(modelId: string): string {
+  const mapped = BEDROCK_MODEL_MAP[modelId];
+  if (mapped) return mapped;
+
+  // Already a Bedrock-formatted ID — pass through
+  if (modelId.includes('.anthropic.') || modelId.startsWith('arn:')) {
+    return modelId;
+  }
+
+  // Unmapped Anthropic model ID — fail fast with a clear error
+  if (modelId.startsWith('claude-')) {
+    throw new Error(`Unmapped Bedrock model ID: ${modelId}. Add a mapping to BEDROCK_MODEL_MAP.`);
+  }
+
+  return modelId;
+}
+
+// ============================================================
 // Helpers
 // ============================================================
 

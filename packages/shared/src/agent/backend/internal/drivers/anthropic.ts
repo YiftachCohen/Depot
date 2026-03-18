@@ -121,6 +121,9 @@ export const anthropicDriver: ProviderDriver = {
     if (connection.authType === 'iam_credentials') {
       return { success: true };
     }
+    if (connection.authType === 'aws_profile') {
+      return { success: true };
+    }
     if (connection.authType === 'service_account_file') {
       return { success: true };
     }

@@ -15,7 +15,7 @@ import { parseError, type AgentError } from './errors.ts';
 import { runErrorDiagnostics } from './diagnostics.ts';
 import { loadStoredConfig, loadConfigDefaults, type Workspace, type AuthType, getDefaultLlmConnection, getLlmConnection } from '../config/storage.ts';
 import { getValidClaudeOAuthToken } from '../auth/state.ts';
-import { resolveAuthEnvVars } from '../config/llm-connections.ts';
+import { resolveAuthEnvVars, toBedrockModelId } from '../config/llm-connections.ts';
 import type { McpClientPool } from '../mcp/mcp-pool.ts';
 import { loadPlanFromPath, type SessionConfig as Session } from '../sessions/storage.ts';
 import { DEFAULT_MODEL, isClaudeModel, getDefaultSummarizationModel } from '../config/models.ts';
@@ -423,6 +423,8 @@ export class ClaudeAgent extends BaseAgent {
   private lastStderrOutput: string[] = [];
   /** Pending steer message — injected via additionalContext on next PreToolUse */
   private pendingSteerMessage: string | null = null;
+  /** Whether this agent instance uses a Bedrock connection (resolved in postInit). */
+  private isBedrock: boolean = false;
 
   /**
    * Get the session ID for mode operations.
@@ -587,6 +589,9 @@ export class ClaudeAgent extends BaseAgent {
     if (!connection) {
       return { authInjected: false, authWarning: `Connection not found: ${slug}`, authWarningLevel: 'error' };
     }
+
+    // Cache provider type on instance so Bedrock checks don't rely on process-global state
+    this.isBedrock = connection.providerType === 'bedrock';
 
     // Clear all auth env vars first for clean state
     delete process.env.ANTHROPIC_API_KEY;
@@ -799,7 +804,8 @@ export class ClaudeAgent extends BaseAgent {
       
       // Configure SDK options
       // Model is always set by caller via connection config
-      const model = this._model;
+      // For Bedrock connections, convert standard Anthropic model IDs to inference profile IDs
+      const model = this.isBedrock ? toBedrockModelId(this._model) : this._model;
 
       // Log provider context for diagnostics (custom base URL = third-party provider)
       const defaultConnSlug = getDefaultLlmConnection();
@@ -2104,6 +2110,38 @@ This is a branched conversation. All prior messages in this conversation are par
   ): Promise<{ type: 'typed_error'; error: AgentError }> {
     // Try to extract actual error message from SDK debug log file
     const actualError = await this.parseApiErrorFromDebugLog();
+
+    // Fallback: extract error from captured stderr when debug log has no details
+    let stderrError: string | undefined;
+    if (!actualError && this.lastStderrOutput.length > 0) {
+      const stderrText = this.lastStderrOutput.join('\n');
+
+      // Look for JSON error objects in stderr (common from AWS SDK / Anthropic SDK)
+      const jsonMatch = stderrText.match(/\{[^{}]*"message"\s*:\s*"[^"]+"/);
+      if (jsonMatch) {
+        try {
+          // Find the complete JSON object
+          const fullJson = stderrText.match(/\{[^{}]*"message"\s*:\s*"[^"]+"[^{}]*\}/);
+          if (fullJson) {
+            const parsed = JSON.parse(fullJson[0]);
+            stderrError = parsed.message || parsed.error?.message;
+          }
+        } catch { /* not valid JSON */ }
+      }
+
+      // Fallback: extract plain-text error lines
+      if (!stderrError) {
+        const errorLine = stderrText.split('\n').find(l =>
+          l.includes('Error') || l.includes('error') || l.includes('AccessDenied') || l.includes('ValidationException')
+        );
+        if (errorLine) {
+          stderrError = errorLine.trim().slice(0, 200);
+        }
+      }
+    }
+
+    // Use instance-level Bedrock flag for provider-specific error hints
+    const isBedrock = this.isBedrock;
     const errorMap: Record<SDKAssistantMessageError, AgentError> = {
       'authentication_failed': {
         code: 'invalid_api_key',
@@ -2147,9 +2185,16 @@ This is a branched conversation. All prior messages in this conversation are par
             `Error: ${actualError.message}`,
             `Type: ${actualError.errorType}`,
             ...(actualError.requestId ? [`Request ID: ${actualError.requestId}`] : []),
+          ] : stderrError ? [
+            `Error: ${stderrError}`,
           ] : []),
-          'Try removing any attachments and resending',
-          'Check if images are in a supported format (PNG, JPEG, GIF, WebP)',
+          ...(isBedrock && !actualError ? [
+            'Ensure the model is enabled in your AWS Bedrock console (Model Access)',
+            'Verify the AWS region supports the selected model',
+          ] : [
+            'Try removing any attachments and resending',
+            'Check if images are in a supported format (PNG, JPEG, GIF, WebP)',
+          ]),
         ],
         actions: [
           { key: 'r', label: 'Retry', action: 'retry' },
@@ -2192,6 +2237,8 @@ This is a branched conversation. All prior messages in this conversation are par
             `Error: ${actualError.message}`,
             `Type: ${actualError.errorType}`,
             ...(actualError.requestId ? [`Request ID: ${actualError.requestId}`] : []),
+          ] : stderrError ? [
+            `Error: ${stderrError}`,
           ] : []),
           'This may be a temporary issue',
           'Check your network connection',
@@ -2522,7 +2569,10 @@ This is a branched conversation. All prior messages in this conversation are par
     if (!this.config.miniModel) {
       throw new Error('ClaudeAgent.runMiniCompletion: config.miniModel is required');
     }
-    const model = this.config.miniModel;
+    // For Bedrock connections, convert standard model IDs to inference profile IDs
+    const model = this.isBedrock
+      ? toBedrockModelId(this.config.miniModel)
+      : this.config.miniModel;
 
     const options = {
       ...getDefaultOptions(this.config.envOverrides),
@@ -2550,7 +2600,11 @@ This is a branched conversation. All prior messages in this conversation are par
   // ============================================================
 
   async queryLlm(request: LLMQueryRequest): Promise<LLMQueryResult> {
-    const model = request.model ?? this.config.miniModel ?? getDefaultSummarizationModel();
+    const rawModel = request.model ?? this.config.miniModel ?? getDefaultSummarizationModel();
+    // For Bedrock connections, convert standard model IDs to inference profile IDs
+    const model = this.isBedrock
+      ? toBedrockModelId(rawModel)
+      : rawModel;
 
     const options = {
       ...getDefaultOptions(this.config.envOverrides),

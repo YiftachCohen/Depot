@@ -466,6 +466,9 @@ export function createSkill(
   description: string,
   targetDir?: string,
 ): string {
+  if (!slug || !/^[a-z0-9][a-z0-9-]*$/.test(slug) || slug.includes('..') || slug.includes('/') || slug.includes('\\')) {
+    throw new Error(`Invalid skill slug: "${slug}". Must be lowercase alphanumeric with hyphens only.`);
+  }
   const skillsDir = targetDir ?? GLOBAL_DEPOT_SKILLS_DIR;
   const skillDir = join(skillsDir, slug);
 

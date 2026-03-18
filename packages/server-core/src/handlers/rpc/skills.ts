@@ -14,6 +14,8 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.skills.IMPORT_FROM_CLAUDE,
   RPC_CHANNELS.skills.CREATE,
   RPC_CHANNELS.skills.PROMOTE_TO_AGENT,
+  RPC_CHANNELS.skills.CREATE_FROM_TEMPLATE,
+  RPC_CHANNELS.skills.GET_TEMPLATES,
 ] as const
 
 export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): void {
@@ -134,6 +136,27 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
     const { createSkill } = await import('@depot/shared/skills')
     const skillDir = createSkill(slug, name, description, targetDir)
     deps.platform.logger?.info(`SKILLS_CREATE: Created skill "${name}" at ${skillDir}`)
+    return skillDir
+  })
+
+  // Get all available agent templates
+  server.handle(RPC_CHANNELS.skills.GET_TEMPLATES, async () => {
+    const { AGENT_TEMPLATES } = await import('@depot/shared/skills')
+    return AGENT_TEMPLATES
+  })
+
+  // Create an agent from a baked-in template
+  server.handle(RPC_CHANNELS.skills.CREATE_FROM_TEMPLATE, async (
+    _ctx,
+    templateId: string,
+    overrides?: Partial<import('@depot/shared/skills').DepotSkillManifest> & { slug?: string },
+    targetDir?: string,
+  ) => {
+    const { getTemplateById, createAgentFromTemplate } = await import('@depot/shared/skills')
+    const template = getTemplateById(templateId)
+    if (!template) throw new Error(`Template not found: ${templateId}`)
+    const skillDir = createAgentFromTemplate(template, overrides, targetDir)
+    deps.platform.logger?.info(`SKILLS_CREATE_FROM_TEMPLATE: Created agent "${template.manifest.name}" from template "${templateId}" at ${skillDir}`)
     return skillDir
   })
 

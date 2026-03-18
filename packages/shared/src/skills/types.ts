@@ -105,6 +105,24 @@ export function isAgent(skill: LoadedSkill): boolean {
   return (skill.manifest?.quick_commands?.length ?? 0) > 0
 }
 
+// ============================================================
+// Agent Templates
+// ============================================================
+
+/** A curated agent template that can be materialized into a real skill */
+export interface AgentTemplate {
+  /** Unique identifier / default slug (e.g. "code-review") */
+  id: string;
+  /** Category for browsing (e.g. "Development", "Documentation") */
+  category: string;
+  /** Pre-filled depot.yaml manifest */
+  manifest: DepotSkillManifest;
+  /** SKILL.md body content (markdown instructions, without frontmatter) */
+  skillContent: string;
+  /** Tags for search/filtering */
+  tags?: string[];
+}
+
 /**
  * A loaded skill with parsed content
  */

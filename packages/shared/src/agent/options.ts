@@ -196,6 +196,12 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
     const nullDevice = process.platform === 'win32' ? 'NUL' : '/dev/null';
     const envFileFlag = `--env-file=${nullDevice}`;
 
+    // Strip CLAUDECODE env var from subprocess environment.
+    // The SDK's nesting protection detects this and refuses to start, but Depot is
+    // a separate application using the SDK — not a nested Claude Code session.
+    // This happens when Depot is launched from within a Claude Code terminal session.
+    const { CLAUDECODE: _stripped, ...baseEnv } = process.env;
+
     // If custom path is set (e.g., for Electron), use it with minimal options
     if (customPathToClaudeCodeExecutable) {
         const executableArgs = [envFileFlag];
@@ -209,7 +215,7 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
             executable: (customExecutable || 'bun') as 'bun',
             executableArgs,
             env: {
-                ...process.env,
+                ...baseEnv,
                 ...envOverrides,
                 // Propagate debug mode from argv flag OR existing env var
                 CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
@@ -228,7 +234,7 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
             // Inject network interceptor into SDK subprocess for API error capture and MCP schema injection
             executableArgs: [envFileFlag, '--preload', join(baseDir, 'unified-network-interceptor.ts')],
             env: {
-                ...process.env,
+                ...baseEnv,
                 BUN_BE_BUN: '1',
                 ...envOverrides,
                 // Propagate debug mode from argv flag OR existing env var
@@ -239,7 +245,7 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
     return {
         executableArgs: [envFileFlag],
         env: {
-            ...process.env,
+            ...baseEnv,
             ...envOverrides,
             // Propagate debug mode from argv flag OR existing env var
             CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',

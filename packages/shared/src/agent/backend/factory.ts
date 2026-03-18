@@ -304,6 +304,7 @@ export function connectionAuthTypeToBackendAuthType(
     case 'oauth':
     case 'bearer_token':
     case 'iam_credentials':
+    case 'aws_profile':
     case 'service_account_file':
       // Pass through auth types that the backend handles
       return authType;
