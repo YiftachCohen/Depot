@@ -825,6 +825,8 @@ function AppShellContent({
 
   // Enabled (pinned) skill slugs for sidebar filtering
   const [enabledSkillSlugs, setEnabledSkillSlugs] = React.useState<string[] | undefined>(undefined)
+  const previousSkillSlugsRef = React.useRef<Set<string>>(new Set())
+  const hasInitializedSkillFilterRef = React.useRef(false)
 
   // Pinned agents for sidebar — only skills with depot.yaml + quick_commands
   const pinnedAgents = React.useMemo(() => {
@@ -852,6 +854,43 @@ function AppShellContent({
       console.error('[Chat] Failed to load workspace settings:', err)
     })
   }, [activeWorkspaceId])
+
+  React.useEffect(() => {
+    previousSkillSlugsRef.current = new Set()
+    hasInitializedSkillFilterRef.current = false
+  }, [activeWorkspaceId])
+
+  React.useEffect(() => {
+    const currentSkillSlugs = new Set(skills.map((skill) => skill.slug))
+
+    if (!enabledSkillSlugs || enabledSkillSlugs.length === 0) {
+      previousSkillSlugsRef.current = currentSkillSlugs
+      hasInitializedSkillFilterRef.current = false
+      return
+    }
+
+    if (!hasInitializedSkillFilterRef.current) {
+      previousSkillSlugsRef.current = currentSkillSlugs
+      hasInitializedSkillFilterRef.current = true
+      return
+    }
+
+    const enabledSet = new Set(enabledSkillSlugs)
+    const addedSkillSlugs = Array.from(currentSkillSlugs).filter((slug) =>
+      !previousSkillSlugsRef.current.has(slug) && !enabledSet.has(slug),
+    )
+
+    previousSkillSlugsRef.current = currentSkillSlugs
+
+    if (!activeWorkspaceId || addedSkillSlugs.length === 0) {
+      return
+    }
+
+    const nextEnabledSkillSlugs = Array.from(new Set([...enabledSkillSlugs, ...addedSkillSlugs]))
+    setEnabledSkillSlugs(nextEnabledSkillSlugs)
+    window.electronAPI.updateWorkspaceSetting(activeWorkspaceId, 'enabledSkillSlugs', nextEnabledSkillSlugs)
+      .catch((err) => console.error('[Chat] Failed to auto-enable new skills:', err))
+  }, [activeWorkspaceId, enabledSkillSlugs, skills])
 
   // Reset UI state when workspace changes
   // This prevents stale search queries, focused items, and filter state from persisting
@@ -1625,7 +1664,11 @@ function AppShellContent({
   // Session list props context — provides filtered items, search, and filter state to MainContentPanel
   const sessionListPropsValue = React.useMemo<SessionListPropsContextType>(() => ({
     listTitle: sessionListTitle,
-    items: searchActive ? workspaceSessionMetas : filteredSessionMetas,
+    items: searchActive
+      ? (sessionFilter?.kind === 'archived'
+          ? workspaceSessionMetas.filter(s => s.isArchived)
+          : activeSessionMetas)
+      : filteredSessionMetas,
     searchActive,
     searchQuery,
     onSearchChange: setSearchQuery,
@@ -1660,7 +1703,7 @@ function AppShellContent({
     panelCount,
   }), [
     sessionListTitle,
-    searchActive, searchQuery, workspaceSessionMetas, filteredSessionMetas,
+    searchActive, searchQuery, sessionFilter?.kind, workspaceSessionMetas, activeSessionMetas, filteredSessionMetas,
     chatGroupingMode, activeWorkspaceId, listFilter, labelFilter,
     panelCount, focusedSessionId, navigateToSessionInPanel,
     hasPendingPrompt, pinnedAgents, skillFilter,
@@ -2022,7 +2065,7 @@ function AppShellContent({
       })
       // Add agent's sessions if this agent is active
       if (isSkillsNavigation(navState) && navState.details?.skillSlug === skill.slug) {
-        const agentSessions = workspaceSessionMetas
+        const agentSessions = activeSessionMetas
           .filter(m => m.skillSlug === skill.slug)
           .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0))
           .slice(0, 5)
@@ -2333,7 +2376,7 @@ function AppShellContent({
                       items: pinnedAgents.map(skill => {
                         const isAgentOrChild = isSkillsNavigation(navState) && navState.details?.skillSlug === skill.slug
                         const isAgentPageOnly = isAgentOrChild && !navState.details?.sessionId
-                        const allAgentSessions = workspaceSessionMetas
+                        const allAgentSessions = activeSessionMetas
                           .filter(m => m.skillSlug === skill.slug)
                           .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0))
                         const agentSessions = allAgentSessions.slice(0, 5)
@@ -2395,7 +2438,7 @@ function AppShellContent({
                     {
                       id: "nav:allSessions",
                       title: "All Chats",
-                      label: String(workspaceSessionMetas.length),
+                      label: String(activeSessionMetas.length),
                       icon: Inbox,
                       iconColor: 'var(--info)',
                       variant: (sessionFilter?.kind === 'allSessions' && isSessionsNavigation(navState) && navState.details) ? "default" : "ghost",
