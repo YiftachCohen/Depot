@@ -33,7 +33,7 @@ import type { AgentTemplate, DepotSkillManifest } from '../../../shared/types'
 // Constants
 // ---------------------------------------------------------------------------
 
-const CATEGORIES = ['All', 'Development', 'Documentation', 'DevOps', 'Data & Analysis', 'Project Management'] as const
+const DEFAULT_CATEGORIES = ['All'] as const
 
 const INPUT_CLS = cn(
   'w-full h-9 px-3 text-sm rounded-md',
@@ -41,14 +41,6 @@ const INPUT_CLS = cn(
   'placeholder:text-muted-foreground/60',
   'focus:outline-none focus:ring-1 focus:ring-ring',
 )
-
-const CATEGORY_ICONS: Record<string, string> = {
-  'Development': 'code-2',
-  'Documentation': 'book-open',
-  'DevOps': 'rocket',
-  'Data & Analysis': 'bar-chart-3',
-  'Project Management': 'clipboard-list',
-}
 
 // ---------------------------------------------------------------------------
 // Props
@@ -85,6 +77,11 @@ export function AgentTemplateBrowser({
   const [showIconPicker, setShowIconPicker] = useState(false)
 
   const iconEntries = useMemo(() => Object.entries(ICON_NAME_MAP), [])
+
+  const categories = useMemo(
+    () => [...DEFAULT_CATEGORIES, ...Array.from(new Set(templates.map(t => t.category))).sort()],
+    [templates],
+  )
 
   // Reset state when dialog opens
   const handleOpenChange = useCallback((nextOpen: boolean) => {
@@ -204,7 +201,7 @@ export function AgentTemplateBrowser({
 
                 {/* Category pills */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {CATEGORIES.map((cat) => (
+                  {categories.map((cat) => (
                     <button
                       key={cat}
                       type="button"
@@ -366,7 +363,7 @@ export function AgentTemplateBrowser({
                     <input
                       type="text"
                       value={customSlug}
-                      onChange={(e) => setCustomSlug(e.target.value.replace(/[^a-z0-9-]/g, ''))}
+                      onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                       className={INPUT_CLS}
                       placeholder="agent-slug"
                     />

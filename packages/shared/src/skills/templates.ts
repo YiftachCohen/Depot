@@ -1061,10 +1061,11 @@ export function createAgentFromTemplate(
   const skillDir = createSkill(slug, manifest.name, manifest.description, targetDir)
 
   // Overwrite SKILL.md with the richer template content (including frontmatter)
+  const yamlString = (value: string) => JSON.stringify(value)
   const skillMd = [
     '---',
-    `name: "${manifest.name}"`,
-    `description: "${manifest.description}"`,
+    `name: ${yamlString(manifest.name)}`,
+    `description: ${yamlString(manifest.description)}`,
     '---',
     '',
     template.skillContent,

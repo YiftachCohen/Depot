@@ -239,7 +239,8 @@ const BEDROCK_MODEL_MAP: Record<string, string> = {
 
 /**
  * Convert a standard Anthropic model ID to the Bedrock inference profile ID.
- * Returns the original ID if no mapping exists (e.g., already a Bedrock ID).
+ * Returns the original ID only for already-Bedrock/non-Anthropic IDs.
+ * Throws for unmapped `claude-*` IDs.
  */
 export function toBedrockModelId(modelId: string): string {
   const mapped = BEDROCK_MODEL_MAP[modelId];

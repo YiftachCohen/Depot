@@ -221,7 +221,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   // Load templates on mount
   useEffect(() => {
-    window.electronAPI.getAgentTemplates?.()
+    window.electronAPI.getAgentTemplates()
       .then(setAgentTemplates)
       .catch((err) => {
         console.error('Failed to load agent templates:', err)
