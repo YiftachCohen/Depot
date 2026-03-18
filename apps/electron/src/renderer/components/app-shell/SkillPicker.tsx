@@ -9,7 +9,7 @@
 import * as React from 'react'
 import { useState, useMemo, useCallback } from 'react'
 import { useAtomValue } from 'jotai'
-import { Search, Plus, Zap, ArrowUpCircle } from 'lucide-react'
+import { Search, Plus, Zap, ArrowUpCircle, Sparkles } from 'lucide-react'
 import { skillsAtom } from '@/atoms/skills'
 import { SkillAvatar } from '@/components/ui/skill-avatar'
 import { Button } from '@/components/ui/button'
@@ -108,6 +108,7 @@ interface SkillPickerProps {
   enabledSlugs: string[] | undefined
   onSave: (slugs: string[]) => void
   onCreateAgent?: () => void
+  onBrowseTemplates?: () => void
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -116,14 +117,15 @@ const SOURCE_LABELS: Record<string, string> = {
   project: 'Project',
 }
 
-export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onSave, onCreateAgent }: SkillPickerProps) {
+export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onSave, onCreateAgent, onBrowseTemplates }: SkillPickerProps) {
   const allSkills = useAtomValue(skillsAtom)
   const [search, setSearch] = useState('')
   const [promotingSlug, setPromotingSlug] = useState<string | null>(null)
 
-  // Initialize selected set: undefined/empty means all selected
+  // Initialize selected set: undefined means no preference (all selected)
+  // An explicit empty array means user deselected everything
   const [selected, setSelected] = useState<Set<string>>(() => {
-    if (!enabledSlugs || enabledSlugs.length === 0) {
+    if (!enabledSlugs) {
       return new Set(allSkills.map((s) => s.slug))
     }
     return new Set(enabledSlugs)
@@ -132,7 +134,7 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
   // Re-sync when dialog opens or enabledSlugs change
   React.useEffect(() => {
     if (open) {
-      if (!enabledSlugs || enabledSlugs.length === 0) {
+      if (!enabledSlugs) {
         setSelected(new Set(allSkills.map((s) => s.slug)))
       } else {
         setSelected(new Set(enabledSlugs))
@@ -187,17 +189,21 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
   }, [])
 
   const handleSave = useCallback(() => {
-    // If all are selected, save undefined (backward compat = show all)
-    const allSelected = allSkills.length > 0 && selected.size === allSkills.length
-    onSave(allSelected ? [] : Array.from(selected))
+    onSave(Array.from(selected))
     onOpenChange(false)
-  }, [allSkills, selected, onSave, onOpenChange])
+  }, [selected, onSave, onOpenChange])
 
   const handleCreateAgent = useCallback(() => {
     if (!onCreateAgent) return
     onOpenChange(false)
     onCreateAgent()
   }, [onOpenChange, onCreateAgent])
+
+  const handleBrowseTemplates = useCallback(() => {
+    if (!onBrowseTemplates) return
+    onOpenChange(false)
+    onBrowseTemplates()
+  }, [onOpenChange, onBrowseTemplates])
 
   const handlePromoted = useCallback(() => {
     setPromotingSlug(null)
@@ -340,21 +346,40 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
               />
             )}
 
-        {/* Create Agent button */}
-        {!promotingSlug && onCreateAgent && (
-          <button
-            type="button"
-            onClick={handleCreateAgent}
-            className={cn(
-              'group flex items-center justify-center gap-2 w-full h-9 rounded-lg',
-              'border border-dashed border-border/60 hover:border-foreground/20',
-              'bg-transparent hover:bg-foreground/[0.04] transition-all duration-200',
-              'text-xs font-medium text-muted-foreground/70 hover:text-foreground/80',
+        {/* Create Agent / Browse Templates buttons */}
+        {!promotingSlug && (
+          <div className="flex items-center gap-2">
+            {onBrowseTemplates && (
+              <button
+                type="button"
+                onClick={handleBrowseTemplates}
+                className={cn(
+                  'group flex-1 flex items-center justify-center gap-2 h-9 rounded-lg',
+                  'border border-dashed border-border/60 hover:border-foreground/20',
+                  'bg-transparent hover:bg-foreground/[0.04] transition-all duration-200',
+                  'text-xs font-medium text-muted-foreground/70 hover:text-foreground/80',
+                )}
+              >
+                <Sparkles className="h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110" />
+                From Template
+              </button>
             )}
-          >
-            <Plus className="h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110" />
-            Create Agent
-          </button>
+            {onCreateAgent && (
+              <button
+                type="button"
+                onClick={handleCreateAgent}
+                className={cn(
+                  'group flex-1 flex items-center justify-center gap-2 h-9 rounded-lg',
+                  'border border-dashed border-border/60 hover:border-foreground/20',
+                  'bg-transparent hover:bg-foreground/[0.04] transition-all duration-200',
+                  'text-xs font-medium text-muted-foreground/70 hover:text-foreground/80',
+                )}
+              >
+                <Plus className="h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110" />
+                Create Agent
+              </button>
+            )}
+          </div>
         )}
 
         <DialogFooter>

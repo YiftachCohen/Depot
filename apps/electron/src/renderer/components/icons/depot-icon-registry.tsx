@@ -78,6 +78,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       </svg>
     ),
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#0c0a1d"/>
       <defs><radialGradient id="g" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#06b6d4" stop-opacity="0.4"/><stop offset="100%" stop-color="#06b6d4" stop-opacity="0"/></radialGradient></defs>
       <circle cx="256" cy="256" r="200" fill="url(#g)"/>
@@ -92,6 +93,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       <rect x="108" y="324" width="80" height="80" rx="14" fill="#a78bfa" opacity="0.6"/>
       <rect x="216" y="324" width="80" height="80" rx="14" fill="#818cf8" opacity="0.75"/>
       <rect x="324" y="324" width="80" height="80" rx="14" fill="#a78bfa" opacity="0.6"/>
+      </g>
     </svg>`,
   },
 
@@ -120,9 +122,11 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       </svg>
     ),
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#0c0a1d"/>
       <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a78bfa"/><stop offset="50%" stop-color="#6366f1"/><stop offset="100%" stop-color="#06b6d4"/></linearGradient></defs>
       <path d="${D512}" fill="url(#g)" fill-rule="evenodd"/>
+      </g>
     </svg>`,
   },
 
@@ -145,10 +149,12 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       </svg>
     ),
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#0c0a1d"/>
       <rect x="128" y="100" width="60" height="312" rx="14" fill="#6366f1"/>
       <path d="M210,100 L270,100 C355,100 405,165 405,256 C405,347 355,412 270,412 L210,412 L210,340 L265,340 C315,340 340,310 340,256 C340,202 315,172 265,172 L210,172 Z" fill="#06b6d4"/>
       <circle cx="210" cy="256" r="10" fill="#a78bfa"/>
+      </g>
     </svg>`,
   },
 
@@ -179,6 +185,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       </svg>
     ),
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#0c0a1d"/>
       <path d="M256,240 C256,180 210,110 150,110 C110,110 110,150 110,190 C110,240 180,240 240,240 Z" fill="#a78bfa"/>
       <path d="M272,256 C332,256 402,210 402,150 C402,110 362,110 322,110 C272,110 272,180 272,240 Z" fill="#6366f1"/>
@@ -187,6 +194,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       <circle cx="256" cy="256" r="30" fill="#0c0a1d"/>
       <circle cx="256" cy="256" r="16" fill="#818cf8"/>
       <circle cx="256" cy="256" r="7" fill="#fff"/>
+      </g>
     </svg>`,
   },
 
@@ -220,6 +228,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       </svg>
     ),
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#0c0a1d"/>
       <ellipse cx="256" cy="256" rx="180" ry="60" fill="none" stroke="#818cf8" stroke-width="5" opacity="0.4"/>
       <ellipse cx="256" cy="256" rx="180" ry="60" fill="none" stroke="#6366f1" stroke-width="5" opacity="0.4" transform="rotate(60 256 256)"/>
@@ -230,6 +239,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       <circle cx="400" cy="173" r="14" fill="#818cf8"/><circle cx="400" cy="173" r="5" fill="#fff"/>
       <circle cx="112" cy="339" r="14" fill="#06b6d4"/><circle cx="112" cy="339" r="5" fill="#fff"/>
       <circle cx="370" cy="370" r="14" fill="#6366f1"/><circle cx="370" cy="370" r="5" fill="#fff"/>
+      </g>
     </svg>`,
   },
 
@@ -262,6 +272,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       </svg>
     ),
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#0c0a1d"/>
       <rect x="72" y="230" width="38" height="52" rx="10" fill="#a78bfa" opacity="0.5"/>
       <rect x="128" y="195" width="38" height="122" rx="10" fill="#a78bfa" opacity="0.6"/>
@@ -271,6 +282,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       <rect x="352" y="165" width="38" height="182" rx="10" fill="#3b82f6" opacity="0.75"/>
       <rect x="408" y="210" width="38" height="92" rx="10" fill="#06b6d4" opacity="0.6"/>
       <circle cx="259" cy="256" r="16" fill="#fff"/>
+      </g>
     </svg>`,
   },
 
@@ -321,6 +333,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       </svg>
     ),
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#0c0a1d"/>
       <rect x="128" y="96" width="48" height="48" fill="#818cf8"/>
       <rect x="176" y="96" width="48" height="48" fill="#818cf8"/>
@@ -340,6 +353,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       <rect x="176" y="384" width="48" height="48" fill="#3b82f6"/>
       <rect x="224" y="384" width="48" height="48" fill="#06b6d4"/>
       <rect x="272" y="384" width="48" height="48" fill="#06b6d4"/>
+      </g>
     </svg>`,
   },
 
@@ -368,6 +382,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       </svg>
     ),
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#0c0a1d"/>
       <rect x="90" y="90" width="200" height="140" rx="24" fill="#4f46e5" opacity="0.5"/>
       <rect x="140" y="150" width="200" height="140" rx="24" fill="#6366f1" opacity="0.65"/>
@@ -375,6 +390,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       <rect x="240" y="270" width="200" height="140" rx="24" fill="#06b6d4"/>
       <circle cx="340" cy="340" r="20" fill="#fff" opacity="0.9"/>
       <circle cx="340" cy="340" r="9" fill="#06b6d4"/>
+      </g>
     </svg>`,
   },
 ]

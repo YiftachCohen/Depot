@@ -33,3 +33,11 @@ export {
   buildSessionOptionsFromQuickCommand,
   type SkillSessionOptions,
 } from './session-helpers.ts';
+export {
+  AGENT_TEMPLATES,
+  TEMPLATE_CATEGORIES,
+  type TemplateCategory,
+  getTemplateById,
+  getTemplatesByCategory,
+  createAgentFromTemplate,
+} from './templates.ts';
