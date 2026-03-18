@@ -84,3 +84,28 @@ export function getThinkingLevelName(level: ThinkingLevel): string {
 export function isValidThinkingLevel(value: unknown): value is ThinkingLevel {
   return value === 'off' || value === 'think' || value === 'max';
 }
+
+/**
+ * SDK thinking configuration for the `thinking` + `effort` options.
+ * Replaces the deprecated `maxThinkingTokens` parameter.
+ *
+ * Uses fixed budgets (ThinkingEnabled) with effort hints.
+ * The SDK's adaptive thinking (`{ type: 'adaptive' }`) is available
+ * but we use explicit budgets for predictable cost/latency control.
+ */
+export interface ThinkingOptions {
+  thinking: { type: 'disabled' } | { type: 'enabled'; budgetTokens: number };
+  effort?: 'low' | 'medium' | 'high';
+}
+
+export function getThinkingOptions(level: ThinkingLevel, modelId: string): ThinkingOptions {
+  if (level === 'off') {
+    return { thinking: { type: 'disabled' } };
+  }
+  const isHaiku = modelId.toLowerCase().includes('haiku');
+  const budgets = isHaiku ? TOKEN_BUDGETS.haiku : TOKEN_BUDGETS.default;
+  return {
+    thinking: { type: 'enabled', budgetTokens: budgets[level] },
+    effort: level === 'max' ? 'high' : 'medium',
+  };
+}
