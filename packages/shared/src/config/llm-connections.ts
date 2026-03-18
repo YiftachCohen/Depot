@@ -242,7 +242,20 @@ const BEDROCK_MODEL_MAP: Record<string, string> = {
  * Returns the original ID if no mapping exists (e.g., already a Bedrock ID).
  */
 export function toBedrockModelId(modelId: string): string {
-  return BEDROCK_MODEL_MAP[modelId] ?? modelId;
+  const mapped = BEDROCK_MODEL_MAP[modelId];
+  if (mapped) return mapped;
+
+  // Already a Bedrock-formatted ID — pass through
+  if (modelId.includes('.anthropic.') || modelId.startsWith('arn:')) {
+    return modelId;
+  }
+
+  // Unmapped Anthropic model ID — fail fast with a clear error
+  if (modelId.startsWith('claude-')) {
+    throw new Error(`Unmapped Bedrock model ID: ${modelId}. Add a mapping to BEDROCK_MODEL_MAP.`);
+  }
+
+  return modelId;
 }
 
 // ============================================================

@@ -223,7 +223,9 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   useEffect(() => {
     window.electronAPI.getAgentTemplates?.()
       .then(setAgentTemplates)
-      .catch(() => {})
+      .catch((err) => {
+        console.error('Failed to load agent templates:', err)
+      })
   }, [])
 
   const handleCreateFromTemplate = useCallback(async (

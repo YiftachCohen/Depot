@@ -423,6 +423,8 @@ export class ClaudeAgent extends BaseAgent {
   private lastStderrOutput: string[] = [];
   /** Pending steer message — injected via additionalContext on next PreToolUse */
   private pendingSteerMessage: string | null = null;
+  /** Whether this agent instance uses a Bedrock connection (resolved in postInit). */
+  private isBedrock: boolean = false;
 
   /**
    * Get the session ID for mode operations.
@@ -587,6 +589,9 @@ export class ClaudeAgent extends BaseAgent {
     if (!connection) {
       return { authInjected: false, authWarning: `Connection not found: ${slug}`, authWarningLevel: 'error' };
     }
+
+    // Cache provider type on instance so Bedrock checks don't rely on process-global state
+    this.isBedrock = connection.providerType === 'bedrock';
 
     // Clear all auth env vars first for clean state
     delete process.env.ANTHROPIC_API_KEY;
@@ -800,8 +805,7 @@ export class ClaudeAgent extends BaseAgent {
       // Configure SDK options
       // Model is always set by caller via connection config
       // For Bedrock connections, convert standard Anthropic model IDs to inference profile IDs
-      const isBedrock = !!process.env.CLAUDE_CODE_USE_BEDROCK;
-      const model = isBedrock ? toBedrockModelId(this._model) : this._model;
+      const model = this.isBedrock ? toBedrockModelId(this._model) : this._model;
 
       // Log provider context for diagnostics (custom base URL = third-party provider)
       const defaultConnSlug = getDefaultLlmConnection();
@@ -2131,10 +2135,8 @@ This is a branched conversation. All prior messages in this conversation are par
       }
     }
 
-    // Detect Bedrock connection for provider-specific hints
-    const defaultConnSlug = getDefaultLlmConnection();
-    const defaultConn = defaultConnSlug ? getLlmConnection(defaultConnSlug) : null;
-    const isBedrock = defaultConn?.providerType === 'bedrock';
+    // Use instance-level Bedrock flag for provider-specific error hints
+    const isBedrock = this.isBedrock;
     const errorMap: Record<SDKAssistantMessageError, AgentError> = {
       'authentication_failed': {
         code: 'invalid_api_key',
@@ -2563,7 +2565,7 @@ This is a branched conversation. All prior messages in this conversation are par
       throw new Error('ClaudeAgent.runMiniCompletion: config.miniModel is required');
     }
     // For Bedrock connections, convert standard model IDs to inference profile IDs
-    const model = process.env.CLAUDE_CODE_USE_BEDROCK
+    const model = this.isBedrock
       ? toBedrockModelId(this.config.miniModel)
       : this.config.miniModel;
 
@@ -2595,7 +2597,7 @@ This is a branched conversation. All prior messages in this conversation are par
   async queryLlm(request: LLMQueryRequest): Promise<LLMQueryResult> {
     const rawModel = request.model ?? this.config.miniModel ?? getDefaultSummarizationModel();
     // For Bedrock connections, convert standard model IDs to inference profile IDs
-    const model = process.env.CLAUDE_CODE_USE_BEDROCK
+    const model = this.isBedrock
       ? toBedrockModelId(rawModel)
       : rawModel;
 

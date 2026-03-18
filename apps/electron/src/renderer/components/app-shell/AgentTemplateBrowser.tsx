@@ -23,9 +23,9 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { cn } from '@/lib/utils'
-import { resolveIconComponent } from '@/lib/command-icon'
+import { resolveIconComponent, ICON_NAME_MAP } from '@/lib/command-icon'
 import { toast } from 'sonner'
 import type { AgentTemplate, DepotSkillManifest } from '../../../shared/types'
 
@@ -82,18 +82,20 @@ export function AgentTemplateBrowser({
   const [customSlug, setCustomSlug] = useState('')
   const [customDescription, setCustomDescription] = useState('')
   const [customIcon, setCustomIcon] = useState('')
+  const [showIconPicker, setShowIconPicker] = useState(false)
 
-  // Reset state when dialog opens/closes
+  const iconEntries = useMemo(() => Object.entries(ICON_NAME_MAP), [])
+
+  // Reset state when dialog opens
   const handleOpenChange = useCallback((nextOpen: boolean) => {
-    if (!nextOpen) {
-      // Reset on close
-      setTimeout(() => {
-        setStep('browse')
-        setSelectedTemplate(null)
-        setSearch('')
-        setActiveCategory('All')
-        setCreating(false)
-      }, 200)
+    if (nextOpen) {
+      // Reset state when opening to avoid stale state from previous session
+      setStep('browse')
+      setSelectedTemplate(null)
+      setSearch('')
+      setActiveCategory('All')
+      setCreating(false)
+      setShowIconPicker(false)
     }
     onOpenChange(nextOpen)
   }, [onOpenChange])
@@ -165,7 +167,7 @@ export function AgentTemplateBrowser({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[640px] max-h-[85vh] flex flex-col overflow-hidden p-0">
+      <DialogContent className="sm:max-w-[640px] max-h-[85vh] !flex flex-col overflow-hidden p-0 gap-0">
         <AnimatePresence mode="wait" initial={false}>
           {step === 'browse' ? (
             <motion.div
@@ -221,7 +223,7 @@ export function AgentTemplateBrowser({
               </div>
 
               {/* Template grid */}
-              <ScrollArea className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="px-6 pb-6">
                   {filtered.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2.5">
@@ -269,7 +271,7 @@ export function AgentTemplateBrowser({
                     </div>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </motion.div>
           ) : (
             <motion.div
@@ -300,29 +302,26 @@ export function AgentTemplateBrowser({
               </div>
 
               {/* Form */}
-              <ScrollArea className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="px-6 pb-6 space-y-4">
                   {/* Icon + Name row */}
                   <div className="flex items-start gap-3">
                     <div className="shrink-0">
                       <label className="text-[11px] text-muted-foreground/60 mb-1.5 block">Icon</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={customIcon}
-                          onChange={(e) => setCustomIcon(e.target.value)}
-                          className={cn(INPUT_CLS, 'w-28 text-center')}
-                          placeholder="bot"
-                        />
+                      <button
+                        type="button"
+                        onClick={() => setShowIconPicker(v => !v)}
+                        className={cn(
+                          'flex items-center justify-center h-9 w-9 rounded-lg transition-all cursor-pointer',
+                          'border border-border/60 bg-foreground/[0.04] hover:bg-foreground/[0.08] hover:ring-2 hover:ring-foreground/10',
+                        )}
+                        title="Change icon"
+                      >
                         {(() => {
                           const PreviewIcon = resolveIconComponent(customIcon)
-                          return (
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                              <PreviewIcon className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          )
+                          return <PreviewIcon className="h-4.5 w-4.5 text-muted-foreground" />
                         })()}
-                      </div>
+                      </button>
                     </div>
                     <div className="flex-1">
                       <label className="text-[11px] text-muted-foreground/60 mb-1.5 block">Name</label>
@@ -335,6 +334,31 @@ export function AgentTemplateBrowser({
                       />
                     </div>
                   </div>
+
+                  {/* Icon picker grid */}
+                  {showIconPicker && (
+                    <div className="rounded-lg border border-border/60 bg-foreground/[0.02] p-2">
+                      <div className="grid grid-cols-8 gap-1">
+                        {iconEntries.map(([name, Icon]) => (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => { setCustomIcon(name); setShowIconPicker(false) }}
+                            aria-label={`Select icon ${name}`}
+                            title={name}
+                            className={cn(
+                              'flex items-center justify-center h-8 w-8 rounded-md transition-colors cursor-pointer',
+                              customIcon === name
+                                ? 'bg-foreground text-background'
+                                : 'hover:bg-foreground/[0.08] text-foreground/70',
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Slug */}
                   <div>
@@ -394,7 +418,7 @@ export function AgentTemplateBrowser({
                     </div>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
 
               {/* Footer */}
               <div className="px-6 py-4 border-t border-border/40 flex items-center justify-end gap-2">

@@ -234,7 +234,7 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
             // Inject network interceptor into SDK subprocess for API error capture and MCP schema injection
             executableArgs: [envFileFlag, '--preload', join(baseDir, 'unified-network-interceptor.ts')],
             env: {
-                ...process.env,
+                ...baseEnv,
                 BUN_BE_BUN: '1',
                 ...envOverrides,
                 // Propagate debug mode from argv flag OR existing env var
