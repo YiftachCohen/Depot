@@ -6,12 +6,13 @@ import { StepFormLayout } from "./primitives"
 import claudeIcon from "@/assets/provider-icons/claude.svg"
 import openaiIcon from "@/assets/provider-icons/openai.svg"
 import copilotIcon from "@/assets/provider-icons/copilot.svg"
+import awsIcon from "@/assets/provider-icons/aws.svg"
 
 /**
  * The high-level provider choice the user makes on first launch.
  * This maps to one or more ApiSetupMethods downstream.
  */
-export type ProviderChoice = 'claude' | 'chatgpt' | 'copilot' | 'api_key' | 'local'
+export type ProviderChoice = 'claude' | 'chatgpt' | 'copilot' | 'api_key' | 'local' | 'bedrock'
 
 interface ProviderOption {
   id: ProviderChoice
@@ -38,6 +39,12 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
     name: 'GitHub Copilot',
     description: 'Use your GitHub Copilot subscription.',
     icon: <img src={copilotIcon} alt="" className="size-5 rounded-[3px]" />,
+  },
+  {
+    id: 'bedrock',
+    name: 'AWS Bedrock',
+    description: 'Use Claude via your AWS account.',
+    icon: <img src={awsIcon} alt="" className="size-5 rounded-[3px]" />,
   },
   {
     id: 'api_key',

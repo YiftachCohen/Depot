@@ -650,7 +650,7 @@ export function useOnboarding({
 
   // Map ProviderChoice → ApiSetupMethod and navigate to the right step
   const handleSelectProvider = useCallback((choice: ProviderChoice) => {
-    const CHOICE_TO_METHOD: Record<Exclude<ProviderChoice, 'local'>, ApiSetupMethod> = {
+    const CHOICE_TO_METHOD: Record<Exclude<ProviderChoice, 'local' | 'bedrock'>, ApiSetupMethod> = {
       claude: 'claude_oauth',
       chatgpt: 'pi_chatgpt_oauth',
       copilot: 'pi_copilot_oauth',
@@ -660,6 +660,12 @@ export function useOnboarding({
     if (choice === 'local') {
       // Local uses anthropic_api_key with custom endpoint (Ollama doesn't need an API key)
       setState(s => ({ ...s, step: 'local-model', apiSetupMethod: 'anthropic_api_key', credentialStatus: 'idle', errorMessage: undefined }))
+      return
+    }
+
+    if (choice === 'bedrock') {
+      // Bedrock uses AWS Profile auth by default (seamless setup)
+      setState(s => ({ ...s, step: 'credentials', apiSetupMethod: 'bedrock_profile', credentialStatus: 'idle', errorMessage: undefined }))
       return
     }
 
