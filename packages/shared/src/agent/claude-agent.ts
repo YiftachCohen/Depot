@@ -852,8 +852,11 @@ export class ClaudeAgent extends BaseAgent {
         // Extended thinking: configure via `thinking` + `effort` (replaces deprecated `maxThinkingTokens`)
         // Non-Claude models don't support extended thinking, so disable
         // Mini agents also disable thinking for efficiency (quick config edits don't need deep reasoning)
-        ...(isClaude && !miniConfig.minimizeThinking
-          ? getThinkingOptions(this._thinkingLevel, model)
+        ...(isClaude
+          ? getThinkingOptions(
+              miniConfig.minimizeThinking ? 'off' : this._thinkingLevel,
+              model,
+            )
           : { thinking: { type: 'disabled' as const } }),
         // System prompt configuration:
         // - Mini agents: Use custom (lean) system prompt without Claude Code preset

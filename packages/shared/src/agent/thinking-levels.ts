@@ -89,20 +89,43 @@ export function isValidThinkingLevel(value: unknown): value is ThinkingLevel {
  * SDK thinking configuration for the `thinking` + `effort` options.
  * Replaces the deprecated `maxThinkingTokens` parameter.
  *
- * Uses fixed budgets (ThinkingEnabled) with effort hints.
- * The SDK's adaptive thinking (`{ type: 'adaptive' }`) is available
- * but we use explicit budgets for predictable cost/latency control.
+ * Claude 4.6 models (Opus/Sonnet) use adaptive thinking with effort control.
+ * Older models fall back to fixed budgets (ThinkingEnabled).
  */
 export interface ThinkingOptions {
-  thinking: { type: 'disabled' } | { type: 'enabled'; budgetTokens: number };
-  effort?: 'low' | 'medium' | 'high';
+  thinking: { type: 'disabled' } | { type: 'enabled'; budgetTokens: number } | { type: 'adaptive' };
+  effort?: 'low' | 'medium' | 'high' | 'max';
+}
+
+/**
+ * Detect Claude 4.6 models that support adaptive thinking.
+ * Model IDs follow patterns like "claude-opus-4-6-...", "claude-sonnet-4-6-...".
+ */
+function isClaude46(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  return lower.includes('4-6') || lower.includes('4.6');
 }
 
 export function getThinkingOptions(level: ThinkingLevel, modelId: string): ThinkingOptions {
   if (level === 'off') {
     return { thinking: { type: 'disabled' } };
   }
-  const isHaiku = modelId.toLowerCase().includes('haiku');
+
+  const lower = modelId.toLowerCase();
+
+  // Claude 4.6 models use adaptive thinking with effort control
+  if (isClaude46(modelId)) {
+    const isOpus = lower.includes('opus');
+    return {
+      thinking: { type: 'adaptive' },
+      effort: level === 'max'
+        ? (isOpus ? 'max' : 'high')
+        : 'medium',
+    };
+  }
+
+  // Older models use fixed token budgets
+  const isHaiku = lower.includes('haiku');
   const budgets = isHaiku ? TOKEN_BUDGETS.haiku : TOKEN_BUDGETS.default;
   return {
     thinking: { type: 'enabled', budgetTokens: budgets[level] },
