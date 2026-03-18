@@ -259,10 +259,14 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       return
     }
 
+    const previousEnabledSlugs = enabledSlugs
     const nextEnabledSlugs = Array.from(new Set([...enabledSlugs, ...addedSkillSlugs]))
     setEnabledSlugs(nextEnabledSlugs)
     window.electronAPI.updateWorkspaceSetting(activeWorkspaceId, 'enabledSkillSlugs', nextEnabledSlugs)
-      .catch((err: unknown) => console.error('Failed to auto-enable new skills:', err))
+      .catch((err: unknown) => {
+        console.error('Failed to auto-enable new skills:', err)
+        setEnabledSlugs(previousEnabledSlugs)
+      })
   }, [activeWorkspaceId, enabledSlugs, skills])
 
   const skillStats = useMemo(() => {
@@ -355,14 +359,21 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       .catch((err: unknown) => console.error('Failed to save enabledSkillSlugs:', err))
   }, [activeWorkspaceId])
 
+  const creatingAgentSessionRef = useRef(false)
+
   const handleCreateAgentSession = useCallback(async () => {
-    if (!activeWorkspaceId) return
-    const session = await onCreateSession(activeWorkspaceId, {
-      name: 'Create New Agent',
-    })
-    if (session?.id) {
-      onSendMessage(session.id, SKILL_CREATOR_PROMPT)
-      navigate(routes.view.allSessions(session.id))
+    if (!activeWorkspaceId || creatingAgentSessionRef.current) return
+    creatingAgentSessionRef.current = true
+    try {
+      const session = await onCreateSession(activeWorkspaceId, {
+        name: 'Create New Agent',
+      })
+      if (session?.id) {
+        onSendMessage(session.id, SKILL_CREATOR_PROMPT)
+        navigate(routes.view.allSessions(session.id))
+      }
+    } finally {
+      creatingAgentSessionRef.current = false
     }
   }, [activeWorkspaceId, onCreateSession, onSendMessage])
 
