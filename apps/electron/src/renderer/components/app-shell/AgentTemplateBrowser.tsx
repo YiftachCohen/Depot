@@ -235,7 +235,7 @@ export function AgentTemplateBrowser({
                             className={cn(
                               'group flex flex-col gap-3 p-4 rounded-xl text-left transition-all',
                               'border border-border/60 bg-foreground/[0.01]',
-                              'hover:bg-foreground/[0.04] hover:border-foreground/15 hover:shadow-sm',
+                              'hover:bg-foreground/[0.04] hover:border-foreground/15 hover:shadow-xs',
                               'cursor-pointer',
                             )}
                           >
