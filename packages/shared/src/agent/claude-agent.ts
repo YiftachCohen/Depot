@@ -61,7 +61,7 @@ import {
   type PreToolUseCheckResult,
   BUILT_IN_TOOLS,
 } from './core/pre-tool-use.ts';
-import { type ThinkingLevel, getThinkingTokens, DEFAULT_THINKING_LEVEL } from './thinking-levels.ts';
+import { type ThinkingLevel, getThinkingTokens, getThinkingOptions, DEFAULT_THINKING_LEVEL } from './thinking-levels.ts';
 import type { LoadedSource } from '../sources/types.ts';
 import { sourceNeedsAuthentication } from '../sources/credential-manager.ts';
 import type {
@@ -849,10 +849,15 @@ export class ClaudeAgent extends BaseAgent {
             this.lastStderrOutput.shift();
           }
         },
-        // Extended thinking: tokens based on session thinking level
-        // Non-Claude models don't support extended thinking, so pass 0 to disable
+        // Extended thinking: configure via `thinking` + `effort` (replaces deprecated `maxThinkingTokens`)
+        // Non-Claude models don't support extended thinking, so disable
         // Mini agents also disable thinking for efficiency (quick config edits don't need deep reasoning)
-        maxThinkingTokens: miniConfig.minimizeThinking ? 0 : (isClaude ? thinkingTokens : 0),
+        ...(isClaude
+          ? getThinkingOptions(
+              miniConfig.minimizeThinking ? 'off' : this._thinkingLevel,
+              model,
+            )
+          : { thinking: { type: 'disabled' as const } }),
         // System prompt configuration:
         // - Mini agents: Use custom (lean) system prompt without Claude Code preset
         // - Normal agents: Append to Claude Code's system prompt (recommended by docs)
