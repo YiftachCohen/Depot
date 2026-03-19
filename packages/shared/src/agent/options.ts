@@ -4,7 +4,7 @@ import { homedir } from "os";
 import { existsSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from "fs";
 import { debug } from "../utils/debug";
 
-declare const CRAFT_AGENT_CLI_VERSION: string | undefined;
+declare const DEPOT_CLI_VERSION: string | undefined;
 
 let customPathToClaudeCodeExecutable: string | null = null;
 let customInterceptorPath: string | null = null;
@@ -217,8 +217,8 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
         };
     }
 
-    if (typeof CRAFT_AGENT_CLI_VERSION !== 'undefined' && CRAFT_AGENT_CLI_VERSION != null) {
-        const baseDir = join(homedir(), '.local', 'share', 'craft', 'versions', CRAFT_AGENT_CLI_VERSION);
+    if (typeof DEPOT_CLI_VERSION !== 'undefined' && DEPOT_CLI_VERSION != null) {
+        const baseDir = join(homedir(), '.local', 'share', 'depot', 'versions', DEPOT_CLI_VERSION);
         return {
             pathToClaudeCodeExecutable: join(baseDir, 'claude-agent-sdk', 'cli.js'),
             // Use the compiled binary itself as the runtime via BUN_BE_BUN=1

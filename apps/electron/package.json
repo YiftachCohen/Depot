@@ -1,6 +1,6 @@
 {
   "name": "@depot/electron",
-  "version": "0.7.5",
+  "version": "1.0.0",
   "description": "Electron desktop app for Depot",
   "main": "dist/main.cjs",
   "private": true,

@@ -1,6 +1,6 @@
 {
   "name": "depot",
-  "version": "0.7.5",
+  "version": "1.0.0",
   "description": "Skill-first agent interface for enterprise teams",
   "type": "module",
   "private": true,

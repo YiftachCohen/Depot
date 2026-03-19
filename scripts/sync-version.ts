@@ -13,15 +13,15 @@ import { join, dirname } from 'path';
 const scriptDir = import.meta.dir;
 const repoRoot = dirname(scriptDir);
 
-// Read APP_VERSION from source
+// Read version from the source of truth: packages/shared/package.json
 function getAppVersion(): string {
-  const versionFile = join(repoRoot, 'packages/shared/src/version/app-version.ts');
-  const content = readFileSync(versionFile, 'utf-8');
-  const match = content.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
-  if (!match) {
-    throw new Error('Could not find APP_VERSION in app-version.ts');
+  const pkgFile = join(repoRoot, 'packages/shared/package.json');
+  const content = readFileSync(pkgFile, 'utf-8');
+  const pkg = JSON.parse(content);
+  if (!pkg.version) {
+    throw new Error('Could not find version in packages/shared/package.json');
   }
-  return match[1];
+  return pkg.version;
 }
 
 // Update version in a package.json file

@@ -47,10 +47,10 @@ async function extractArchive(params: { archiveData: ArrayBuffer, destination: s
 
 export async function installArchive(params: { archiveData: ArrayBuffer, version: string }): Promise<void> {
   const { archiveData, version } = params;
-  const versionDirectory = join(homedir(), '.local', 'share', 'craft', 'versions', version);
-  const binaryPath = join(versionDirectory, 'craft');
+  const versionDirectory = join(homedir(), '.local', 'share', 'depot', 'versions', version);
+  const binaryPath = join(versionDirectory, 'depot');
   const symlinkDirectory = join(homedir(), '.local', 'bin');
-  const symlinkPath = join(symlinkDirectory, 'craft');
+  const symlinkPath = join(symlinkDirectory, 'depot');
 
   await ensureDirectory(versionDirectory);
   await ensureDirectory(symlinkDirectory);
