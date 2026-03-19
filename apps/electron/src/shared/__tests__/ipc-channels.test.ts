@@ -185,6 +185,7 @@ const EXPECTED_CHANNELS: string[] = [
   'skills:create',
   'skills:createFromTemplate',
   'skills:delete',
+  'skills:demote',
   'skills:get',
   'skills:getFiles',
   'skills:getTemplates',

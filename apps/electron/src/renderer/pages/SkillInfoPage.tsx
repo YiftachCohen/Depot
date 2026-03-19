@@ -11,7 +11,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Check, X, Minus, FolderOpen, Trash2, Pencil } from 'lucide-react'
 import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopover'
 import { toast } from 'sonner'
-import { SkillMenu } from '@/components/app-shell/SkillMenu'
+import { SkillMenu, SkillDeleteDialog, useSkillDeleteDialog } from '@/components/app-shell/SkillMenu'
 import { SkillAvatar } from '@/components/ui/skill-avatar'
 import { routes, navigate } from '@/lib/navigate'
 import {
@@ -110,7 +110,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
     if (!skill) return
 
     try {
-      await window.electronAPI.demoteAgent(workspaceId, skillSlug)
+      await window.electronAPI.demoteAgent(workspaceId, skillSlug, skill.path)
       toast.success(`Removed agent configuration: ${skill.metadata.name}`)
     } catch (err) {
       toast.error('Failed to demote agent', {
@@ -123,6 +123,9 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
   const handleOpenInNewWindow = useCallback(() => {
     window.electronAPI.openUrl(`craftagents://skills/skill/${skillSlug}?window=focused`)
   }, [skillSlug])
+
+  // Delete dialog state (rendered outside the menu to avoid unmount-on-close)
+  const { deleteDialogOpen, setDeleteDialogOpen, requestDelete } = useSkillDeleteDialog()
 
   // Get skill name for header
   const skillName = skill?.metadata.name || skillSlug
@@ -160,8 +163,19 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
             onShowInFinder={handleOpenInFinder}
             onDelete={handleDelete}
             onDemote={skill && checkIsAgent(skill) ? handleDemote : undefined}
+            onRequestDelete={requestDelete}
           />
         }
+      />
+
+      {/* Delete confirmation dialog - rendered outside menu to avoid unmount-on-close */}
+      <SkillDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        skillName={skillName}
+        isAgent={skill ? checkIsAgent(skill) : false}
+        onDelete={handleDelete}
+        onDemote={skill && checkIsAgent(skill) ? handleDemote : undefined}
       />
 
       {skill && (
@@ -305,8 +319,7 @@ function ProjectPathsSection({
   skill: LoadedSkill
   workspaceId: string
 }) {
-  const manifest = skill.manifest!
-  const [paths, setPaths] = useState<string[]>(manifest.project_paths ?? [])
+  const [paths, setPaths] = useState<string[]>(skill.manifest?.project_paths ?? [])
   const [newPath, setNewPath] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -318,8 +331,10 @@ function ProjectPathsSection({
   const save = useCallback(async (updatedPaths: string[]): Promise<boolean> => {
     setSaving(true)
     try {
+      // Re-read the latest manifest from props to avoid overwriting concurrent edits
+      const latestManifest = skill.manifest!
       const updated: DepotSkillManifest = {
-        ...manifest,
+        ...latestManifest,
         project_paths: updatedPaths.length > 0 ? updatedPaths : undefined,
       }
       await window.electronAPI.promoteSkillToAgent(workspaceId, skill.slug, updated)
@@ -333,7 +348,7 @@ function ProjectPathsSection({
     } finally {
       setSaving(false)
     }
-  }, [manifest, workspaceId, skill.slug])
+  }, [skill, workspaceId])
 
   const addPath = useCallback(async () => {
     if (saving) return
@@ -438,8 +453,7 @@ function CommandsSection({
   skill: LoadedSkill
   workspaceId: string
 }) {
-  const manifest = skill.manifest!
-  const [commands, setCommands] = useState<QuickCommand[]>(manifest.quick_commands ?? [])
+  const [commands, setCommands] = useState<QuickCommand[]>(skill.manifest?.quick_commands ?? [])
   const [saving, setSaving] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [adding, setAdding] = useState(false)
@@ -454,8 +468,10 @@ function CommandsSection({
   const save = useCallback(async (updatedCommands: QuickCommand[]): Promise<boolean> => {
     setSaving(true)
     try {
+      // Re-read the latest manifest from props to avoid overwriting concurrent edits
+      const latestManifest = skill.manifest!
       const updated: DepotSkillManifest = {
-        ...manifest,
+        ...latestManifest,
         quick_commands: updatedCommands,
       }
       await window.electronAPI.promoteSkillToAgent(workspaceId, skill.slug, updated)
@@ -469,7 +485,7 @@ function CommandsSection({
     } finally {
       setSaving(false)
     }
-  }, [manifest, workspaceId, skill.slug])
+  }, [skill, workspaceId])
 
   const startEditing = useCallback((index: number) => {
     const cmd = commands[index]

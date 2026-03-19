@@ -12,6 +12,11 @@
  * - Open in New Window
  * - Show in file manager
  * - Delete (with confirmation dialog)
+ *
+ * NOTE: The confirmation dialog is rendered via SkillDeleteDialog, which must be
+ * mounted *outside* the dropdown/context menu to avoid being unmounted when the
+ * menu closes. Use the `useSkillDeleteDialog` hook or render SkillDeleteDialog
+ * alongside the menu.
  */
 
 import * as React from 'react'
@@ -46,13 +51,100 @@ export interface SkillMenuProps {
   onDelete: () => void
   /** Called to demote agent to plain skill (remove depot.yaml only) */
   onDemote?: () => void
+  /** Called to request the delete confirmation dialog be opened (for external dialog rendering) */
+  onRequestDelete?: () => void
 }
 
 const BTN_BASE = 'h-8 px-3 text-xs font-medium rounded-md transition-colors cursor-pointer'
 
 /**
+ * SkillDeleteDialog - Confirmation dialog for skill deletion
+ *
+ * Must be rendered OUTSIDE dropdown/context menu content to avoid being
+ * unmounted when the menu closes.
+ */
+export function SkillDeleteDialog({
+  open,
+  onOpenChange,
+  skillName,
+  isAgent,
+  onDelete,
+  onDemote,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  skillName: string
+  isAgent?: boolean
+  onDelete: () => void
+  onDemote?: () => void
+}) {
+  const handleDeleteAll = useCallback(() => {
+    onOpenChange(false)
+    onDelete()
+  }, [onOpenChange, onDelete])
+
+  const handleDemote = useCallback(() => {
+    onOpenChange(false)
+    onDemote?.()
+  }, [onOpenChange, onDemote])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={false} className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Delete {skillName}?</DialogTitle>
+          <DialogDescription>
+            {isAgent && onDemote
+              ? 'Choose whether to remove the agent configuration only or delete everything.'
+              : 'This will permanently delete the skill and all its files.'}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-2">
+          {isAgent && onDemote && (
+            <button
+              type="button"
+              onClick={handleDemote}
+              className={cn(BTN_BASE, 'border border-border bg-background hover:bg-foreground/[0.05] text-foreground')}
+            >
+              Remove Agent Only
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleDeleteAll}
+            className={cn(BTN_BASE, 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}
+          >
+            Delete Everything
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Hook to manage skill delete dialog state with deferred opening
+ * (waits for menu to close before opening dialog).
+ */
+export function useSkillDeleteDialog() {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+
+  const requestDelete = useCallback(() => {
+    // Defer dialog open to next frame so the menu can fully close first
+    requestAnimationFrame(() => {
+      setDeleteDialogOpen(true)
+    })
+  }, [])
+
+  return { deleteDialogOpen, setDeleteDialogOpen, requestDelete }
+}
+
+/**
  * SkillMenu - Renders the menu items for skill actions
  * This is the content only, not wrapped in a DropdownMenu or ContextMenu
+ *
+ * The delete confirmation dialog is NOT rendered here — it must be rendered
+ * outside the menu. Use `onRequestDelete` to trigger it, or use `useSkillDeleteDialog`.
  */
 export function SkillMenu({
   skillSlug,
@@ -62,24 +154,19 @@ export function SkillMenu({
   onShowInFinder,
   onDelete,
   onDemote,
+  onRequestDelete,
 }: SkillMenuProps) {
   // Get menu components from context (works with both DropdownMenu and ContextMenu)
   const { MenuItem, Separator } = useMenuComponents()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
+  // If no external dialog handler, fall back to calling onDelete directly
   const handleDeleteClick = useCallback(() => {
-    setDeleteDialogOpen(true)
-  }, [])
-
-  const handleDeleteAll = useCallback(() => {
-    setDeleteDialogOpen(false)
-    onDelete()
-  }, [onDelete])
-
-  const handleDemote = useCallback(() => {
-    setDeleteDialogOpen(false)
-    onDemote?.()
-  }, [onDemote])
+    if (onRequestDelete) {
+      onRequestDelete()
+    } else {
+      onDelete()
+    }
+  }, [onRequestDelete, onDelete])
 
   return (
     <>
@@ -102,38 +189,6 @@ export function SkillMenu({
         <Trash2 className="h-3.5 w-3.5" />
         <span className="flex-1">{isAgent ? 'Delete Agent' : 'Delete Skill'}</span>
       </MenuItem>
-
-      {/* Confirmation dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent showCloseButton={false} className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Delete {skillName}?</DialogTitle>
-            <DialogDescription>
-              {isAgent && onDemote
-                ? 'Choose whether to remove the agent configuration only or delete everything.'
-                : 'This will permanently delete the skill and all its files.'}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-2">
-            {isAgent && onDemote && (
-              <button
-                type="button"
-                onClick={handleDemote}
-                className={cn(BTN_BASE, 'border border-border bg-background hover:bg-foreground/[0.05] text-foreground')}
-              >
-                Remove Agent Only
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleDeleteAll}
-              className={cn(BTN_BASE, 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}
-            >
-              Delete Everything
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

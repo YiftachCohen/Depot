@@ -4781,9 +4781,10 @@ export class SessionManager implements ISessionManager {
       // The UI passes skillSlugs via options for explicit invocations (quick commands),
       // but for follow-up messages in an agent session we fall back to the session's
       // stored skillSlug so the agent always operates within its skill context.
-      const skillSlugsToInject = options?.skillSlugs?.length
-        ? options.skillSlugs
-        : managed.skillSlug ? [managed.skillSlug] : []
+      const skillSlugsToInject = Array.from(new Set([
+        ...(managed.skillSlug ? [managed.skillSlug] : []),
+        ...(options?.skillSlugs ?? []),
+      ]))
       if (skillSlugsToInject.length > 0) {
         const mentions = skillSlugsToInject.map(s => `[skill:${s}]`).join(' ')
         effectiveMessage = `${mentions} ${effectiveMessage}`
