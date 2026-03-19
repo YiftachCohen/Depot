@@ -155,7 +155,7 @@ describe('resolveAgentSources', () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it('should produce a warning when auto-create fails due to invalid config', async () => {
+  it('should auto-create api source with missing authType defaulting to none', async () => {
     const result = await resolveAgentSources(workspaceRoot, makeManifest({
       sources: ['bad-api'],
       source_configs: {
@@ -163,14 +163,13 @@ describe('resolveAgentSources', () => {
           type: 'api',
           provider: 'bad',
           api: { baseUrl: 'https://example.com' },
-          // Missing authType → validation will fail
+          // Missing authType → defaults to 'none'
         },
       },
     }));
 
-    expect(result.created).toEqual([]);
-    expect(result.warnings).toHaveLength(1);
-    expect(result.warnings[0]).toContain('bad-api');
+    expect(result.created).toEqual(['bad-api']);
+    expect(result.warnings).toEqual([]);
   });
 
   it('should handle a mixed scenario with multiple source states', async () => {

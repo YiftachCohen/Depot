@@ -6,8 +6,11 @@
  */
 
 import { loadSource, createSource, isSourceUsable } from '../sources/storage.ts';
-import type { CreateSourceInput } from '../sources/types.ts';
+import type { CreateSourceInput, SourceMcpAuthType, ApiAuthType } from '../sources/types.ts';
 import type { DepotSkillManifest, InlineSourceConfig } from './types.ts';
+
+const VALID_MCP_AUTH_TYPES: ReadonlySet<string> = new Set<SourceMcpAuthType>(['oauth', 'bearer', 'none']);
+const VALID_API_AUTH_TYPES: ReadonlySet<string> = new Set<ApiAuthType>(['bearer', 'header', 'query', 'basic', 'oauth', 'none']);
 
 /**
  * Result of resolving a skill's declared sources against the workspace.
@@ -42,12 +45,16 @@ function toCreateSourceInput(slug: string, inline: InlineSourceConfig): CreateSo
       url: inline.mcp.url,
       command: inline.mcp.command,
       args: inline.mcp.args,
-      authType: inline.mcp.authType as any,
+      authType: inline.mcp.authType && VALID_MCP_AUTH_TYPES.has(inline.mcp.authType)
+        ? inline.mcp.authType as SourceMcpAuthType
+        : undefined,
     };
   } else if (inline.type === 'api' && inline.api) {
     input.api = {
       baseUrl: inline.api.baseUrl,
-      authType: inline.api.authType as any,
+      authType: inline.api.authType && VALID_API_AUTH_TYPES.has(inline.api.authType)
+        ? inline.api.authType as ApiAuthType
+        : 'none',
     };
   } else if (inline.type === 'local' && inline.local) {
     input.local = {

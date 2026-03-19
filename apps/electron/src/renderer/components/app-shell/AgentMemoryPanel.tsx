@@ -87,7 +87,7 @@ export function AgentMemoryPanel({ workspaceId, skillSlug, facts, onFactsChanged
               <button
                 type="button"
                 onClick={() => handleDeleteFact(fact.id)}
-                className="shrink-0 mt-0.5 opacity-0 group-hover/fact:opacity-100 transition-opacity text-foreground/30 hover:text-destructive/60 cursor-pointer"
+                className="shrink-0 mt-0.5 opacity-0 group-hover/fact:opacity-100 group-focus-within/fact:opacity-100 focus-visible:opacity-100 transition-opacity text-foreground/30 hover:text-destructive/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded cursor-pointer"
                 aria-label={`Delete: ${fact.content.slice(0, 30)}`}
               >
                 <X className="h-3 w-3" />

@@ -2069,11 +2069,21 @@ export class SessionManager implements ISessionManager {
     // Get default enabled sources from workspace config
     let defaultEnabledSourceSlugs = options?.enabledSourceSlugs ?? wsConfig?.defaults?.enabledSourceSlugs
 
+    // Resolve working directory early so loadSkillBySlug can find project-local skills.
+    let resolvedWorkingDir: string | undefined
+    if (options?.workingDirectory === 'none') {
+      resolvedWorkingDir = undefined
+    } else if (options?.workingDirectory === 'user_default' || options?.workingDirectory === undefined) {
+      resolvedWorkingDir = userDefaultWorkingDir
+    } else {
+      resolvedWorkingDir = options.workingDirectory
+    }
+
     // If no source slugs resolved but we have a skillSlug, resolve from skill manifest.
     // Also auto-creates missing sources from inline source_configs when available.
     let skillPermissionMode: PermissionMode | undefined
     if ((!defaultEnabledSourceSlugs || defaultEnabledSourceSlugs.length === 0) && options?.skillSlug) {
-      const skill = loadSkillBySlug(workspace.rootPath, options.skillSlug)
+      const skill = loadSkillBySlug(workspace.rootPath, options.skillSlug, resolvedWorkingDir)
       if (skill?.manifest) {
         // Apply manifest permission_mode as default if no explicit override
         if (skill.manifest.permission_mode && !options?.permissionMode) {
@@ -2107,19 +2117,6 @@ export class SessionManager implements ISessionManager {
     const targetProviderType = targetBackendContext.connection?.providerType
       ?? (targetBackendContext.provider === 'pi' ? 'pi' : 'anthropic')
     const targetPiAuthProvider = targetBackendContext.connection?.piAuthProvider
-
-    // Resolve working directory from options:
-    // - 'user_default' or undefined: Use workspace's configured default
-    // - 'none': No working directory (empty string means session folder only)
-    // - Absolute path: Use as-is
-    let resolvedWorkingDir: string | undefined
-    if (options?.workingDirectory === 'none') {
-      resolvedWorkingDir = undefined  // No working directory
-    } else if (options?.workingDirectory === 'user_default' || options?.workingDirectory === undefined) {
-      resolvedWorkingDir = userDefaultWorkingDir
-    } else {
-      resolvedWorkingDir = options.workingDirectory
-    }
 
     // Validate branch request up-front so branch metadata is only set for valid branches.
     // This prevents creating sessions that claim to be branched but don't have copied history.
@@ -4923,9 +4920,9 @@ export class SessionManager implements ISessionManager {
           sendSpan.mark('chat.complete')
           sendSpan.end()
 
-          // Auto-summarize agent memory at session end (fire-and-forget)
+          // Auto-summarize agent memory for this turn (fire-and-forget)
           if (managed.skillSlug && managed.agent) {
-            this.summarizeAgentSessionMemory(managed).catch(err => {
+            this.summarizeAgentSessionMemory(managed, userMessage.timestamp).catch(err => {
               sessionLog.warn(`Agent memory summarization failed for ${managed.skillSlug}: ${err}`)
             })
           }
@@ -5175,16 +5172,16 @@ export class SessionManager implements ISessionManager {
    * Auto-summarize a completed agent turn into persistent memory.
    * Runs asynchronously after session completion (fire-and-forget).
    */
-  private async summarizeAgentSessionMemory(managed: ManagedSession): Promise<void> {
+  private async summarizeAgentSessionMemory(managed: ManagedSession, turnStartTimestamp: number): Promise<void> {
     if (!managed.skillSlug || !managed.agent) return
 
     // Check if the skill has memory enabled
-    const skill = loadSkillBySlug(managed.workspace.rootPath, managed.skillSlug)
+    const skill = loadSkillBySlug(managed.workspace.rootPath, managed.skillSlug, managed.workingDirectory)
     if (!skill?.manifest?.memory?.enabled) return
 
-    // Collect recent messages for summarization (last turn only)
+    // Collect messages from this turn only (starting at the user message that triggered it)
     const recentMessages = managed.messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.timestamp >= turnStartTimestamp)
       .slice(-10)  // Last 10 messages max
 
     if (recentMessages.length < 2) return  // Need at least a user + assistant exchange
