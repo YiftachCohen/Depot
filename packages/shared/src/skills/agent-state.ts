@@ -7,8 +7,8 @@
  * Storage: {workspace}/skills/{slug}/agent-state.json
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'fs';
+import { join, dirname, resolve, sep } from 'path';
 import { randomUUID } from 'crypto';
 
 // ============================================================
@@ -59,6 +59,14 @@ export interface AgentState {
 
 const AGENT_STATE_FILE = 'agent-state.json';
 
+/** Validate that a skill slug is safe for filesystem path construction. */
+function assertValidSkillSlug(skillSlug: string): string {
+  if (!/^[a-z0-9][a-z0-9-]*$/i.test(skillSlug)) {
+    throw new Error(`Invalid skill slug: ${skillSlug}`);
+  }
+  return skillSlug;
+}
+
 /**
  * Get the path to an agent's state file.
  * When `skillDir` is provided (the resolved skill's absolute path), state is
@@ -66,7 +74,13 @@ const AGENT_STATE_FILE = 'agent-state.json';
  */
 export function getAgentStatePath(workspaceRootPath: string, skillSlug: string, skillDir?: string): string {
   if (skillDir) return join(skillDir, AGENT_STATE_FILE);
-  return join(workspaceRootPath, 'skills', skillSlug, AGENT_STATE_FILE);
+  const safeSlug = assertValidSkillSlug(skillSlug);
+  const skillsRoot = resolve(workspaceRootPath, 'skills');
+  const target = resolve(skillsRoot, safeSlug, AGENT_STATE_FILE);
+  if (!target.startsWith(`${skillsRoot}${sep}`)) {
+    throw new Error(`Resolved path escaped skills root for slug: ${skillSlug}`);
+  }
+  return target;
 }
 
 // ============================================================
@@ -110,7 +124,9 @@ export function saveAgentState(workspaceRootPath: string, skillSlug: string, sta
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
-  writeFileSync(filePath, JSON.stringify(state, null, 2), 'utf-8');
+  const tempPath = `${filePath}.tmp`;
+  writeFileSync(tempPath, JSON.stringify(state, null, 2), 'utf-8');
+  renameSync(tempPath, filePath);
 }
 
 /**
@@ -188,7 +204,9 @@ export function deleteMemoryFact(
   state.memory.facts = state.memory.facts.filter(f => f.id !== factId);
   if (state.memory.facts.length === before) return false;
 
-  state.memory.updatedAt = Date.now();
+  const now = Date.now();
+  state.memory.updatedAt = now;
+  state.lastActiveAt = now;
   saveAgentState(workspaceRootPath, skillSlug, state, skillDir);
   return true;
 }
