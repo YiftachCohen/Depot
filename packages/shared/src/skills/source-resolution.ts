@@ -95,9 +95,11 @@ export async function resolveAgentSources(
     if (existing) {
       if (isSourceUsable(existing)) {
         result.resolved.push(slug);
-      } else {
+      } else if (existing.config.enabled) {
+        // Enabled but not usable → needs authentication
         result.needsAuth.push(slug);
       }
+      // Disabled sources are intentionally skipped — don't include in any bucket
       continue;
     }
 

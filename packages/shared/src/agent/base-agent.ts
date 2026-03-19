@@ -280,7 +280,7 @@ export abstract class BaseAgent implements AgentBackend {
       const slug = this.config.session.skillSlug;
       const skill = loadSkillBySlug(this.config.workspace.rootPath, slug);
       agentPersonality = skill?.manifest?.personality;
-      const agentState = loadAgentState(this.config.workspace.rootPath, slug);
+      const agentState = loadAgentState(this.config.workspace.rootPath, slug, skill?.path);
       agentMemoryContext = formatAgentMemoryForPrompt(agentState, slug) || undefined;
     }
     return new PromptBuilder({

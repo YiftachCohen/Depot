@@ -2079,17 +2079,17 @@ export class SessionManager implements ISessionManager {
       resolvedWorkingDir = options.workingDirectory
     }
 
-    // If no source slugs resolved but we have a skillSlug, resolve from skill manifest.
-    // Also auto-creates missing sources from inline source_configs when available.
+    // Load skill manifest for permission_mode and source resolution (independent concerns).
     let skillPermissionMode: PermissionMode | undefined
-    if ((!defaultEnabledSourceSlugs || defaultEnabledSourceSlugs.length === 0) && options?.skillSlug) {
+    if (options?.skillSlug) {
       const skill = loadSkillBySlug(workspace.rootPath, options.skillSlug, resolvedWorkingDir)
       if (skill?.manifest) {
         // Apply manifest permission_mode as default if no explicit override
         if (skill.manifest.permission_mode && !options?.permissionMode) {
           skillPermissionMode = skill.manifest.permission_mode
         }
-        if (skill.manifest.sources?.length) {
+        // Resolve sources only when no slugs are already preset
+        if ((!defaultEnabledSourceSlugs || defaultEnabledSourceSlugs.length === 0) && skill.manifest.sources?.length) {
           // Use auto-resolution when source_configs are present
           if (skill.manifest.source_configs && Object.keys(skill.manifest.source_configs).length > 0) {
             const resolution = await resolveAgentSources(workspace.rootPath, skill.manifest)
@@ -5205,12 +5205,12 @@ export class SessionManager implements ISessionManager {
 
       const validFacts = facts.filter(f => typeof f === 'string' && f.trim().length > 0)
       if (validFacts.length > 0) {
-        addMemoryFacts(managed.workspace.rootPath, managed.skillSlug, managed.id, validFacts)
+        addMemoryFacts(managed.workspace.rootPath, managed.skillSlug, managed.id, validFacts, skill.path)
         sessionLog.info(`Agent memory: saved ${validFacts.length} facts for ${managed.skillSlug}`)
       }
 
       // Check if consolidation is needed
-      const state = loadAgentState(managed.workspace.rootPath, managed.skillSlug)
+      const state = loadAgentState(managed.workspace.rootPath, managed.skillSlug, skill.path)
       if (state && state.memory.facts.length > MEMORY_CONSOLIDATION_THRESHOLD) {
         sessionLog.info(`Agent memory: consolidation needed for ${managed.skillSlug} (${state.memory.facts.length} facts)`)
         // Consolidation can be added as a follow-up feature

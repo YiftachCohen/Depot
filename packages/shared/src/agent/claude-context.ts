@@ -69,6 +69,7 @@ import { debug } from '../utils/debug.ts';
 import { getSessionPlansPath, getSessionPath, getSessionDataPath } from '../sessions/storage.ts';
 import { updatePreferences as updatePreferencesImpl } from '../config/preferences.ts';
 import { addMemoryFacts } from '../skills/agent-state.ts';
+import { loadSkillBySlug } from '../skills/storage.ts';
 
 // Re-export types that may be needed by consumers
 export type { SessionToolContext, SessionToolCallbacks } from '@depot/session-tools-core';
@@ -257,7 +258,9 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     },
     saveAgentMemory: skillSlug
       ? (facts: string[]) => {
-          addMemoryFacts(workspacePath, skillSlug, sessionId, facts);
+          // Resolve skill to get the correct storage path (project vs workspace)
+          const resolvedSkill = loadSkillBySlug(workspacePath, skillSlug);
+          addMemoryFacts(workspacePath, skillSlug, sessionId, facts, resolvedSkill?.path);
         }
       : undefined,
     submitFeedback: (feedback: DeveloperFeedback) => {

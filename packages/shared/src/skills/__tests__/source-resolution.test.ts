@@ -189,15 +189,17 @@ describe('resolveAgentSources', () => {
     expect(result.warnings[0]).toContain('slack');
   });
 
-  it('should resolve disabled source as needsAuth (not usable)', async () => {
+  it('should skip disabled sources (not included in any bucket)', async () => {
     createSourceOnDisk('disabled-src', { enabled: false });
 
     const result = await resolveAgentSources(workspaceRoot, makeManifest({
       sources: ['disabled-src'],
     }));
 
-    // Disabled sources exist but aren't usable
-    expect(result.needsAuth).toEqual(['disabled-src']);
+    // Disabled sources are intentionally skipped
     expect(result.resolved).toEqual([]);
+    expect(result.needsAuth).toEqual([]);
+    expect(result.created).toEqual([]);
+    expect(result.warnings).toEqual([]);
   });
 });

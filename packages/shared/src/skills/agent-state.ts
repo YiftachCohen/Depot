@@ -61,8 +61,11 @@ const AGENT_STATE_FILE = 'agent-state.json';
 
 /**
  * Get the path to an agent's state file.
+ * When `skillDir` is provided (the resolved skill's absolute path), state is
+ * stored alongside that skill. Otherwise falls back to the workspace skills dir.
  */
-export function getAgentStatePath(workspaceRootPath: string, skillSlug: string): string {
+export function getAgentStatePath(workspaceRootPath: string, skillSlug: string, skillDir?: string): string {
+  if (skillDir) return join(skillDir, AGENT_STATE_FILE);
   return join(workspaceRootPath, 'skills', skillSlug, AGENT_STATE_FILE);
 }
 
@@ -74,8 +77,8 @@ export function getAgentStatePath(workspaceRootPath: string, skillSlug: string):
  * Load agent state from disk.
  * Returns null if the file doesn't exist or is invalid.
  */
-export function loadAgentState(workspaceRootPath: string, skillSlug: string): AgentState | null {
-  const filePath = getAgentStatePath(workspaceRootPath, skillSlug);
+export function loadAgentState(workspaceRootPath: string, skillSlug: string, skillDir?: string): AgentState | null {
+  const filePath = getAgentStatePath(workspaceRootPath, skillSlug, skillDir);
 
   if (!existsSync(filePath)) return null;
 
@@ -93,8 +96,8 @@ export function loadAgentState(workspaceRootPath: string, skillSlug: string): Ag
 /**
  * Save agent state to disk.
  */
-export function saveAgentState(workspaceRootPath: string, skillSlug: string, state: AgentState): void {
-  const filePath = getAgentStatePath(workspaceRootPath, skillSlug);
+export function saveAgentState(workspaceRootPath: string, skillSlug: string, state: AgentState, skillDir?: string): void {
+  const filePath = getAgentStatePath(workspaceRootPath, skillSlug, skillDir);
   const dir = dirname(filePath);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
@@ -105,7 +108,7 @@ export function saveAgentState(workspaceRootPath: string, skillSlug: string, sta
 /**
  * Initialize a fresh agent state.
  */
-export function initAgentState(workspaceRootPath: string, skillSlug: string): AgentState {
+export function initAgentState(workspaceRootPath: string, skillSlug: string, skillDir?: string): AgentState {
   const now = Date.now();
   const state: AgentState = {
     agentId: randomUUID(),
@@ -117,7 +120,7 @@ export function initAgentState(workspaceRootPath: string, skillSlug: string): Ag
       updatedAt: now,
     },
   };
-  saveAgentState(workspaceRootPath, skillSlug, state);
+  saveAgentState(workspaceRootPath, skillSlug, state, skillDir);
   return state;
 }
 
@@ -134,12 +137,13 @@ export function addMemoryFacts(
   skillSlug: string,
   sessionId: string,
   facts: string[],
+  skillDir?: string,
 ): void {
   if (facts.length === 0) return;
 
-  let state = loadAgentState(workspaceRootPath, skillSlug);
+  let state = loadAgentState(workspaceRootPath, skillSlug, skillDir);
   if (!state) {
-    state = initAgentState(workspaceRootPath, skillSlug);
+    state = initAgentState(workspaceRootPath, skillSlug, skillDir);
   }
 
   const now = Date.now();
@@ -154,7 +158,7 @@ export function addMemoryFacts(
 
   state.memory.updatedAt = now;
   state.lastActiveAt = now;
-  saveAgentState(workspaceRootPath, skillSlug, state);
+  saveAgentState(workspaceRootPath, skillSlug, state, skillDir);
 }
 
 /**
@@ -165,8 +169,9 @@ export function deleteMemoryFact(
   workspaceRootPath: string,
   skillSlug: string,
   factId: string,
+  skillDir?: string,
 ): boolean {
-  let state = loadAgentState(workspaceRootPath, skillSlug);
+  let state = loadAgentState(workspaceRootPath, skillSlug, skillDir);
   if (!state) return false;
 
   const before = state.memory.facts.length;
@@ -174,7 +179,7 @@ export function deleteMemoryFact(
   if (state.memory.facts.length === before) return false;
 
   state.memory.updatedAt = Date.now();
-  saveAgentState(workspaceRootPath, skillSlug, state);
+  saveAgentState(workspaceRootPath, skillSlug, state, skillDir);
   return true;
 }
 
