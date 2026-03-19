@@ -215,7 +215,7 @@ export function AgentTemplateBrowser({
                         'inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-full transition-colors',
                         activeCategory === cat
                           ? 'bg-foreground text-background'
-                          : 'bg-foreground/[0.05] text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground',
+                          : 'bg-foreground/[0.05] text-foreground/60 hover:bg-foreground/[0.08] hover:text-foreground',
                       )}
                     >
                       {cat}
@@ -245,20 +245,20 @@ export function AgentTemplateBrowser({
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.06] shrink-0">
-                                <IconComp className="h-4.5 w-4.5 text-muted-foreground/80" />
+                                <IconComp className="h-4.5 w-4.5 text-foreground/50" />
                               </div>
-                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors mt-1" />
+                              <ChevronRight className="h-3.5 w-3.5 text-foreground/15 group-hover:text-foreground/40 transition-colors mt-1" />
                             </div>
                             <div className="space-y-1">
                               <h4 className="text-[13px] font-medium text-foreground leading-tight">{template.manifest.name}</h4>
-                              <p className="text-[11px] text-muted-foreground/60 leading-relaxed line-clamp-2">{template.manifest.description}</p>
+                              <p className="text-[11px] text-foreground/50 leading-relaxed line-clamp-2">{template.manifest.description}</p>
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/50 bg-foreground/[0.04] px-1.5 py-0.5 rounded">
+                              <span className="inline-flex items-center gap-1 text-[10px] text-foreground/40 bg-foreground/[0.04] px-1.5 py-0.5 rounded">
                                 {template.manifest.quick_commands.length} command{template.manifest.quick_commands.length !== 1 ? 's' : ''}
                               </span>
                               {template.tags?.slice(0, 2).map((tag) => (
-                                <span key={tag} className="text-[10px] text-muted-foreground/40 bg-foreground/[0.03] px-1.5 py-0.5 rounded">
+                                <span key={tag} className="text-[10px] text-foreground/35 bg-foreground/[0.03] px-1.5 py-0.5 rounded">
                                   {tag}
                                 </span>
                               ))}
@@ -309,7 +309,7 @@ export function AgentTemplateBrowser({
                   {/* Icon + Name row */}
                   <div className="flex items-start gap-3">
                     <div className="shrink-0">
-                      <label className="text-[11px] text-muted-foreground/60 mb-1.5 block">Icon</label>
+                      <label className="text-[11px] text-foreground/50 mb-1.5 block">Icon</label>
                       <button
                         type="button"
                         onClick={() => setShowIconPicker(v => !v)}
@@ -326,7 +326,7 @@ export function AgentTemplateBrowser({
                       </button>
                     </div>
                     <div className="flex-1">
-                      <label htmlFor={nameInputId} className="text-[11px] text-muted-foreground/60 mb-1.5 block">Name</label>
+                      <label htmlFor={nameInputId} className="text-[11px] text-foreground/50 mb-1.5 block">Name</label>
                       <input
                         id={nameInputId}
                         type="text"
@@ -365,7 +365,7 @@ export function AgentTemplateBrowser({
 
                   {/* Slug */}
                   <div>
-                    <label htmlFor={slugInputId} className="text-[11px] text-muted-foreground/60 mb-1.5 block">Slug</label>
+                    <label htmlFor={slugInputId} className="text-[11px] text-foreground/50 mb-1.5 block">Slug</label>
                     <input
                       id={slugInputId}
                       type="text"
@@ -374,12 +374,12 @@ export function AgentTemplateBrowser({
                       className={INPUT_CLS}
                       placeholder="agent-slug"
                     />
-                    <p className="text-[10px] text-muted-foreground/40 mt-1">Directory name in ~/.depot/skills/</p>
+                    <p className="text-[10px] text-foreground/35 mt-1">Directory name in ~/.depot/skills/</p>
                   </div>
 
                   {/* Description */}
                   <div>
-                    <label htmlFor={descriptionInputId} className="text-[11px] text-muted-foreground/60 mb-1.5 block">Description</label>
+                    <label htmlFor={descriptionInputId} className="text-[11px] text-foreground/50 mb-1.5 block">Description</label>
                     <textarea
                       id={descriptionInputId}
                       value={customDescription}
@@ -393,7 +393,7 @@ export function AgentTemplateBrowser({
                   {/* Quick commands preview */}
                   {selectedTemplate && (
                     <div>
-                      <label className="text-[11px] text-muted-foreground/60 mb-1.5 block">Quick Commands</label>
+                      <label className="text-[11px] text-foreground/50 mb-1.5 block">Quick Commands</label>
                       <div className="space-y-1.5">
                         {selectedTemplate.manifest.quick_commands.map((cmd, i) => {
                           const CmdIcon = resolveIconComponent(cmd.icon)
@@ -402,13 +402,13 @@ export function AgentTemplateBrowser({
                               key={i}
                               className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-border/40 bg-foreground/[0.02]"
                             >
-                              <CmdIcon className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                              <CmdIcon className="h-3.5 w-3.5 text-foreground/40 shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <span className="text-xs font-medium text-foreground">{cmd.name}</span>
-                                <p className="text-[10px] text-muted-foreground/50 truncate">{cmd.prompt}</p>
+                                <p className="text-[10px] text-foreground/40 truncate">{cmd.prompt}</p>
                               </div>
                               {cmd.variables && cmd.variables.length > 0 && (
-                                <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] text-muted-foreground/40 bg-foreground/[0.04] px-1.5 py-0.5 rounded">
+                                <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] text-foreground/35 bg-foreground/[0.04] px-1.5 py-0.5 rounded">
                                   <Tag className="h-2.5 w-2.5" />
                                   {cmd.variables.length} var{cmd.variables.length !== 1 ? 's' : ''}
                                 </span>
@@ -417,7 +417,7 @@ export function AgentTemplateBrowser({
                           )
                         })}
                       </div>
-                      <p className="text-[10px] text-muted-foreground/40 mt-1.5">
+                      <p className="text-[10px] text-foreground/35 mt-1.5">
                         You can edit commands after the agent is created.
                       </p>
                     </div>

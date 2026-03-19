@@ -240,6 +240,14 @@ export const RPC_CHANNELS = {
     CREATE_FROM_TEMPLATE: 'skills:createFromTemplate',
     GET_TEMPLATES: 'skills:getTemplates',
   },
+  agentState: {
+    GET: 'agentState:get',
+    GET_MEMORY: 'agentState:getMemory',
+    ADD_MEMORY: 'agentState:addMemory',
+    DELETE_FACT: 'agentState:deleteFact',
+    CLEAR_MEMORY: 'agentState:clearMemory',
+    CHANGED: 'agentState:changed',
+  },
   statuses: {
     LIST: 'statuses:list',
     REORDER: 'statuses:reorder',

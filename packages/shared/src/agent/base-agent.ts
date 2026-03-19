@@ -65,6 +65,8 @@ import { buildTitlePrompt, buildRegenerateTitlePrompt, validateTitle } from '../
 // Skill extraction for Codex/Copilot backends (Claude uses native SDK Skill tool)
 import { parseMentions, stripAllMentions, resolveFileMentions } from '../mentions/index.ts';
 import { loadAllSkills } from '../skills/storage.ts';
+import { loadSkillBySlug } from '../skills/storage.ts';
+import { loadAgentState, formatAgentMemoryForPrompt } from '../skills/agent-state.ts';
 import type { LoadedSkill } from '../skills/types.ts';
 import { findProjectContextFile } from '../prompts/system.ts';
 
@@ -243,12 +245,24 @@ export abstract class BaseAgent implements AgentBackend {
     });
 
     // PromptBuilder: builds context blocks for user messages
+    // Load agent personality and memory from skill manifest + agent state
+    let agentPersonality: string | undefined;
+    let agentMemoryContext: string | undefined;
+    if (config.session?.skillSlug) {
+      const skill = loadSkillBySlug(config.workspace.rootPath, config.session.skillSlug);
+      agentPersonality = skill?.manifest?.personality;
+      const agentState = loadAgentState(config.workspace.rootPath, config.session.skillSlug);
+      agentMemoryContext = formatAgentMemoryForPrompt(agentState, config.session.skillSlug);
+    }
+
     this.promptBuilder = new PromptBuilder({
       workspace: config.workspace,
       session: config.session,
       debugMode: config.debugMode,
       systemPromptPreset: config.systemPromptPreset,
       isHeadless: config.isHeadless,
+      agentPersonality,
+      agentMemoryContext: agentMemoryContext || undefined,
     });
 
     // PathProcessor: expands ~ and normalizes paths

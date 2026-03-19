@@ -15,7 +15,8 @@
  */
 
 import * as React from 'react'
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { MoreHorizontal } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -23,12 +24,7 @@ import {
   DropdownMenuTrigger,
   StyledDropdownMenuContent,
 } from '@/components/ui/styled-dropdown'
-import {
-  ContextMenu,
-  ContextMenuTrigger,
-  StyledContextMenuContent,
-} from '@/components/ui/styled-context-menu'
-import { DropdownMenuProvider, ContextMenuProvider } from '@/components/ui/menu-context'
+import { DropdownMenuProvider } from '@/components/ui/menu-context'
 import { cn } from '@/lib/utils'
 
 export interface EntityRowProps {
@@ -83,6 +79,67 @@ export interface EntityRowProps {
   separatorClassName?: string
 }
 
+/**
+ * Right-click context menu rendered as a portal at cursor position.
+ * Uses DropdownMenu primitives for consistent styling but bypasses
+ * Radix's positioning (which doesn't work in Electron with virtual anchors).
+ */
+function ContextMenuPortal({
+  open,
+  onClose,
+  position,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  position: { x: number; y: number }
+  children: React.ReactNode
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    // Delay adding listener so the right-click itself doesn't close it
+    const timer = requestAnimationFrame(() => {
+      document.addEventListener('mousedown', handleClick, true)
+      document.addEventListener('keydown', handleKeyDown, true)
+    })
+    return () => {
+      cancelAnimationFrame(timer)
+      document.removeEventListener('mousedown', handleClick, true)
+      document.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      className="popover-styled z-dropdown min-w-[8rem] overflow-hidden p-1 w-fit font-sans whitespace-nowrap text-xs flex flex-col gap-0.5 min-w-40 animate-in fade-in-0 zoom-in-95"
+      style={{
+        position: 'fixed',
+        left: position.x,
+        top: position.y,
+      }}
+      data-slot="context-menu-content"
+    >
+      <DropdownMenuProvider>
+        {children}
+      </DropdownMenuProvider>
+    </div>,
+    document.body
+  )
+}
+
 export function EntityRow({
   icon,
   title,
@@ -107,9 +164,22 @@ export function EntityRow({
 }: EntityRowProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
+  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 })
 
   // Resolve context menu content: use override if provided, else fall back to dropdown menu content
   const resolvedContextMenu = contextMenuContent ?? menuContent
+
+  const closeContextMenu = useCallback(() => setContextMenuOpen(false), [])
+
+  // Right-click handler on the button itself
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!resolvedContextMenu) return
+    e.preventDefault()
+    e.stopPropagation()
+    console.log('[EntityRow] contextmenu on button', e.clientX, e.clientY)
+    setContextMenuPos({ x: e.clientX, y: e.clientY })
+    setContextMenuOpen(true)
+  }, [resolvedContextMenu])
 
   // Build the inner content (shared between with-context-menu and without)
   const innerContent = (
@@ -132,6 +202,7 @@ export function EntityRow({
         )}
         onMouseDown={onMouseDown}
         onClick={!onMouseDown ? onClick : undefined}
+        onContextMenu={handleContextMenu}
       >
         {/* Content column */}
         <div className="flex flex-col gap-2 min-w-0 flex-1">
@@ -260,21 +331,16 @@ export function EntityRow({
         </div>
       )}
 
-      {/* Wrap with ContextMenu if menu content is provided */}
-      {resolvedContextMenu ? (
-        <ContextMenu modal={true} onOpenChange={setContextMenuOpen}>
-          <ContextMenuTrigger asChild>
-            {innerContent}
-          </ContextMenuTrigger>
-          <StyledContextMenuContent>
-            <ContextMenuProvider>
-              {resolvedContextMenu}
-            </ContextMenuProvider>
-          </StyledContextMenuContent>
-        </ContextMenu>
-      ) : (
-        innerContent
-      )}
+      {innerContent}
+
+      {/* Right-click context menu — custom portal positioned at cursor */}
+      <ContextMenuPortal
+        open={contextMenuOpen}
+        onClose={closeContextMenu}
+        position={contextMenuPos}
+      >
+        {resolvedContextMenu}
+      </ContextMenuPortal>
     </div>
   )
 }

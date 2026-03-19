@@ -69,7 +69,7 @@ import { DepotMcpClient, McpClientPool, McpPoolServer } from '@depot/shared/mcp'
 import { type Session, type SessionEvent, type FileAttachment, type SendMessageOptions, type UnreadSummary, RPC_CHANNELS, generateMessageId } from '@depot/shared/protocol'
 import { messageToStored, storedToMessage, type Message, type StoredAttachment, type ToolDisplayMeta } from '@depot/core/types'
 import { formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrlAsync, getEmojiIcon, resetSummarizationClient, resolveToolIcon, readFileAttachment, selectSpreadMessages, normalizePath } from '@depot/shared/utils'
-import { loadAllSkills, loadSkillBySlug, type LoadedSkill } from '@depot/shared/skills'
+import { loadAllSkills, loadSkillBySlug, resolveAgentSources, addMemoryFacts, loadAgentState, MEMORY_CONSOLIDATION_THRESHOLD, type LoadedSkill } from '@depot/shared/skills'
 import { getToolIconsDir, getMiniModel } from '@depot/shared/config'
 import type { SummarizeCallback } from '@depot/shared/sources'
 import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@depot/shared/agent/thinking-levels'
@@ -2057,7 +2057,7 @@ export class SessionManager implements ISessionManager {
     const globalDefaults = loadConfigDefaults()
 
     // Read permission mode from workspace config, fallback to global defaults
-    const defaultPermissionMode = options?.permissionMode
+    let defaultPermissionMode = options?.permissionMode
       ?? wsConfig?.defaults?.permissionMode
       ?? globalDefaults.workspaceDefaults.permissionMode
 
@@ -2067,7 +2067,36 @@ export class SessionManager implements ISessionManager {
     // Get default model from workspace config (used when no session-specific model is set)
     const defaultModel = wsConfig?.defaults?.model
     // Get default enabled sources from workspace config
-    const defaultEnabledSourceSlugs = options?.enabledSourceSlugs ?? wsConfig?.defaults?.enabledSourceSlugs
+    let defaultEnabledSourceSlugs = options?.enabledSourceSlugs ?? wsConfig?.defaults?.enabledSourceSlugs
+
+    // If no source slugs resolved but we have a skillSlug, resolve from skill manifest.
+    // Also auto-creates missing sources from inline source_configs when available.
+    let skillPermissionMode: PermissionMode | undefined
+    if ((!defaultEnabledSourceSlugs || defaultEnabledSourceSlugs.length === 0) && options?.skillSlug) {
+      const skill = loadSkillBySlug(workspace.rootPath, options.skillSlug)
+      if (skill?.manifest) {
+        // Apply manifest permission_mode as default if no explicit override
+        if (skill.manifest.permission_mode && !options?.permissionMode) {
+          skillPermissionMode = skill.manifest.permission_mode
+        }
+        if (skill.manifest.sources?.length) {
+          // Use auto-resolution when source_configs are present
+          if (skill.manifest.source_configs && Object.keys(skill.manifest.source_configs).length > 0) {
+            const resolution = await resolveAgentSources(workspace.rootPath, skill.manifest)
+            defaultEnabledSourceSlugs = [...resolution.resolved, ...resolution.created, ...resolution.needsAuth]
+            for (const warn of resolution.warnings) {
+              sessionLog.warn(`Source resolution: ${warn}`)
+            }
+          } else {
+            defaultEnabledSourceSlugs = skill.manifest.sources
+          }
+        }
+      }
+    }
+    // Apply skill-level permission mode override if resolved
+    if (skillPermissionMode) {
+      defaultPermissionMode = skillPermissionMode
+    }
 
     // Resolve backend target early for branching policy checks.
     const targetBackendContext = resolveBackendContext({
@@ -4893,6 +4922,14 @@ export class SessionManager implements ISessionManager {
 
           sendSpan.mark('chat.complete')
           sendSpan.end()
+
+          // Auto-summarize agent memory at session end (fire-and-forget)
+          if (managed.skillSlug && managed.agent) {
+            this.summarizeAgentSessionMemory(managed).catch(err => {
+              sessionLog.warn(`Agent memory summarization failed for ${managed.skillSlug}: ${err}`)
+            })
+          }
+
           this.onProcessingStopped(sessionId, 'complete')
           return  // Exit function, skip finally block (onProcessingStopped handles cleanup)
         }
@@ -5132,6 +5169,58 @@ export class SessionManager implements ISessionManager {
     })
 
     return true
+  }
+
+  /**
+   * Auto-summarize a completed agent turn into persistent memory.
+   * Runs asynchronously after session completion (fire-and-forget).
+   */
+  private async summarizeAgentSessionMemory(managed: ManagedSession): Promise<void> {
+    if (!managed.skillSlug || !managed.agent) return
+
+    // Check if the skill has memory enabled
+    const skill = loadSkillBySlug(managed.workspace.rootPath, managed.skillSlug)
+    if (!skill?.manifest?.memory?.enabled) return
+
+    // Collect recent messages for summarization (last turn only)
+    const recentMessages = managed.messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .slice(-10)  // Last 10 messages max
+
+    if (recentMessages.length < 2) return  // Need at least a user + assistant exchange
+
+    const conversationSnippet = recentMessages
+      .map(m => `[${m.role}]: ${typeof m.content === 'string' ? m.content.slice(0, 500) : '(structured content)'}`)
+      .join('\n')
+
+    const prompt = `Extract 1-5 key facts from this conversation that would be useful in future sessions with this agent. Return ONLY a JSON array of strings, no other text.\n\nConversation:\n${conversationSnippet}`
+
+    try {
+      const result = await managed.agent.runMiniCompletion(prompt)
+      if (!result) return
+
+      // Parse JSON array from response
+      const jsonMatch = result.match(/\[[\s\S]*\]/)
+      if (!jsonMatch) return
+
+      const facts = JSON.parse(jsonMatch[0]) as string[]
+      if (!Array.isArray(facts) || facts.length === 0) return
+
+      const validFacts = facts.filter(f => typeof f === 'string' && f.trim().length > 0)
+      if (validFacts.length > 0) {
+        addMemoryFacts(managed.workspace.rootPath, managed.skillSlug, managed.id, validFacts)
+        sessionLog.info(`Agent memory: saved ${validFacts.length} facts for ${managed.skillSlug}`)
+      }
+
+      // Check if consolidation is needed
+      const state = loadAgentState(managed.workspace.rootPath, managed.skillSlug)
+      if (state && state.memory.facts.length > MEMORY_CONSOLIDATION_THRESHOLD) {
+        sessionLog.info(`Agent memory: consolidation needed for ${managed.skillSlug} (${state.memory.facts.length} facts)`)
+        // Consolidation can be added as a follow-up feature
+      }
+    } catch (err) {
+      sessionLog.warn(`Agent memory summarization error: ${err}`)
+    }
   }
 
   /**

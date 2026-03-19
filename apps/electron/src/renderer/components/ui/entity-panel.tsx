@@ -29,6 +29,7 @@ export interface EntityPanelProps<T> {
   onItemClick: (item: T) => void
   selectedId?: string | null
   emptyState?: React.ReactNode
+  header?: React.ReactNode
   className?: string
 }
 
@@ -40,6 +41,7 @@ export function EntityPanel<T>({
   onItemClick,
   selectedId,
   emptyState,
+  header,
   className,
 }: EntityPanelProps<T>) {
   const selectionStore = selection.useSelectionStore()
@@ -67,6 +69,7 @@ export function EntityPanel<T>({
       containerRef={interactions.listProps.containerRef}
       containerProps={interactions.listProps.containerProps}
       className={className}
+      header={header}
       emptyState={emptyState}
       renderItem={(item, index, isFirst) => {
         const mapped = mapItem(item)

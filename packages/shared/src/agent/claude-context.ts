@@ -68,6 +68,7 @@ import { isGoogleOAuthConfigured as isGoogleOAuthConfiguredImpl } from '../auth/
 import { debug } from '../utils/debug.ts';
 import { getSessionPlansPath, getSessionPath, getSessionDataPath } from '../sessions/storage.ts';
 import { updatePreferences as updatePreferencesImpl } from '../config/preferences.ts';
+import { addMemoryFacts } from '../skills/agent-state.ts';
 
 // Re-export types that may be needed by consumers
 export type { SessionToolContext, SessionToolCallbacks } from '@depot/session-tools-core';
@@ -81,6 +82,8 @@ export interface ClaudeContextOptions {
   workspaceId: string;
   onPlanSubmitted: (planPath: string) => void;
   onAuthRequest: (request: unknown) => void;
+  /** Skill slug for agent memory scoping (optional — only set for skill-scoped sessions) */
+  skillSlug?: string;
 }
 
 /**
@@ -94,7 +97,7 @@ export interface ClaudeContextOptions {
  * - Icon management
  */
 export function createClaudeContext(options: ClaudeContextOptions): SessionToolContext {
-  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest } = options;
+  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug } = options;
 
   // File system implementation
   const fs: FileSystemInterface = {
@@ -252,6 +255,11 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     updatePreferences: (updates: Record<string, unknown>) => {
       updatePreferencesImpl(updates as any);
     },
+    saveAgentMemory: skillSlug
+      ? (facts: string[]) => {
+          addMemoryFacts(workspacePath, skillSlug, sessionId, facts);
+        }
+      : undefined,
     submitFeedback: (feedback: DeveloperFeedback) => {
       const feedbackDir = join(CONFIG_DIR, 'feedback');
       mkdirSync(feedbackDir, { recursive: true });

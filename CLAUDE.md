@@ -80,11 +80,13 @@ Electron app with standard main/preload/renderer split:
 ### Skill System
 Skills use a `depot.yaml` manifest with metadata, sources, and quick commands with template variables (`{{var_name}}`). Skills resolve from three layers: `~/.depot/skills/` (global), workspace-level, and project-level (deeper overrides shallower). Skill types defined in `packages/shared/src/skills/types.ts`. Manifest parsing in `packages/shared/src/skills/depot-manifest.ts`.
 
+**v2 manifest fields** (all optional, backward-compatible): `personality` (injected into system prompt as `<agent_personality>`), `permission_mode` (`safe`/`ask`/`allow-all`), `memory: { enabled: true }` (cross-session fact persistence), `source_configs` (inline source definitions for auto-creation). Source auto-resolution in `packages/shared/src/skills/source-resolution.ts`. Agent state (memory, timestamps) stored as `agent-state.json` sidecar per skill, managed by `packages/shared/src/skills/agent-state.ts`. The `save_agent_memory` session tool lets agents persist facts; session end triggers LLM-based auto-summarization into memory.
+
 ### State Management (Renderer)
 Jotai atoms in `apps/electron/src/renderer/atoms/` for sessions, skills, sources, browser pane, panel stack, overlays, and automations.
 
 ### Agent System
-`BaseAgent` in `packages/shared/src/agent/base-agent.ts` is the abstract base. `ClaudeAgent` (Anthropic), `PiAgent` (Pi AI) are concrete implementations. Agent tools are defined in `packages/session-tools-core/src/tool-defs.ts`.
+`BaseAgent` in `packages/shared/src/agent/base-agent.ts` is the abstract base. `ClaudeAgent` (Anthropic), `PiAgent` (Pi AI) are concrete implementations. Agent tools are defined in `packages/session-tools-core/src/tool-defs.ts`. On session creation, `base-agent.ts` loads personality and memory from the skill manifest/state and passes them to `PromptBuilder`.
 
 ## Key Conventions
 
