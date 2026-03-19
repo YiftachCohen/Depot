@@ -2,6 +2,11 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "apps/online-docs/**"
+      - "LICENSE"
   push:
     branches:
       - main
@@ -29,13 +34,15 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Cache bun dependencies
+      - name: Cache dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-${{ runner.os }}-
+            deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -60,13 +67,15 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Cache bun dependencies
+      - name: Cache dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-${{ runner.os }}-
+            deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -74,17 +83,88 @@ jobs:
       - name: Run tests
         run: bun test
 
+  test-doc-tools:
+    name: Test Doc Tools
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            deps-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run doc tool smoke tests
+        run: bun run test:doc-tools
+
   build-electron:
+    name: Build Electron (macOS)
+    needs: [lint-and-typecheck, test]
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            deps-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build Electron app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: bun run electron:dist:dev:mac
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-build-macos
+          path: apps/electron/release/*.dmg
+          if-no-files-found: warn
+          retention-days: 7
+
+  build-electron-cross-platform:
     name: Build Electron (${{ matrix.os }})
+    if: github.ref == 'refs/heads/main'
     needs: [lint-and-typecheck, test]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            build-script: electron:dist:dev:mac
-            artifact-pattern: apps/electron/release/*.dmg
-            artifact-name: electron-build-macos
           - os: ubuntu-latest
             build-script: electron:dist:dev:linux
             artifact-pattern: apps/electron/release/*.AppImage
@@ -105,13 +185,15 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Cache bun dependencies
+      - name: Cache dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-${{ runner.os }}-
+            deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
