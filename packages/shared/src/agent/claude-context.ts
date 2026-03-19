@@ -85,6 +85,8 @@ export interface ClaudeContextOptions {
   onAuthRequest: (request: unknown) => void;
   /** Skill slug for agent memory scoping (optional — only set for skill-scoped sessions) */
   skillSlug?: string;
+  /** Project root for skill resolution priority (project > workspace > global) */
+  projectRoot?: string;
 }
 
 /**
@@ -98,7 +100,7 @@ export interface ClaudeContextOptions {
  * - Icon management
  */
 export function createClaudeContext(options: ClaudeContextOptions): SessionToolContext {
-  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug } = options;
+  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug, projectRoot } = options;
 
   // File system implementation
   const fs: FileSystemInterface = {
@@ -258,9 +260,20 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     },
     saveAgentMemory: skillSlug
       ? (facts: string[]) => {
+          // Sanitize facts: escape XML-like tags and normalize whitespace
+          const sanitizedFacts = facts
+            .map((fact) =>
+              fact
+                .replace(/[<>&]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch] as string))
+                .replace(/\s+/g, ' ')
+                .trim()
+            )
+            .filter((fact) => fact.length > 0);
+          if (sanitizedFacts.length === 0) return;
+
           // Resolve skill to get the correct storage path (project vs workspace)
-          const resolvedSkill = loadSkillBySlug(workspacePath, skillSlug);
-          addMemoryFacts(workspacePath, skillSlug, sessionId, facts, resolvedSkill?.path);
+          const resolvedSkill = loadSkillBySlug(workspacePath, skillSlug, projectRoot);
+          addMemoryFacts(workspacePath, skillSlug, sessionId, sanitizedFacts, resolvedSkill?.path);
         }
       : undefined,
     submitFeedback: (feedback: DeveloperFeedback) => {

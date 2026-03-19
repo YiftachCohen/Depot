@@ -2067,6 +2067,7 @@ export class SessionManager implements ISessionManager {
     // Get default model from workspace config (used when no session-specific model is set)
     const defaultModel = wsConfig?.defaults?.model
     // Get default enabled sources from workspace config
+    const hasExplicitSourceSelection = options?.enabledSourceSlugs !== undefined
     let defaultEnabledSourceSlugs = options?.enabledSourceSlugs ?? wsConfig?.defaults?.enabledSourceSlugs
 
     // Resolve working directory early so loadSkillBySlug can find project-local skills.
@@ -2089,7 +2090,7 @@ export class SessionManager implements ISessionManager {
           skillPermissionMode = skill.manifest.permission_mode
         }
         // Resolve sources only when no slugs are already preset
-        if ((!defaultEnabledSourceSlugs || defaultEnabledSourceSlugs.length === 0) && skill.manifest.sources?.length) {
+        if (!hasExplicitSourceSelection && (!defaultEnabledSourceSlugs || defaultEnabledSourceSlugs.length === 0) && skill.manifest.sources?.length) {
           // Use auto-resolution when source_configs are present
           if (skill.manifest.source_configs && Object.keys(skill.manifest.source_configs).length > 0) {
             const resolution = await resolveAgentSources(workspace.rootPath, skill.manifest)
@@ -5203,7 +5204,20 @@ export class SessionManager implements ISessionManager {
       const facts = JSON.parse(jsonMatch[0]) as string[]
       if (!Array.isArray(facts) || facts.length === 0) return
 
-      const validFacts = facts.filter(f => typeof f === 'string' && f.trim().length > 0)
+      // Filter out facts that look like they contain secrets or PII
+      const sensitivePatterns = [
+        /\b[A-Za-z0-9+/=]{40,}\b/,             // Long base64-like tokens / API keys
+        /\b(sk|pk|api|key|token|secret|password)[_-][A-Za-z0-9]{16,}\b/i, // Prefixed API keys
+        /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z]{2,}\b/i, // Email addresses
+        /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/,        // Phone numbers
+        /\b\d{3}-\d{2}-\d{4}\b/,                // SSN
+        /\bAKIA[0-9A-Z]{16}\b/,                 // AWS access key
+        /\bghp_[A-Za-z0-9]{36}\b/,              // GitHub PAT
+        /-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----/, // Private keys
+      ]
+      const validFacts = facts
+        .filter(f => typeof f === 'string' && f.trim().length > 0)
+        .filter(f => !sensitivePatterns.some(p => p.test(f)))
       if (validFacts.length > 0) {
         addMemoryFacts(managed.workspace.rootPath, managed.skillSlug, managed.id, validFacts, skill.path)
         sessionLog.info(`Agent memory: saved ${validFacts.length} facts for ${managed.skillSlug}`)

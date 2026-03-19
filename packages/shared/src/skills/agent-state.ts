@@ -84,10 +84,18 @@ export function loadAgentState(workspaceRootPath: string, skillSlug: string, ski
 
   try {
     const raw = readFileSync(filePath, 'utf-8');
-    const data = JSON.parse(raw) as AgentState;
-    // Basic shape validation
-    if (!data.agentId || !data.memory) return null;
-    return data;
+    const data = JSON.parse(raw) as Partial<AgentState>;
+    // Shape validation
+    if (
+      !data ||
+      typeof data.agentId !== 'string' ||
+      !data.memory ||
+      !Array.isArray(data.memory.facts) ||
+      typeof data.memory.updatedAt !== 'number'
+    ) {
+      return null;
+    }
+    return data as AgentState;
   } catch {
     return null;
   }
@@ -148,9 +156,11 @@ export function addMemoryFacts(
 
   const now = Date.now();
   for (const content of facts) {
+    const trimmed = content.trim();
+    if (!trimmed) continue;
     state.memory.facts.push({
       id: randomUUID().slice(0, 8),
-      content: content.trim(),
+      content: trimmed,
       createdAt: now,
       sourceSessionId: sessionId,
     });
@@ -190,8 +200,9 @@ export function replaceMemoryFacts(
   workspaceRootPath: string,
   skillSlug: string,
   consolidatedFacts: AgentMemoryFact[],
+  skillDir?: string,
 ): void {
-  let state = loadAgentState(workspaceRootPath, skillSlug);
+  let state = loadAgentState(workspaceRootPath, skillSlug, skillDir);
   if (!state) return;
 
   const now = Date.now();
@@ -199,17 +210,17 @@ export function replaceMemoryFacts(
   state.memory.updatedAt = now;
   state.memory.consolidatedAt = now;
   state.lastActiveAt = now;
-  saveAgentState(workspaceRootPath, skillSlug, state);
+  saveAgentState(workspaceRootPath, skillSlug, state, skillDir);
 }
 
 /**
  * Update the lastActiveAt timestamp for an agent.
  */
-export function touchAgentState(workspaceRootPath: string, skillSlug: string): void {
-  let state = loadAgentState(workspaceRootPath, skillSlug);
+export function touchAgentState(workspaceRootPath: string, skillSlug: string, skillDir?: string): void {
+  let state = loadAgentState(workspaceRootPath, skillSlug, skillDir);
   if (!state) return;
   state.lastActiveAt = Date.now();
-  saveAgentState(workspaceRootPath, skillSlug, state);
+  saveAgentState(workspaceRootPath, skillSlug, state, skillDir);
 }
 
 // ============================================================
@@ -218,6 +229,16 @@ export function touchAgentState(workspaceRootPath: string, skillSlug: string): v
 
 /** Maximum number of facts before consolidation is recommended */
 export const MEMORY_CONSOLIDATION_THRESHOLD = 50;
+
+/** Escape content for safe injection into XML-style prompt blocks. */
+function escapePromptXml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
 
 /**
  * Format agent memory for injection into the system prompt.
@@ -229,7 +250,7 @@ export function formatAgentMemoryForPrompt(state: AgentState | null, skillSlug?:
   const slug = skillSlug ?? 'agent';
   const lines = [`<agent_memory skill="${slug}">`];
   for (const fact of state.memory.facts) {
-    lines.push(`- ${fact.content}`);
+    lines.push(`- ${escapePromptXml(fact.content)}`);
   }
   lines.push('</agent_memory>');
   return lines.join('\n');
