@@ -248,7 +248,7 @@ export function formatAgentMemoryForPrompt(state: AgentState | null, skillSlug?:
   if (!state || state.memory.facts.length === 0) return '';
 
   const slug = skillSlug ?? 'agent';
-  const lines = [`<agent_memory skill="${slug}">`];
+  const lines = [`<agent_memory skill="${escapePromptXml(slug)}">`];
   for (const fact of state.memory.facts) {
     lines.push(`- ${escapePromptXml(fact.content)}`);
   }

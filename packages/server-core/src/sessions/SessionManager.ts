@@ -5187,11 +5187,16 @@ export class SessionManager implements ISessionManager {
 
     if (recentMessages.length < 2) return  // Need at least a user + assistant exchange
 
-    const conversationSnippet = recentMessages
-      .map(m => `[${m.role}]: ${typeof m.content === 'string' ? m.content.slice(0, 500) : '(structured content)'}`)
-      .join('\n')
+    const conversationSnippet = JSON.stringify(
+      recentMessages.map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string'
+          ? m.content.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string)).replace(/\s+/g, ' ').slice(0, 500)
+          : '(structured content)',
+      })),
+    )
 
-    const prompt = `Extract 1-5 key facts from this conversation that would be useful in future sessions with this agent. Return ONLY a JSON array of strings, no other text.\n\nConversation:\n${conversationSnippet}`
+    const prompt = `Extract 1-5 key facts from this conversation that would be useful in future sessions with this agent. Return ONLY a JSON array of strings, no other text.\n\nConversation JSON:\n${conversationSnippet}`
 
     try {
       const result = await managed.agent.runMiniCompletion(prompt)
