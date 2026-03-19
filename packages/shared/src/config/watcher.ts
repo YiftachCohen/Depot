@@ -45,6 +45,7 @@ import { permissionsConfigCache, getAppPermissionsDir } from '../agent/permissio
 import { getWorkspacePath, getWorkspaceSourcesPath, getWorkspaceSkillsPath } from '../workspaces/storage.ts';
 import type { LoadedSkill } from '../skills/types.ts';
 import {
+  CLAUDE_CODE_SKILLS_DIR,
   GLOBAL_AGENT_SKILLS_DIR,
   GLOBAL_DEPOT_SKILLS_DIR,
   loadSkill,
@@ -404,7 +405,10 @@ export class ConfigWatcher {
     mkdirSync(GLOBAL_DEPOT_SKILLS_DIR, { recursive: true });
     this.watchGlobalSkillDir(GLOBAL_DEPOT_SKILLS_DIR, 'depot');
 
-    // Only watch the fallback directory if it already exists.
+    // Only watch the fallback directories if they already exist.
+    if (existsSync(CLAUDE_CODE_SKILLS_DIR)) {
+      this.watchGlobalSkillDir(CLAUDE_CODE_SKILLS_DIR, 'claude');
+    }
     if (existsSync(GLOBAL_AGENT_SKILLS_DIR)) {
       this.watchGlobalSkillDir(GLOBAL_AGENT_SKILLS_DIR, 'agents');
     }
@@ -413,7 +417,7 @@ export class ConfigWatcher {
   /**
    * Watch a global skills directory recursively and map changes back to the merged skill list.
    */
-  private watchGlobalSkillDir(skillsDir: string, scope: 'depot' | 'agents'): void {
+  private watchGlobalSkillDir(skillsDir: string, scope: 'depot' | 'claude' | 'agents'): void {
     debug('[ConfigWatcher] Setting up global skill watcher for:', skillsDir);
     try {
       const watcher = watch(skillsDir, { recursive: true }, (eventType, filename) => {
@@ -544,7 +548,7 @@ export class ConfigWatcher {
   /**
    * Handle a file change within a global skills directory.
    */
-  private handleGlobalSkillFileChange(relativePath: string, _eventType: string, scope: 'depot' | 'agents'): void {
+  private handleGlobalSkillFileChange(relativePath: string, _eventType: string, scope: 'depot' | 'claude' | 'agents'): void {
     const parts = relativePath.split('/');
     const slug = parts[0];
     const file = parts[1];
@@ -860,7 +864,7 @@ export class ConfigWatcher {
   /**
    * Handle any change under a global skills directory by reloading the merged skill list.
    */
-  private handleGlobalSkillsChange(scope: 'depot' | 'agents', slug?: string): void {
+  private handleGlobalSkillsChange(scope: 'depot' | 'claude' | 'agents', slug?: string): void {
     debug('[ConfigWatcher] Global skills changed:', scope, slug ?? '(list)');
 
     try {
