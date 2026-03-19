@@ -1,6 +1,8 @@
 import { debug } from "../utils/debug";
 
-const VERSIONS_URL = 'https://agents.craft.do/electron';
+// TODO: Set up Depot update server and replace this placeholder URL
+// When unreachable, getLatestVersion() returns null and callers surface a warning
+const VERSIONS_URL = 'https://updates.depot.dev/cli';
 
 export async function getLatestVersion(): Promise<string | null> {
     try {

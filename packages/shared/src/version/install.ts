@@ -7,7 +7,7 @@ import { homedir } from "os";
 import { join } from "path";
 import * as tar from "tar";
 import { debug } from "../utils/debug";
-import { getUpdateToVersion, getCurrentVersion } from "./version";
+import { checkForUpdate, getCurrentVersion } from "./version";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -47,10 +47,10 @@ async function extractArchive(params: { archiveData: ArrayBuffer, destination: s
 
 export async function installArchive(params: { archiveData: ArrayBuffer, version: string }): Promise<void> {
   const { archiveData, version } = params;
-  const versionDirectory = join(homedir(), '.local', 'share', 'craft', 'versions', version);
-  const binaryPath = join(versionDirectory, 'craft');
+  const versionDirectory = join(homedir(), '.local', 'share', 'depot', 'versions', version);
+  const binaryPath = join(versionDirectory, 'depot');
   const symlinkDirectory = join(homedir(), '.local', 'bin');
-  const symlinkPath = join(symlinkDirectory, 'craft');
+  const symlinkPath = join(symlinkDirectory, 'depot');
 
   await ensureDirectory(versionDirectory);
   await ensureDirectory(symlinkDirectory);
@@ -129,22 +129,27 @@ export async function checkAndUpdate(): Promise<void> {
     }
     
     debug('[auto-update] Checking for updates...');
-    const updateVersion = await getUpdateToVersion();
-    
-    if (!updateVersion) {
+    const result = await checkForUpdate();
+
+    if (result.status === 'check-failed') {
+      debug('[auto-update] Could not reach update server — skipping');
+      return;
+    }
+    if (result.status === 'up-to-date') {
       debug('[auto-update] Already up to date');
       return;
     }
-    
+
+    const updateVersion = result.latestVersion;
     debug(`[auto-update] Update available: ${currentVersion} -> ${updateVersion}`);
     debug('[auto-update] Starting background update...');
     
-    const result = await install(updateVersion);
-    
-    if (result.success) {
+    const installResult = await install(updateVersion);
+
+    if (installResult.success) {
       debug(`[auto-update] Successfully updated to ${updateVersion}. Restart to use new version.`);
     } else {
-      debug(`[auto-update] Update failed: ${result.error}`);
+      debug(`[auto-update] Update failed: ${installResult.error}`);
     }
   } catch (error) {
     debug(`[auto-update] Error during update check: ${error instanceof Error ? error.message : String(error)}`);

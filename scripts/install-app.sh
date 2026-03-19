@@ -2,8 +2,8 @@
 
 set -e
 
-VERSIONS_URL="https://agents.craft.do/electron"
-DOWNLOAD_DIR="$HOME/.craft-agent/downloads"
+VERSIONS_URL="https://updates.depot.dev/electron"
+DOWNLOAD_DIR="$HOME/.depot/downloads"
 
 # Colors for output
 RED='\033[0;31m'
@@ -241,7 +241,7 @@ if [ "$OS_TYPE" = "darwin" ]; then
     zip_path="$installer_path"
 
     # Quit the app if it's running (use bundle ID for reliability)
-    APP_BUNDLE_ID="com.lukilabs.craft-agent"
+    APP_BUNDLE_ID="dev.depot.agent"
     if pgrep -x "Depot Agents" >/dev/null 2>&1; then
         info "Quitting Depot Agents..."
         osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" 2>/dev/null || true
@@ -315,8 +315,8 @@ else
     appimage_path="$installer_path"
 
     # New paths
-    APP_DIR="$HOME/.craft-agent/app"
-    WRAPPER_PATH="$INSTALL_DIR/craft-agents"
+    APP_DIR="$HOME/.depot/app"
+    WRAPPER_PATH="$INSTALL_DIR/depot-agents"
     APPIMAGE_INSTALL_PATH="$APP_DIR/Depot-Agent-x64.AppImage"
 
     # Kill the app if it's running
@@ -344,14 +344,14 @@ else
 #!/bin/bash
 # Depot Agent launcher - handles Linux-specific AppImage issues
 
-APPIMAGE_PATH="$HOME/.craft-agent/app/Depot-Agent-x64.AppImage"
-ELECTRON_CACHE="$HOME/.config/@craft-agent"
-ELECTRON_CACHE_ALT="$HOME/.cache/@craft-agent"
+APPIMAGE_PATH="$HOME/.depot/app/Depot-Agent-x64.AppImage"
+ELECTRON_CACHE="$HOME/.config/@depot-agent"
+ELECTRON_CACHE_ALT="$HOME/.cache/@depot-agent"
 
 # Verify AppImage exists
 if [ ! -f "$APPIMAGE_PATH" ]; then
     echo "Error: Depot Agent not found at $APPIMAGE_PATH"
-    echo "Reinstall: curl -fsSL https://agents.craft.do/install-app.sh | bash"
+    echo "Reinstall: curl -fsSL https://updates.depot.dev/install-app.sh | bash"
     exit 1
 fi
 
@@ -363,7 +363,7 @@ fi
 # Clear stale cache referencing AppImage mount paths
 # AppImage creates a new /tmp/.mount_Craft-XXXX each launch, so any cached path is stale
 for cache_dir in "$ELECTRON_CACHE" "$ELECTRON_CACHE_ALT"; do
-    if [ -d "$cache_dir" ] && grep -rq '/tmp/\.mount_Craft' "$cache_dir" 2>/dev/null; then
+    if [ -d "$cache_dir" ] && grep -rq '/tmp/\.mount_Depot\|/tmp/\.mount_Craft' "$cache_dir" 2>/dev/null; then
         rm -rf "$cache_dir"
     fi
 done
@@ -389,7 +389,7 @@ WRAPPER_EOF
     printf "%b\n" "  AppImage: ${BOLD}$APPIMAGE_INSTALL_PATH${NC}"
     printf "%b\n" "  Launcher: ${BOLD}$WRAPPER_PATH${NC}"
     echo ""
-    printf "%b\n" "  Run with: ${BOLD}craft-agents${NC}"
+    printf "%b\n" "  Run with: ${BOLD}depot-agents${NC}"
     echo ""
     printf "%b\n" "  Add to PATH if needed:"
     printf "%b\n" "    ${BOLD}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc${NC}"

@@ -1,6 +1,6 @@
 {
   "name": "@depot/viewer",
-  "version": "0.7.5",
+  "version": "1.0.0",
   "description": "Web viewer for Depot sessions - upload and share session transcripts",
   "private": true,
   "type": "module",

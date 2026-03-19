@@ -12,7 +12,7 @@
  *   CRAFT_RESOURCES_PATH — resources path (default: cwd/resources)
  *   CRAFT_IS_PACKAGED    — 'true' for production (default: false)
  *   CRAFT_VERSION        — app version (default: 0.0.0-dev)
- *   CRAFT_DEBUG          — 'true' for debug logging
+ *   DEPOT_DEBUG           — 'true' for debug logging (CRAFT_DEBUG also accepted)
  */
 
 process.env.CRAFT_IS_PACKAGED ??= 'false'
