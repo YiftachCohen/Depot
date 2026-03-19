@@ -16,6 +16,7 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.skills.PROMOTE_TO_AGENT,
   RPC_CHANNELS.skills.CREATE_FROM_TEMPLATE,
   RPC_CHANNELS.skills.GET_TEMPLATES,
+  RPC_CHANNELS.skills.DEMOTE,
 ] as const
 
 export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): void {
@@ -158,6 +159,28 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
     const skillDir = createAgentFromTemplate(template, overrides, targetDir)
     deps.platform.logger?.info(`SKILLS_CREATE_FROM_TEMPLATE: Created agent "${template.manifest.name}" from template "${templateId}" at ${skillDir}`)
     return skillDir
+  })
+
+  // Demote an agent back to a plain skill by removing its depot.yaml manifest
+  // skillPath is optional — when provided it is used directly to avoid resolving the
+  // wrong layer when multiple skills share the same slug at different layers.
+  server.handle(RPC_CHANNELS.skills.DEMOTE, async (_ctx, workspaceId: string, skillSlug: string, skillPath?: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    let resolvedPath: string
+    if (skillPath) {
+      resolvedPath = skillPath
+    } else {
+      const { loadSkillBySlug } = await import('@depot/shared/skills')
+      const skill = loadSkillBySlug(workspace.rootPath, skillSlug)
+      if (!skill) throw new Error(`Skill not found: ${skillSlug}`)
+      resolvedPath = skill.path
+    }
+
+    const manifestPath = join(resolvedPath, 'depot.yaml')
+    rmSync(manifestPath, { force: true })
+    deps.platform.logger?.info(`Demoted agent: ${skillSlug} at ${resolvedPath} (removed depot.yaml)`)
   })
 
   // Promote a plain skill to an agent by writing a depot.yaml manifest

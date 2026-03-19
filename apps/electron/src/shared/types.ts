@@ -414,6 +414,7 @@ export interface ElectronAPI {
   getSkills(workspaceId: string, workingDirectory?: string): Promise<LoadedSkill[]>
   getSkillFiles?(workspaceId: string, skillSlug: string): Promise<SkillFile[]>
   deleteSkill(workspaceId: string, skillSlug: string): Promise<void>
+  demoteAgent(workspaceId: string, skillSlug: string, skillPath?: string): Promise<void>
   openSkillInEditor(workspaceId: string, skillSlug: string): Promise<void>
   openSkillInFinder(workspaceId: string, skillSlug: string): Promise<void>
   importSkillsFromClaude(): Promise<string[]>

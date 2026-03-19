@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid } from 'lucide-react'
+import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getCommandIcon, ICON_NAME_MAP, resolveIconComponent } from '@/lib/command-icon'
 import { useEntityIcon } from '@/lib/icon-cache'
@@ -17,6 +17,7 @@ import { InlineSvg } from '@/lib/inline-svg'
 import { skillsAtom } from '@/atoms/skills'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
 import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { PanelHeader } from './PanelHeader'
@@ -178,18 +179,18 @@ const fadeIn: Variants = {
 
 // Shared class strings — command chips (minimal style)
 const CMD_CHIP = cn(
-  'inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/60 cursor-pointer',
+  'inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/80 cursor-pointer',
   'rounded-md px-1.5 py-0.5 -mx-0.5',
   'hover:bg-foreground/[0.05] hover:text-foreground/80 transition-colors',
 )
 const FOCUSED_CMD_CHIP = cn(
-  'inline-flex items-center gap-1.5 text-[13px] text-muted-foreground/70 cursor-pointer',
+  'inline-flex items-center gap-1.5 text-[13px] text-muted-foreground/80 cursor-pointer',
   'rounded-lg px-3 py-1.5',
   'border border-border/60 bg-foreground/[0.02]',
   'hover:bg-foreground/[0.06] hover:border-foreground/20 hover:text-foreground/80 transition-colors',
 )
 const PATH_BADGE = cn(
-  'inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/50',
+  'inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/70',
   'rounded-md px-1.5 py-0.5 group/path',
   'hover:text-muted-foreground/70 transition-colors',
 )
@@ -536,6 +537,36 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     }
   }, [activeWorkspaceId, focusedSkill, onCreateSession, onSendMessage])
 
+  // Delete focused agent
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+
+  const handleDeleteFocusedAgent = useCallback(async () => {
+    if (!activeWorkspaceId || !focusedSkill) return
+    setDeleteDialogOpen(false)
+    try {
+      await window.electronAPI.deleteSkill(activeWorkspaceId, focusedSkill.slug)
+      toast.success(`Deleted: ${focusedSkill.metadata.name}`)
+      navigate(routes.view.skills())
+    } catch (err) {
+      toast.error('Failed to delete', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+    }
+  }, [activeWorkspaceId, focusedSkill])
+
+  const handleDemoteFocusedAgent = useCallback(async () => {
+    if (!activeWorkspaceId || !focusedSkill) return
+    setDeleteDialogOpen(false)
+    try {
+      await window.electronAPI.demoteAgent(activeWorkspaceId, focusedSkill.slug)
+      toast.success(`Removed agent configuration: ${focusedSkill.metadata.name}`)
+    } catch (err) {
+      toast.error('Failed to remove agent configuration', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+    }
+  }, [activeWorkspaceId, focusedSkill])
+
   if (focusedSkill) {
     const cmds = focusedSkill.manifest?.quick_commands ?? []
     const stats = skillStats.get(focusedSkill.slug)
@@ -578,7 +609,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                   </div>
 
                   {/* Row 2: Description */}
-                  <p className="text-[13px] leading-relaxed text-muted-foreground/60 line-clamp-2 mt-1">{focusedSkill.metadata.description}</p>
+                  <p className="text-[13px] leading-relaxed text-muted-foreground/80 line-clamp-2 mt-1">{focusedSkill.metadata.description}</p>
 
                   {/* Row 3: Project paths as inline badges */}
                   {focusedSkill.manifest && (focusedPaths.length > 0 || addingPath) && (
@@ -620,7 +651,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                   )}
 
                   {/* Row 4: Meta line — stats + actions */}
-                  <div className="flex items-center flex-wrap gap-1.5 mt-2 text-xs text-muted-foreground/40">
+                  <div className="flex items-center flex-wrap gap-1.5 mt-2 text-xs text-muted-foreground/60">
                     {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
                     {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
                     {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
@@ -629,7 +660,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                       <button
                         type="button"
                         onClick={() => setAddingPath(true)}
-                        className="hover:text-muted-foreground/70 transition-colors cursor-pointer"
+                        className="hover:text-muted-foreground/90 transition-colors cursor-pointer"
                       >
                         + Add path
                       </button>
@@ -637,7 +668,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                     {focusedSkill.manifest && !addingPath && <span aria-hidden>{'·'}</span>}
                     <EditPopover
                       trigger={
-                        <button type="button" className="inline-flex items-center gap-1 hover:text-muted-foreground/70 transition-colors cursor-pointer">
+                        <button type="button" className="inline-flex items-center gap-1 hover:text-muted-foreground/90 transition-colors cursor-pointer">
                           <Pencil className="h-3 w-3" />
                           Edit
                         </button>
@@ -652,7 +683,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                     <button
                       type="button"
                       onClick={handleImproveAgent}
-                      className="inline-flex items-center gap-1 hover:text-muted-foreground/70 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 hover:text-muted-foreground/90 transition-colors cursor-pointer"
                     >
                       <Sparkles className="h-3 w-3" />
                       Improve
@@ -661,10 +692,19 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                     <button
                       type="button"
                       onClick={() => window.electronAPI.showInFolder(`${focusedSkill.path}/SKILL.md`)}
-                      className="inline-flex items-center gap-1 hover:text-muted-foreground/70 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 hover:text-muted-foreground/90 transition-colors cursor-pointer"
                     >
                       <FolderOpen className="h-3 w-3" />
                       Open folder
+                    </button>
+                    <span aria-hidden>{'·'}</span>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteDialogOpen(true)}
+                      className="inline-flex items-center gap-1 hover:text-destructive/70 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -702,17 +742,17 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
             {/* Quick commands — chip style */}
             <motion.div variants={itemVariants}>
-                <h3 className="text-[11px] font-medium text-muted-foreground/40 uppercase tracking-widest mb-2.5">
+                <h3 className="text-[11px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2.5">
                   {cmds.length > 0 ? 'Run a Task' : 'Start'}
                 </h3>
                 <div className="flex flex-wrap items-center gap-2">
                   {cmds.map((cmd) => (
                     <button key={cmd.name} type="button" onClick={() => handleQuickCommand(focusedSkill, cmd)} className={FOCUSED_CMD_CHIP}>
-                      {getCommandIcon(cmd.name, 'h-4 w-4 opacity-50', cmd.icon)}{cmd.name}
+                      {getCommandIcon(cmd.name, 'h-4 w-4 opacity-70', cmd.icon)}{cmd.name}
                     </button>
                   ))}
-                  <button type="button" onClick={() => handleSkillClick(focusedSkill)} className={cn(FOCUSED_CMD_CHIP, 'text-muted-foreground/40')}>
-                    <Plus className="h-4 w-4 opacity-50" />New Chat
+                  <button type="button" onClick={() => handleSkillClick(focusedSkill)} className={cn(FOCUSED_CMD_CHIP, 'text-muted-foreground/60')}>
+                    <Plus className="h-4 w-4 opacity-70" />New Chat
                   </button>
                 </div>
             </motion.div>
@@ -721,13 +761,13 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             {recent.length > 0 && (
               <motion.div variants={itemVariants}>
                 <div className="border-t border-border/20 pt-4 mb-2" />
-                <h3 className="text-[11px] font-medium text-muted-foreground/40 uppercase tracking-widest mb-2">Recent</h3>
+                <h3 className="text-[11px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Recent</h3>
                 <div className="space-y-0">
                   {recent.map((s) => (
                     <button key={s.id} type="button" onClick={() => navigate(routes.view.skills(focusedSkill.slug, s.id))}
                       className="w-full flex items-center gap-3 px-0 py-1.5 text-left hover:text-foreground transition-colors cursor-pointer group/recent">
-                      <span className="flex-1 min-w-0 text-sm text-foreground/70 truncate group-hover/recent:text-foreground transition-colors">{s.name || 'Untitled'}</span>
-                      {s.lastMessageAt && <span className="shrink-0 text-[11px] text-muted-foreground/30">{formatRelativeTime(s.lastMessageAt)}</span>}
+                      <span className="flex-1 min-w-0 text-sm text-foreground/80 truncate group-hover/recent:text-foreground transition-colors">{s.name || 'Untitled'}</span>
+                      {s.lastMessageAt && <span className="shrink-0 text-[11px] text-muted-foreground/50">{formatRelativeTime(s.lastMessageAt)}</span>}
                     </button>
                   ))}
                 </div>
@@ -743,6 +783,36 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           variables={pendingVarCommand?.cmd.variables ?? []}
           onSubmit={handleVariableSubmit}
         />
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent showCloseButton={false} className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Delete {focusedSkill.metadata.name}?</DialogTitle>
+              <DialogDescription>
+                {isAgent(focusedSkill)
+                  ? 'Choose whether to remove the agent configuration only or delete everything.'
+                  : 'This will permanently delete the skill and all its files.'}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-2">
+              {isAgent(focusedSkill) && (
+                <button
+                  type="button"
+                  onClick={handleDemoteFocusedAgent}
+                  className="h-8 px-3 text-xs font-medium rounded-md border border-border bg-background hover:bg-foreground/[0.05] text-foreground transition-colors cursor-pointer"
+                >
+                  Remove Agent Only
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleDeleteFocusedAgent}
+                className="h-8 px-3 text-xs font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors cursor-pointer"
+              >
+                Delete Everything
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }
@@ -799,26 +869,26 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                             </span>
                             <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
                           </button>
-                          <div className="shrink-0 flex items-center gap-1.5 text-[10px] text-muted-foreground/35">
+                          <div className="shrink-0 flex items-center gap-1.5 text-[10px] text-muted-foreground/55">
                             {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
                             {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
                             {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
                           </div>
                         </div>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground/50 line-clamp-1 mt-0.5">{skill.metadata.description}</p>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground/70 line-clamp-1 mt-0.5">{skill.metadata.description}</p>
                         <div className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 mt-2">
                           {cmds.slice(0, 4).map((cmd) => (
                             <button key={cmd.name} type="button" onClick={() => handleQuickCommand(skill, cmd)} className={CMD_CHIP}>
-                              {getCommandIcon(cmd.name, 'h-3 w-3 opacity-50', cmd.icon)}{cmd.name}
+                              {getCommandIcon(cmd.name, 'h-3 w-3 opacity-70', cmd.icon)}{cmd.name}
                             </button>
                           ))}
                           {cmds.length > 4 && (
-                            <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className={cn(CMD_CHIP, 'text-muted-foreground/40')}>
+                            <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className={cn(CMD_CHIP, 'text-muted-foreground/60')}>
                               +{cmds.length - 4} more
                             </button>
                           )}
-                          <button type="button" onClick={() => handleSkillClick(skill)} className={cn(CMD_CHIP, 'text-muted-foreground/40')}>
-                            <Plus className="h-3 w-3 opacity-50" />New Chat
+                          <button type="button" onClick={() => handleSkillClick(skill)} className={cn(CMD_CHIP, 'text-muted-foreground/60')}>
+                            <Plus className="h-3 w-3 opacity-70" />New Chat
                           </button>
                         </div>
                       </div>
@@ -831,9 +901,9 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                 <button type="button" onClick={() => setPickerOpen(true)}
                   className="flex items-center gap-3 rounded-md -mx-1.5 px-1.5 py-1.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer">
                   <div className="shrink-0 flex items-center justify-center h-7 w-7 rounded-md border border-dashed border-foreground/[0.12]">
-                    <Plus className="h-3.5 w-3.5 text-muted-foreground/40" />
+                    <Plus className="h-3.5 w-3.5 text-muted-foreground/60" />
                   </div>
-                  <span className="text-[12px] text-muted-foreground/50">Add Agent</span>
+                  <span className="text-[12px] text-muted-foreground/70">Add Agent</span>
                 </button>
               </motion.div>
             </motion.div>
@@ -958,7 +1028,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           {recentGlobalSessions.length > 0 && filteredSkills.length > 0 && (
             <motion.div variants={fadeIn} initial="hidden" animate="visible" className="pt-4">
               <div className="border-t border-border/20 pt-4 mb-2" />
-              <h3 className="text-[10px] font-medium text-muted-foreground/40 uppercase tracking-widest mb-2">Recent</h3>
+              <h3 className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Recent</h3>
               <div className="space-y-0">
                 {recentGlobalSessions.map((session) => {
                   const sk = session.skillSlug ? skillBySlug.get(session.skillSlug) : null
@@ -966,9 +1036,9 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                     <button key={session.id} type="button"
                       onClick={() => { if (session.skillSlug) navigate(routes.view.skills(session.skillSlug, session.id)) }}
                       className="w-full flex items-center gap-3 px-0 py-1.5 text-left hover:text-foreground transition-colors cursor-pointer group/recent">
-                      {sk && <span className="shrink-0 text-[10px] text-muted-foreground/40 w-20 truncate">{sk.metadata.name}</span>}
-                      <span className="flex-1 min-w-0 text-[13px] text-foreground/70 truncate group-hover/recent:text-foreground transition-colors">{session.name || 'Untitled'}</span>
-                      {session.lastMessageAt && <span className="shrink-0 text-[10px] text-muted-foreground/30">{formatRelativeTime(session.lastMessageAt)}</span>}
+                      {sk && <span className="shrink-0 text-[10px] text-muted-foreground/60 w-20 truncate">{sk.metadata.name}</span>}
+                      <span className="flex-1 min-w-0 text-[13px] text-foreground/80 truncate group-hover/recent:text-foreground transition-colors">{session.name || 'Untitled'}</span>
+                      {session.lastMessageAt && <span className="shrink-0 text-[10px] text-muted-foreground/50">{formatRelativeTime(session.lastMessageAt)}</span>}
                     </button>
                   )
                 })}

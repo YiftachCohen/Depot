@@ -235,6 +235,7 @@ export const RPC_CHANNELS = {
     IMPORT_FROM_CLAUDE: 'skills:importFromClaude',
     CREATE: 'skills:create',
     PROMOTE_TO_AGENT: 'skills:promoteToAgent',
+    DEMOTE: 'skills:demote',
     CHANGED: 'skills:changed',
     CREATE_FROM_TEMPLATE: 'skills:createFromTemplate',
     GET_TEMPLATES: 'skills:getTemplates',
