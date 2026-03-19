@@ -63,6 +63,41 @@ After creating both files, run \`skill_validate\` to verify the result.
 
 Let's start — what kind of agent would you like to create?`
 
+function buildSkillPromotePrompt(skill: LoadedSkill): string {
+  return `/skill-creator
+
+I have an existing skill called "${skill.metadata.name}" (slug: "${skill.slug}") that I want to promote to a full Depot agent by adding a \`depot.yaml\` manifest.
+
+The skill's SKILL.md is located at: ${skill.path}/SKILL.md
+${skill.metadata.description ? `Description: ${skill.metadata.description}` : ''}
+
+Please:
+1. Read the SKILL.md file at the path above
+2. Based on its content, generate an appropriate \`depot.yaml\` manifest file in the same directory (${skill.path}/depot.yaml)
+
+The depot.yaml format:
+\`\`\`yaml
+name: "Agent Name"
+icon: "bot"  # Lucide icon name (e.g. code-2, git-pull-request, shield, rocket, bug, server, database, terminal, sparkles, wrench, globe, search, layers, settings, book-open, zap, flask-conical, bar-chart-3, clipboard-list, eye, message-square, file-code, folder-kanban, hammer, refresh-cw, circle-check, package-plus, alert-triangle)
+description: "Brief description"
+sources:  # Optional: MCP sources to auto-connect
+  - "github"
+quick_commands:
+  - name: "Command Name"
+    prompt: "Prompt template with {{variable}} placeholders"
+    icon: "zap"  # Optional Lucide icon
+    variables:  # Optional: only if prompt has {{placeholders}}
+      - name: "variable"
+        type: "text"  # text | select | number
+        label: "Human Label"
+        placeholder: "e.g. example value"
+  - name: "Another Command"
+    prompt: "A simpler prompt with no variables"
+\`\`\`
+
+Choose an appropriate icon, write a clear description, and create 2-4 useful quick commands based on what the skill does. After creating the file, run \`skill_validate\` to verify the result.`
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -392,6 +427,22 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       }
     } finally {
       creatingAgentSessionRef.current = false
+    }
+  }, [activeWorkspaceId, onCreateSession, onSendMessage])
+
+  const handlePromoteWithAI = useCallback(async (skill: LoadedSkill) => {
+    if (!activeWorkspaceId) return
+    try {
+      const session = await onCreateSession(activeWorkspaceId, {
+        name: `Promote ${skill.metadata.name}`,
+        skillSlug: skill.slug,
+      })
+      if (session?.id) {
+        onSendMessage(session.id, buildSkillPromotePrompt(skill), undefined, [skill.slug])
+        navigate(routes.view.allSessions(session.id))
+      }
+    } catch (err) {
+      console.error('Failed to start promote session:', err)
     }
   }, [activeWorkspaceId, onCreateSession, onSendMessage])
 
@@ -930,7 +981,8 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       <SkillPicker open={pickerOpen} onOpenChange={setPickerOpen}
         workspaceId={activeWorkspaceId ?? ''} enabledSlugs={enabledSlugs} onSave={handleSaveEnabledSlugs}
         onCreateAgent={handleCreateAgentSession}
-        onBrowseTemplates={() => setTemplateBrowserOpen(true)} />
+        onBrowseTemplates={() => setTemplateBrowserOpen(true)}
+        onPromoteWithAI={handlePromoteWithAI} />
       <AgentTemplateBrowser
         open={templateBrowserOpen}
         onOpenChange={setTemplateBrowserOpen}
