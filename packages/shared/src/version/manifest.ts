@@ -1,6 +1,7 @@
 import { debug } from "../utils/debug";
 
 // TODO: Set up Depot update server and replace this placeholder URL
+// When unreachable, getLatestVersion() returns null and callers surface a warning
 const VERSIONS_URL = 'https://updates.depot.dev/cli';
 
 export async function getLatestVersion(): Promise<string | null> {
