@@ -9,7 +9,7 @@
 import * as React from 'react'
 import { useState, useMemo, useCallback } from 'react'
 import { useAtomValue } from 'jotai'
-import { Search, Plus, Zap, ArrowUpCircle, Sparkles } from 'lucide-react'
+import { Search, Plus, Zap, Sparkles } from 'lucide-react'
 import { skillsAtom } from '@/atoms/skills'
 import { SkillAvatar } from '@/components/ui/skill-avatar'
 import { Button } from '@/components/ui/button'
@@ -23,79 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { isAgent } from '../../../shared/types'
-import type { LoadedSkill, DepotSkillManifest } from '../../../shared/types'
-
-// ---------------------------------------------------------------------------
-// Shared input class
-// ---------------------------------------------------------------------------
-const INPUT_CLS = cn(
-  'w-full h-8 px-3 text-sm rounded-md',
-  'bg-background border border-border/60',
-  'placeholder:text-muted-foreground/60',
-  'focus:outline-none focus:ring-1 focus:ring-ring',
-)
-
-// ---------------------------------------------------------------------------
-// Inline Promote Skill Form
-// ---------------------------------------------------------------------------
-
-interface PromoteSkillFormProps {
-  skill: LoadedSkill
-  workspaceId: string
-  onPromoted: () => void
-  onCancel: () => void
-}
-
-function PromoteSkillForm({ skill, workspaceId, onPromoted, onCancel }: PromoteSkillFormProps) {
-  const [icon, setIcon] = useState('bot')
-  const [cmdName, setCmdName] = useState('Run')
-  const [cmdPrompt, setCmdPrompt] = useState('')
-  const [projectPath, setProjectPath] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const handleSubmit = useCallback(async () => {
-    if (!cmdName.trim() || !cmdPrompt.trim()) return
-    setSaving(true)
-    try {
-      const manifest: DepotSkillManifest = {
-        name: skill.metadata.name,
-        icon: icon.trim() || 'bot',
-        description: skill.metadata.description,
-        quick_commands: [{ name: cmdName.trim(), prompt: cmdPrompt.trim() }],
-        ...(projectPath.trim() ? { project_paths: [projectPath.trim()] } : {}),
-      }
-      await window.electronAPI.promoteSkillToAgent(workspaceId, skill.slug, manifest)
-      onPromoted()
-    } catch (err) {
-      console.error('Failed to promote skill:', err)
-    } finally {
-      setSaving(false)
-    }
-  }, [skill, workspaceId, icon, cmdName, cmdPrompt, projectPath, onPromoted])
-
-  return (
-    <div className="border border-border/60 rounded-lg p-3 space-y-2 bg-foreground/[0.02]">
-      <div className="flex items-center gap-2 mb-1">
-        <ArrowUpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium">Make "{skill.metadata.name}" an Agent</span>
-      </div>
-      <input type="text" placeholder="Icon name (e.g. bot, code, brain)" value={icon}
-        onChange={(e) => setIcon(e.target.value)} className={INPUT_CLS} />
-      <input type="text" placeholder="Quick command name (e.g. Run, Analyze)" value={cmdName}
-        onChange={(e) => setCmdName(e.target.value)} className={INPUT_CLS} />
-      <input type="text" placeholder="Prompt template for this command" value={cmdPrompt}
-        onChange={(e) => setCmdPrompt(e.target.value)} className={INPUT_CLS} />
-      <input type="text" placeholder="Project path (e.g. ~/projects/my-app)" value={projectPath}
-        onChange={(e) => setProjectPath(e.target.value)} className={INPUT_CLS} />
-      <div className="flex items-center justify-end gap-2 pt-1">
-        <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
-        <Button size="sm" disabled={!cmdName.trim() || !cmdPrompt.trim() || saving} onClick={handleSubmit}>
-          {saving ? 'Promoting...' : 'Make Agent'}
-        </Button>
-      </div>
-    </div>
-  )
-}
+import type { LoadedSkill } from '../../../shared/types'
 
 // ---------------------------------------------------------------------------
 // SkillPicker
@@ -109,6 +37,7 @@ interface SkillPickerProps {
   onSave: (slugs: string[]) => void
   onCreateAgent?: () => void
   onBrowseTemplates?: () => void
+  onPromoteWithAI?: (skill: LoadedSkill) => void
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -117,10 +46,9 @@ const SOURCE_LABELS: Record<string, string> = {
   project: 'Project',
 }
 
-export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onSave, onCreateAgent, onBrowseTemplates }: SkillPickerProps) {
+export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onSave, onCreateAgent, onBrowseTemplates, onPromoteWithAI }: SkillPickerProps) {
   const allSkills = useAtomValue(skillsAtom)
   const [search, setSearch] = useState('')
-  const [promotingSlug, setPromotingSlug] = useState<string | null>(null)
 
   // Initialize selected set: undefined means no preference (all selected)
   // An explicit empty array means user deselected everything
@@ -140,7 +68,6 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
         setSelected(new Set(enabledSlugs))
       }
       setSearch('')
-      setPromotingSlug(null)
     }
   }, [open, enabledSlugs, allSkills])
 
@@ -204,13 +131,6 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
     onOpenChange(false)
     onBrowseTemplates()
   }, [onOpenChange, onBrowseTemplates])
-
-  const handlePromoted = useCallback(() => {
-    setPromotingSlug(null)
-    // Skill will reload as agent via file watcher
-  }, [])
-
-  const promotingSkill = promotingSlug ? allSkills.find(s => s.slug === promotingSlug) : null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -311,10 +231,14 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
                     </button>
 
                     {/* Make Agent button for plain skills */}
-                    {!isAgent(skill) && (
+                    {!isAgent(skill) && onPromoteWithAI && (
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setPromotingSlug(skill.slug) }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onOpenChange(false)
+                          onPromoteWithAI(skill)
+                        }}
                         title="Promote to Agent"
                         className={cn(
                           'shrink-0 inline-flex items-center gap-1 h-6 px-2 text-[10px] font-medium rounded-md',
@@ -336,18 +260,7 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
               </div>
             </div>
 
-            {/* Promote form */}
-            {promotingSkill && (
-              <PromoteSkillForm
-                skill={promotingSkill}
-                workspaceId={workspaceId}
-                onPromoted={handlePromoted}
-                onCancel={() => setPromotingSlug(null)}
-              />
-            )}
-
         {/* Create Agent / Browse Templates buttons */}
-        {!promotingSlug && (
           <div className="flex items-center gap-2">
             {onBrowseTemplates && (
               <button
@@ -380,7 +293,6 @@ export function SkillPicker({ open, onOpenChange, workspaceId, enabledSlugs, onS
               </button>
             )}
           </div>
-        )}
 
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
