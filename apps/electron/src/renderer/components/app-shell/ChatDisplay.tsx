@@ -1851,6 +1851,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                                 permissionMode: session.permissionMode,
                                 workingDirectory: session.workingDirectory,
                                 enabledSourceSlugs: session.enabledSourceSlugs,
+                                skillSlug: session.skillSlug,
                               }
                             )
                             navigate(routes.view.allSessions(child.id), { newPanel: resolveBranchNewPanelOption(options) })

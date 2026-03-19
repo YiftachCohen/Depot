@@ -772,6 +772,8 @@ interface ManagedSession {
     /** Model's context window size in tokens (from SDK modelUsage) */
     contextWindow?: number
   }
+  /** Skill slug that created this session (tracks which skill initiated the session) */
+  skillSlug?: string
   // Session status (user-controlled) - determines open vs closed
   // Dynamic status ID referencing workspace status config
   sessionStatus?: string
@@ -4773,6 +4775,18 @@ export class SessionManager implements ISessionManager {
       if (managed.wasInterrupted) {
         effectiveMessage = `${message}\n\n<system-reminder>The previous assistant response was interrupted by the user and may be incomplete. Do not repeat or continue the interrupted response unless asked. Focus on the new message above.</system-reminder>`
         managed.wasInterrupted = false
+      }
+
+      // Inject skill mentions so base-agent reads SKILL.md before processing.
+      // The UI passes skillSlugs via options for explicit invocations (quick commands),
+      // but for follow-up messages in an agent session we fall back to the session's
+      // stored skillSlug so the agent always operates within its skill context.
+      const skillSlugsToInject = options?.skillSlugs?.length
+        ? options.skillSlugs
+        : managed.skillSlug ? [managed.skillSlug] : []
+      if (skillSlugsToInject.length > 0) {
+        const mentions = skillSlugsToInject.map(s => `[skill:${s}]`).join(' ')
+        effectiveMessage = `${mentions} ${effectiveMessage}`
       }
 
       sendSpan.mark('chat.starting')

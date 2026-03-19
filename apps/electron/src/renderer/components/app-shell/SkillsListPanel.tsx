@@ -7,11 +7,13 @@ import { EntityListEmptyScreen } from '@/components/ui/entity-list-empty'
 import { skillSelection } from '@/hooks/useEntitySelection'
 import { SkillMenu } from './SkillMenu'
 import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
+import { isAgent } from '../../../shared/types'
 import type { LoadedSkill } from '../../../shared/types'
 
 export interface SkillsListPanelProps {
   skills: LoadedSkill[]
   onDeleteSkill: (skillSlug: string) => void
+  onDemoteAgent?: (skillSlug: string) => void
   onSkillClick: (skill: LoadedSkill) => void
   onSkillsRefresh?: () => void
   selectedSkillSlug?: string | null
@@ -23,6 +25,7 @@ export interface SkillsListPanelProps {
 export function SkillsListPanel({
   skills,
   onDeleteSkill,
+  onDemoteAgent,
   onSkillClick,
   onSkillsRefresh,
   selectedSkillSlug,
@@ -98,9 +101,11 @@ export function SkillsListPanel({
           <SkillMenu
             skillSlug={skill.slug}
             skillName={skill.metadata.name}
+            isAgent={isAgent(skill)}
             onOpenInNewWindow={() => window.electronAPI.openUrl(`craftagents://skills/skill/${skill.slug}?window=focused`)}
             onShowInFinder={() => { if (workspaceId) window.electronAPI.openSkillInFinder(workspaceId, skill.slug) }}
             onDelete={() => onDeleteSkill(skill.slug)}
+            onDemote={isAgent(skill) && onDemoteAgent ? () => onDemoteAgent(skill.slug) : undefined}
           />
         ),
       })}

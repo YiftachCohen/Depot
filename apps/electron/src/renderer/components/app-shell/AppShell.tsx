@@ -2044,6 +2044,18 @@ function AppShellContent({
     }
   }, [activeWorkspace])
 
+  // Demote Agent (remove depot.yaml, keep SKILL.md)
+  const handleDemoteAgent = useCallback(async (skillSlug: string) => {
+    if (!activeWorkspace) return
+    try {
+      await window.electronAPI.demoteAgent(activeWorkspace.id, skillSlug)
+      toast.success(`Removed agent configuration: ${skillSlug}`)
+    } catch (error) {
+      console.error('[Chat] Failed to demote agent:', error)
+      toast.error('Failed to demote agent')
+    }
+  }, [activeWorkspace])
+
   // Respond to menu bar "New Chat" trigger
   const menuTriggerRef = useRef(menuNewChatTrigger)
   useEffect(() => {
