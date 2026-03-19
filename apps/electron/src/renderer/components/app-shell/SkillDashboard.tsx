@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles } from 'lucide-react'
+import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid } from 'lucide-react'
 import { toast } from 'sonner'
 import { getCommandIcon, ICON_NAME_MAP, resolveIconComponent } from '@/lib/command-icon'
 import { useEntityIcon } from '@/lib/icon-cache'
@@ -27,6 +27,8 @@ import { cn } from '@/lib/utils'
 import { isAgent } from '../../../shared/types'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../shared/types'
 import { TemplateVariableModal } from './TemplateVariableModal'
+import { AgentTemplateBrowser } from './AgentTemplateBrowser'
+import type { AgentTemplate } from '../../../shared/types'
 
 // ---------------------------------------------------------------------------
 // Skill Creator Prompt
@@ -60,6 +62,41 @@ The skill directory should be created at **~/.depot/skills/{slug}/** (not ~/.cla
 After creating both files, run \`skill_validate\` to verify the result.
 
 Let's start — what kind of agent would you like to create?`
+
+function buildSkillPromotePrompt(skill: LoadedSkill): string {
+  return `/skill-creator
+
+I have an existing skill called "${skill.metadata.name}" (slug: "${skill.slug}") that I want to promote to a full Depot agent by adding a \`depot.yaml\` manifest.
+
+The skill's SKILL.md is located at: ${skill.path}/SKILL.md
+${skill.metadata.description ? `Description: ${skill.metadata.description}` : ''}
+
+Please:
+1. Read the SKILL.md file at the path above
+2. Based on its content, generate an appropriate \`depot.yaml\` manifest file in the same directory (${skill.path}/depot.yaml)
+
+The depot.yaml format:
+\`\`\`yaml
+name: "Agent Name"
+icon: "bot"  # Lucide icon name (e.g. code-2, git-pull-request, shield, rocket, bug, server, database, terminal, sparkles, wrench, globe, search, layers, settings, book-open, zap, flask-conical, bar-chart-3, clipboard-list, eye, message-square, file-code, folder-kanban, hammer, refresh-cw, circle-check, package-plus, alert-triangle)
+description: "Brief description"
+sources:  # Optional: MCP sources to auto-connect
+  - "github"
+quick_commands:
+  - name: "Command Name"
+    prompt: "Prompt template with {{variable}} placeholders"
+    icon: "zap"  # Optional Lucide icon
+    variables:  # Optional: only if prompt has {{placeholders}}
+      - name: "variable"
+        type: "text"  # text | select | number
+        label: "Human Label"
+        placeholder: "e.g. example value"
+  - name: "Another Command"
+    prompt: "A simpler prompt with no variables"
+\`\`\`
+
+Choose an appropriate icon, write a clear description, and create 2-4 useful quick commands based on what the skill does. After creating the file, run \`skill_validate\` to verify the result.`
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -206,7 +243,7 @@ function AgentIcon({ skill, accent, workspaceId }: { skill: LoadedSkill; accent:
 export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string } = {}) {
   const skills = useAtomValue(skillsAtom)
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
-  const { activeWorkspaceId, onCreateSession, onSendMessage } = useAppShellContext()
+  const { activeWorkspaceId, onCreateSession, onSendMessage, onEnabledSkillSlugsChange } = useAppShellContext()
   const [searchQuery, setSearchQuery] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [enabledSlugs, setEnabledSlugs] = useState<string[] | undefined>(undefined)
@@ -214,6 +251,25 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const previousSkillSlugsRef = useRef<Set<string>>(new Set())
   const hasInitializedSkillFilterRef = useRef(false)
   const [pendingVarCommand, setPendingVarCommand] = useState<{ skill: LoadedSkill; cmd: QuickCommand } | null>(null)
+  const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false)
+  const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
+
+  // Load templates on mount
+  useEffect(() => {
+    window.electronAPI.getAgentTemplates()
+      .then(setAgentTemplates)
+      .catch((err) => {
+        console.error('Failed to load agent templates:', err)
+      })
+  }, [])
+
+  const handleCreateFromTemplate = useCallback(async (
+    templateId: string,
+    overrides?: Partial<import('../../../shared/types').DepotSkillManifest> & { slug?: string },
+  ) => {
+    await window.electronAPI.createAgentFromTemplate(templateId, overrides)
+    // Skill file watcher will auto-refresh the dashboard
+  }, [])
 
   useEffect(() => {
     if (!activeWorkspaceId) return
@@ -236,7 +292,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   useEffect(() => {
     const currentSkillSlugs = new Set(skills.map((skill) => skill.slug))
 
-    if (!enabledSlugs || enabledSlugs.length === 0) {
+    if (!enabledSlugs) {
       previousSkillSlugsRef.current = currentSkillSlugs
       hasInitializedSkillFilterRef.current = false
       return
@@ -283,7 +339,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   const filteredSkills = useMemo(() => {
     let base = skills
-    if (enabledSlugs && enabledSlugs.length > 0) {
+    if (enabledSlugs) {
       const set = new Set(enabledSlugs)
       base = skills.filter((s) => set.has(s.slug))
     }
@@ -352,12 +408,9 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   }, [activeWorkspaceId, onCreateSession])
 
   const handleSaveEnabledSlugs = useCallback((slugs: string[]) => {
-    if (!activeWorkspaceId) return
-    const value = slugs.length === 0 ? undefined : slugs
-    setEnabledSlugs(value)
-    window.electronAPI.updateWorkspaceSetting(activeWorkspaceId, 'enabledSkillSlugs', value)
-      .catch((err: unknown) => console.error('Failed to save enabledSkillSlugs:', err))
-  }, [activeWorkspaceId])
+    setEnabledSlugs(slugs)
+    onEnabledSkillSlugsChange?.(slugs)
+  }, [onEnabledSkillSlugsChange])
 
   const creatingAgentSessionRef = useRef(false)
 
@@ -377,8 +430,28 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     }
   }, [activeWorkspaceId, onCreateSession, onSendMessage])
 
+  const handlePromoteWithAI = useCallback(async (skill: LoadedSkill) => {
+    if (!activeWorkspaceId) return
+    try {
+      const session = await onCreateSession(activeWorkspaceId, {
+        name: `Promote ${skill.metadata.name}`,
+        skillSlug: skill.slug,
+      })
+      if (session?.id) {
+        onSendMessage(session.id, buildSkillPromotePrompt(skill), undefined, [skill.slug])
+        navigate(routes.view.allSessions(session.id))
+      }
+    } catch (err) {
+      console.error('Failed to start promote session:', err)
+    }
+  }, [activeWorkspaceId, onCreateSession, onSendMessage])
+
   const headerActions = (
     <div className="flex items-center gap-1">
+      <button type="button" onClick={() => setTemplateBrowserOpen(true)} aria-label="Browse Templates"
+        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Browse Templates">
+        <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+      </button>
       <button type="button" onClick={handleCreateAgentSession} aria-label="Create Agent"
         className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Create Agent">
         <Plus className="h-4 w-4 text-muted-foreground" />
@@ -766,28 +839,119 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             </motion.div>
           )}
 
-          {/* Empty states */}
+          {/* Empty state — no agents configured */}
           {filteredSkills.length === 0 && skills.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-              <div className="flex items-center justify-center h-12 w-12 rounded-full bg-foreground/[0.04]">
-                <Zap className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium text-foreground">No agents configured</p>
-              <p className="text-xs text-muted-foreground">Agents are reusable instructions that teach your AI specialized behaviors.</p>
-              <button type="button" onClick={() => navigate(routes.view.settings('workspace'))}
-                className={cn('inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg bg-background shadow-minimal hover:bg-foreground/[0.03] transition-colors cursor-pointer')}>
-                <Plus className="h-3.5 w-3.5" />Add Agents
-              </button>
-            </div>
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="py-8 space-y-8"
+            >
+              {/* Hero section */}
+              <motion.div variants={fadeIn} className="text-center space-y-3">
+                <div className="flex items-center justify-center mx-auto h-14 w-14 rounded-2xl bg-foreground/[0.04] border border-border/40">
+                  <Bot className="h-7 w-7 text-muted-foreground/60" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-base font-medium text-foreground">Set up your first agent</h3>
+                  <p className="text-[13px] text-muted-foreground/60 max-w-[360px] mx-auto leading-relaxed">
+                    Agents are reusable instructions that give your AI specialized skills — like code review, writing docs, or debugging.
+                  </p>
+                </div>
+              </motion.div>
+
+              {/* Action cards */}
+              <motion.div variants={itemVariants} className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="w-full flex items-center gap-3.5 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card"
+                >
+                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0">
+                    <Plus className="h-4.5 w-4.5 text-muted-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[13px] font-medium text-foreground">Browse agents</span>
+                    <p className="text-[11px] text-muted-foreground/50 mt-0.5">Pick from agents already installed on your machine</p>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/card:text-muted-foreground/60 transition-colors shrink-0" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTemplateBrowserOpen(true)}
+                  className="w-full flex items-center gap-3.5 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card"
+                >
+                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0">
+                    <LayoutGrid className="h-4.5 w-4.5 text-muted-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[13px] font-medium text-foreground">Start from a template</span>
+                    <p className="text-[11px] text-muted-foreground/50 mt-0.5">Pick from curated agent templates and customize them</p>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/card:text-muted-foreground/60 transition-colors shrink-0" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCreateAgentSession}
+                  className="w-full flex items-center gap-3.5 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card"
+                >
+                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0">
+                    <Sparkles className="h-4.5 w-4.5 text-muted-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[13px] font-medium text-foreground">Create a new agent</span>
+                    <p className="text-[11px] text-muted-foreground/50 mt-0.5">Describe what you need and AI will build it for you</p>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/card:text-muted-foreground/60 transition-colors shrink-0" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate(routes.action.newSession())}
+                  className="w-full flex items-center gap-3.5 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card"
+                >
+                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0">
+                    <MessageSquare className="h-4.5 w-4.5 text-muted-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[13px] font-medium text-foreground">Just start chatting</span>
+                    <p className="text-[11px] text-muted-foreground/50 mt-0.5">Skip agents for now and open a free-form session</p>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/card:text-muted-foreground/60 transition-colors shrink-0" />
+                </button>
+              </motion.div>
+            </motion.div>
           )}
           {filteredSkills.length === 0 && skills.length > 0 && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-              <p className="text-sm text-muted-foreground">No agents enabled yet.</p>
+            <motion.div
+              variants={fadeIn}
+              initial="hidden"
+              animate="visible"
+              className="flex flex-col items-center justify-center py-14 gap-4 text-center"
+            >
+              <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-foreground/[0.04] border border-border/40">
+                <Settings2 className="h-5 w-5 text-muted-foreground/50" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">No agents enabled</p>
+                <p className="text-[13px] text-muted-foreground/50">
+                  {(() => {
+                    const agentCount = skills.filter(isAgent).length
+                    const skillCount = skills.length - agentCount
+                    const parts: string[] = []
+                    if (agentCount > 0) parts.push(`${agentCount} agent${agentCount !== 1 ? 's' : ''}`)
+                    if (skillCount > 0) parts.push(`${skillCount} skill${skillCount !== 1 ? 's' : ''} that can become agents`)
+                    return `You have ${parts.join(' and ')} — pick which ones to show here.`
+                  })()}
+                </p>
+              </div>
               <button type="button" onClick={() => setPickerOpen(true)}
                 className={cn('inline-flex items-center gap-1.5 h-8 px-4 text-xs font-medium rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-colors cursor-pointer')}>
                 Choose Agents
               </button>
-            </div>
+            </motion.div>
           )}
 
           {/* Recent Sessions */}
@@ -816,7 +980,15 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
       <SkillPicker open={pickerOpen} onOpenChange={setPickerOpen}
         workspaceId={activeWorkspaceId ?? ''} enabledSlugs={enabledSlugs} onSave={handleSaveEnabledSlugs}
-        onCreateAgent={handleCreateAgentSession} />
+        onCreateAgent={handleCreateAgentSession}
+        onBrowseTemplates={() => setTemplateBrowserOpen(true)}
+        onPromoteWithAI={handlePromoteWithAI} />
+      <AgentTemplateBrowser
+        open={templateBrowserOpen}
+        onOpenChange={setTemplateBrowserOpen}
+        templates={agentTemplates}
+        onCreateFromTemplate={handleCreateFromTemplate}
+      />
       <TemplateVariableModal
         open={pendingVarCommand !== null}
         onOpenChange={(open) => { if (!open) setPendingVarCommand(null) }}

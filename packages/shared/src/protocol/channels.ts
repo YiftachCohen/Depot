@@ -236,6 +236,8 @@ export const RPC_CHANNELS = {
     CREATE: 'skills:create',
     PROMOTE_TO_AGENT: 'skills:promoteToAgent',
     CHANGED: 'skills:changed',
+    CREATE_FROM_TEMPLATE: 'skills:createFromTemplate',
+    GET_TEMPLATES: 'skills:getTemplates',
   },
   statuses: {
     LIST: 'statuses:list',

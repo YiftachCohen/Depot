@@ -126,6 +126,9 @@ export interface AppShellContextType {
   // Source selection callback (per-session) - provided by AppShell component
   onSessionSourcesChange?: (sessionId: string, sourceSlugs: string[]) => void
 
+  /** Update the enabled skill slugs (syncs sidebar + dashboard) */
+  onEnabledSkillSlugsChange?: (slugs: string[]) => void
+
   // Open a new chat with optional agent, name, and pre-filled input
   openNewChat?: (params?: NewChatActionParams) => Promise<void>
 

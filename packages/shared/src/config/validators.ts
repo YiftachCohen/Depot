@@ -69,7 +69,7 @@ const LlmProviderTypeSchema = z.enum([
 
 const LlmAuthTypeSchema = z.enum([
   'api_key', 'api_key_with_endpoint', 'oauth', 'iam_credentials',
-  'bearer_token', 'service_account_file', 'environment', 'none',
+  'aws_profile', 'bearer_token', 'service_account_file', 'environment', 'none',
 ]);
 
 const LlmConnectionSchema = z.object({

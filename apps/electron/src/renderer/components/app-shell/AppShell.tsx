@@ -831,7 +831,7 @@ function AppShellContent({
   // Pinned agents for sidebar — only skills with depot.yaml + quick_commands
   const pinnedAgents = React.useMemo(() => {
     let base = skills
-    if (enabledSkillSlugs && enabledSkillSlugs.length > 0) {
+    if (enabledSkillSlugs) {
       const enabledSet = new Set(enabledSkillSlugs)
       base = skills.filter(s => enabledSet.has(s.slug))
     }
@@ -863,7 +863,7 @@ function AppShellContent({
   React.useEffect(() => {
     const currentSkillSlugs = new Set(skills.map((skill) => skill.slug))
 
-    if (!enabledSkillSlugs || enabledSkillSlugs.length === 0) {
+    if (!enabledSkillSlugs) {
       previousSkillSlugsRef.current = currentSkillSlugs
       hasInitializedSkillFilterRef.current = false
       return
@@ -891,6 +891,13 @@ function AppShellContent({
     window.electronAPI.updateWorkspaceSetting(activeWorkspaceId, 'enabledSkillSlugs', nextEnabledSkillSlugs)
       .catch((err) => console.error('[Chat] Failed to auto-enable new skills:', err))
   }, [activeWorkspaceId, enabledSkillSlugs, skills])
+
+  const handleEnabledSkillSlugsChange = React.useCallback((slugs: string[]) => {
+    if (!activeWorkspaceId) return
+    setEnabledSkillSlugs(slugs)
+    window.electronAPI.updateWorkspaceSetting(activeWorkspaceId, 'enabledSkillSlugs', slugs)
+      .catch((err: unknown) => console.error('Failed to save enabledSkillSlugs:', err))
+  }, [activeWorkspaceId])
 
   // Reset UI state when workspace changes
   // This prevents stale search queries, focused items, and filter state from persisting
@@ -1641,7 +1648,8 @@ function AppShellContent({
     automationTestResults,
     getAutomationHistory,
     onReplayAutomation: handleReplayAutomation,
-  }), [contextValue, handleDeleteSession, sources, handleDeleteSource, activeWorkspace?.rootPath, localMcpEnabled, skills, labelConfigs, handleSessionLabelsChange, enabledModes, effectiveSessionStatuses, handleSessionSourcesChange, searchActive, searchQuery, handleChatMatchInfoChange, handleTestAutomation, handleToggleAutomation, handleDuplicateAutomation, handleDeleteAutomation, automationTestResults, getAutomationHistory, handleReplayAutomation])
+    onEnabledSkillSlugsChange: handleEnabledSkillSlugsChange,
+  }), [contextValue, handleDeleteSession, sources, handleDeleteSource, activeWorkspace?.rootPath, localMcpEnabled, skills, labelConfigs, handleSessionLabelsChange, enabledModes, effectiveSessionStatuses, handleSessionSourcesChange, searchActive, searchQuery, handleChatMatchInfoChange, handleTestAutomation, handleToggleAutomation, handleDuplicateAutomation, handleDeleteAutomation, automationTestResults, getAutomationHistory, handleReplayAutomation, handleEnabledSkillSlugsChange])
 
   // Session list title derived from the current filter
   const sessionListTitle = React.useMemo(() => {

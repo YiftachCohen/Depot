@@ -532,6 +532,12 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
       });
     } else if (msg.subtype === 'status' && msg.status === 'compacting') {
       events.push({ type: 'status', message: 'Compacting conversation...' });
+    } else if (msg.subtype === 'api_retry') {
+      // SDK retries API requests on retryable errors (rate limits, 5xx) — surface this to users
+      events.push({
+        type: 'status',
+        message: `Retrying API request (attempt ${msg.attempt}/${msg.max_retries})...`,
+      });
     } else if (msg.subtype === 'task_notification') {
       const notification = msg as TaskNotificationMessage;
       if (!notification.task_id) {

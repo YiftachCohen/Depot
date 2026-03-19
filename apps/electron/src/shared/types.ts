@@ -58,8 +58,8 @@ import type { LoadedSource, FolderSourceConfig, SourceConnectionStatus } from '@
 export type { LoadedSource, FolderSourceConfig, SourceConnectionStatus };
 
 // Skill types
-import type { LoadedSkill, SkillMetadata, QuickCommand, DepotSkillManifest } from '@depot/shared/skills/types';
-export type { LoadedSkill, SkillMetadata, QuickCommand, DepotSkillManifest };
+import type { LoadedSkill, SkillMetadata, QuickCommand, DepotSkillManifest, AgentTemplate } from '@depot/shared/skills/types';
+export type { LoadedSkill, SkillMetadata, QuickCommand, DepotSkillManifest, AgentTemplate };
 export { isAgent } from '@depot/shared/skills/types';
 
 // LLM connection types
@@ -419,6 +419,8 @@ export interface ElectronAPI {
   importSkillsFromClaude(): Promise<string[]>
   createSkill(slug: string, name: string, description: string, targetDir?: string): Promise<string>
   promoteSkillToAgent(workspaceId: string, slug: string, manifest: DepotSkillManifest): Promise<void>
+  createAgentFromTemplate(templateId: string, overrides?: Partial<DepotSkillManifest> & { slug?: string }, targetDir?: string): Promise<string>
+  getAgentTemplates(): Promise<AgentTemplate[]>
 
   // Skills change listener (live updates when skills are added/removed/modified)
   onSkillsChanged(callback: (workspaceId: string, skills: LoadedSkill[]) => void): () => void

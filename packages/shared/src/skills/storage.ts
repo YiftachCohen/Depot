@@ -220,7 +220,12 @@ export function loadAllSkills(workspaceRoot: string, projectRoot?: string): Load
     skillsBySlug.set(skill.slug, skill);
   }
 
-  // 2. Primary global skills: ~/.depot/skills/ (overrides ~/.agents/skills/)
+  // 2. Claude Code global skills: ~/.claude/skills/ (overrides ~/.agents/skills/)
+  for (const skill of loadSkillsFromDir(CLAUDE_CODE_SKILLS_DIR, 'global')) {
+    skillsBySlug.set(skill.slug, skill);
+  }
+
+  // 3. Primary global skills: ~/.depot/skills/ (overrides ~/.claude/skills/)
   for (const skill of loadSkillsFromDir(GLOBAL_DEPOT_SKILLS_DIR, 'global')) {
     skillsBySlug.set(skill.slug, skill);
   }
@@ -264,6 +269,10 @@ export function loadSkillBySlug(workspaceRoot: string, slug: string, projectRoot
   // Primary global: ~/.depot/skills/
   const depotSkill = loadSkillFromDir(GLOBAL_DEPOT_SKILLS_DIR, slug, 'global');
   if (depotSkill) return depotSkill;
+
+  // Claude Code global: ~/.claude/skills/
+  const claudeSkill = loadSkillFromDir(CLAUDE_CODE_SKILLS_DIR, slug, 'global');
+  if (claudeSkill) return claudeSkill;
 
   // Fallback global: ~/.agents/skills/
   return loadSkillFromDir(GLOBAL_AGENT_SKILLS_DIR, slug, 'global');
@@ -466,6 +475,9 @@ export function createSkill(
   description: string,
   targetDir?: string,
 ): string {
+  if (!slug || !/^[a-z0-9][a-z0-9-]*$/.test(slug) || slug.includes('..') || slug.includes('/') || slug.includes('\\')) {
+    throw new Error(`Invalid skill slug: "${slug}". Must be lowercase alphanumeric with hyphens only.`);
+  }
   const skillsDir = targetDir ?? GLOBAL_DEPOT_SKILLS_DIR;
   const skillDir = join(skillsDir, slug);
 
