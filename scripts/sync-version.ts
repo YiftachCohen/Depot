@@ -1,8 +1,8 @@
 /**
  * Sync Version Script
  *
- * Reads APP_VERSION from packages/shared/src/version/app-version.ts
- * and updates all package.json files in the monorepo.
+ * Reads the version from packages/shared/package.json (the source of truth)
+ * and updates all package.json files in the monorepo to match.
  *
  * Usage: bun run scripts/sync-version.ts
  */

@@ -218,7 +218,7 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
                 ...baseEnv,
                 ...envOverrides,
                 // Propagate debug mode from argv flag OR existing env var
-                CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
+                DEPOT_DEBUG: (process.argv.includes('--debug') || process.env.DEPOT_DEBUG === '1' || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
             }
         };
     }
@@ -238,7 +238,7 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
                 BUN_BE_BUN: '1',
                 ...envOverrides,
                 // Propagate debug mode from argv flag OR existing env var
-                CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
+                DEPOT_DEBUG: (process.argv.includes('--debug') || process.env.DEPOT_DEBUG === '1' || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
             }
         }
     }
@@ -248,7 +248,7 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
             ...baseEnv,
             ...envOverrides,
             // Propagate debug mode from argv flag OR existing env var
-            CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
+            DEPOT_DEBUG: (process.argv.includes('--debug') || process.env.DEPOT_DEBUG === '1' || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
         }
     };
 }
