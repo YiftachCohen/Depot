@@ -65,6 +65,8 @@ import { buildTitlePrompt, buildRegenerateTitlePrompt, validateTitle } from '../
 // Skill extraction for Codex/Copilot backends (Claude uses native SDK Skill tool)
 import { parseMentions, stripAllMentions, resolveFileMentions } from '../mentions/index.ts';
 import { loadAllSkills } from '../skills/storage.ts';
+import { loadSkillBySlug } from '../skills/storage.ts';
+import { loadAgentState, formatAgentMemoryForPrompt } from '../skills/agent-state.ts';
 import type { LoadedSkill } from '../skills/types.ts';
 import { findProjectContextFile } from '../prompts/system.ts';
 
@@ -243,13 +245,8 @@ export abstract class BaseAgent implements AgentBackend {
     });
 
     // PromptBuilder: builds context blocks for user messages
-    this.promptBuilder = new PromptBuilder({
-      workspace: config.workspace,
-      session: config.session,
-      debugMode: config.debugMode,
-      systemPromptPreset: config.systemPromptPreset,
-      isHeadless: config.isHeadless,
-    });
+    // Rebuilt per-turn via refreshPromptBuilder() so runtime memory updates are reflected.
+    this.promptBuilder = this.createPromptBuilder();
 
     // PathProcessor: expands ~ and normalizes paths
     this.pathProcessor = new PathProcessor();
@@ -269,6 +266,32 @@ export abstract class BaseAgent implements AgentBackend {
 
     // AutomationSystem: workspace-level automations from automations.json
     this.automationSystem = config.automationSystem;
+  }
+
+  /**
+   * Build a fresh PromptBuilder with current personality and memory state.
+   * Called once in the constructor and again at the start of each turn so that
+   * facts added by save_agent_memory are visible immediately.
+   */
+  private createPromptBuilder(): PromptBuilder {
+    let agentPersonality: string | undefined;
+    let agentMemoryContext: string | undefined;
+    if (this.config.session?.skillSlug) {
+      const slug = this.config.session.skillSlug;
+      const skill = loadSkillBySlug(this.config.workspace.rootPath, slug);
+      agentPersonality = skill?.manifest?.personality;
+      const agentState = loadAgentState(this.config.workspace.rootPath, slug, skill?.path);
+      agentMemoryContext = formatAgentMemoryForPrompt(agentState, slug) || undefined;
+    }
+    return new PromptBuilder({
+      workspace: this.config.workspace,
+      session: this.config.session,
+      debugMode: this.config.debugMode,
+      systemPromptPreset: this.config.systemPromptPreset,
+      isHeadless: this.config.isHeadless,
+      agentPersonality,
+      agentMemoryContext,
+    });
   }
 
   // ============================================================
@@ -1047,6 +1070,9 @@ ${formattedMessages}
     attachments?: FileAttachment[],
     options?: ChatOptions
   ): AsyncGenerator<AgentEvent> {
+    // Refresh prompt builder so personality/memory edits from previous turns are reflected.
+    this.promptBuilder = this.createPromptBuilder();
+
     const { skillPaths, matchedSkills, cleanMessage, missingSkills } = this.extractSkillPaths(message);
     if (missingSkills.length > 0) {
       yield { type: 'error', message: `Skill(s) not found: ${missingSkills.join(', ')}` };

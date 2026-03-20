@@ -194,18 +194,8 @@ export class WindowManager {
       }
     })
 
-    // Enable right-click context menu in development
-    if (!app.isPackaged) {
-      window.webContents.on('context-menu', (_event, params) => {
-        Menu.buildFromTemplate([
-          { label: 'Inspect Element', click: () => window.webContents.inspectElement(params.x, params.y) },
-          { type: 'separator' },
-          { label: 'Cut', role: 'cut', enabled: params.editFlags.canCut },
-          { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy },
-          { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste },
-        ]).popup()
-      })
-    }
+    // NOTE: No native context-menu handler — React/Radix context menus in the
+    // renderer handle right-click. Use Cmd+Option+I for dev tools.
 
     // Store the window mapping BEFORE loadURL — bootstrap preload uses
     // __get-workspace-id (via sendSync) which reads this map during eval.

@@ -8,7 +8,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
-import type { DepotSkillManifest, QuickCommand } from './types.ts';
+import type { DepotSkillManifest, InlineSourceConfig, QuickCommand } from './types.ts';
 
 // ============================================================
 // Validation Helpers
@@ -102,6 +102,31 @@ function validateQuickCommand(raw: unknown, index: number): string[] {
   return errors;
 }
 
+/**
+ * Validate a single inline source config entry.
+ */
+function validateInlineSourceConfig(raw: unknown, slug: string): string[] {
+  const errors: string[] = [];
+  const prefix = `source_configs["${slug}"]`;
+
+  if (typeof raw !== 'object' || raw === null) {
+    errors.push(`${prefix}: must be an object`);
+    return errors;
+  }
+
+  const cfg = raw as Record<string, unknown>;
+  const validTypes = ['mcp', 'api', 'local'];
+
+  if (typeof cfg.type !== 'string' || !validTypes.includes(cfg.type)) {
+    errors.push(`${prefix}: "type" must be one of: ${validTypes.join(', ')}`);
+  }
+  if (typeof cfg.provider !== 'string' || cfg.provider.trim() === '') {
+    errors.push(`${prefix}: "provider" is required and must be a non-empty string`);
+  }
+
+  return errors;
+}
+
 // ============================================================
 // Parser
 // ============================================================
@@ -181,6 +206,52 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     ? data.provider.trim()
     : undefined;
 
+  // --- v2 optional fields ---
+
+  // source_configs: Record<string, InlineSourceConfig>
+  let sourceConfigs: Record<string, InlineSourceConfig> | undefined;
+  if (data.source_configs !== undefined) {
+    if (typeof data.source_configs !== 'object' || data.source_configs === null || Array.isArray(data.source_configs)) {
+      errors.push('"source_configs" must be an object (slug → config)');
+    } else {
+      const rawConfigs = data.source_configs as Record<string, unknown>;
+      for (const [slug, cfg] of Object.entries(rawConfigs)) {
+        errors.push(...validateInlineSourceConfig(cfg, slug));
+      }
+      if (errors.length === 0) {
+        sourceConfigs = rawConfigs as Record<string, InlineSourceConfig>;
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Invalid depot.yaml:\n  - ${errors.join('\n  - ')}`);
+  }
+
+  // personality: string
+  const personality = typeof data.personality === 'string' && data.personality.trim() !== ''
+    ? data.personality.trim()
+    : undefined;
+
+  // permission_mode: 'safe' | 'ask' | 'allow-all'
+  const validPermModes = ['safe', 'ask', 'allow-all'];
+  let permissionMode: 'safe' | 'ask' | 'allow-all' | undefined;
+  if (data.permission_mode !== undefined) {
+    if (typeof data.permission_mode === 'string' && validPermModes.includes(data.permission_mode)) {
+      permissionMode = data.permission_mode as 'safe' | 'ask' | 'allow-all';
+    }
+    // Silently ignore invalid values (non-breaking)
+  }
+
+  // memory: { enabled?: boolean }
+  let memory: { enabled?: boolean } | undefined;
+  if (data.memory !== undefined && typeof data.memory === 'object' && data.memory !== null) {
+    const rawMemory = data.memory as Record<string, unknown>;
+    memory = {
+      enabled: typeof rawMemory.enabled === 'boolean' ? rawMemory.enabled : undefined,
+    };
+  }
+
   return {
     name: (data.name as string).trim(),
     icon: (data.icon as string).trim(),
@@ -190,6 +261,10 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     quick_commands: parsedCommands,
     context_files: contextFiles && contextFiles.length > 0 ? contextFiles : undefined,
     project_paths: projectPaths && projectPaths.length > 0 ? projectPaths : undefined,
+    source_configs: sourceConfigs,
+    personality,
+    permission_mode: permissionMode,
+    memory,
   };
 }
 

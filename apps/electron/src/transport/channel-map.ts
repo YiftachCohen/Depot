@@ -214,6 +214,14 @@ export const CHANNEL_MAP = {
   createAgentFromTemplate: invoke(RPC_CHANNELS.skills.CREATE_FROM_TEMPLATE),
   getAgentTemplates: invoke(RPC_CHANNELS.skills.GET_TEMPLATES),
 
+  // Agent State
+  getAgentState: invoke(RPC_CHANNELS.agentState.GET),
+  getAgentMemory: invoke(RPC_CHANNELS.agentState.GET_MEMORY),
+  addAgentMemory: invoke(RPC_CHANNELS.agentState.ADD_MEMORY),
+  deleteAgentMemoryFact: invoke(RPC_CHANNELS.agentState.DELETE_FACT),
+  clearAgentMemory: invoke(RPC_CHANNELS.agentState.CLEAR_MEMORY),
+  onAgentStateChanged: listener(RPC_CHANNELS.agentState.CHANGED),
+
   // Statuses
   listStatuses: invoke(RPC_CHANNELS.statuses.LIST),
   reorderStatuses: invoke(RPC_CHANNELS.statuses.REORDER),

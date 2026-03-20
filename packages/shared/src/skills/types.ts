@@ -95,6 +95,47 @@ export interface DepotSkillManifest {
   context_files?: string[];
   /** Absolute or ~-prefixed paths to project directories this agent operates in */
   project_paths?: string[];
+
+  // --- v2 fields (all optional, backward compatible) ---
+
+  /** Inline source definitions keyed by slug — used for auto-setup when workspace source doesn't exist */
+  source_configs?: Record<string, InlineSourceConfig>;
+  /** Agent personality (prepended to system prompt, separate from SKILL.md instructions) */
+  personality?: string;
+  /** Default permission mode for sessions with this agent */
+  permission_mode?: 'safe' | 'ask' | 'allow-all';
+  /** Cross-session memory configuration */
+  memory?: { enabled?: boolean };
+}
+
+/**
+ * Inline source configuration embedded in a depot.yaml manifest.
+ * Used for auto-creating workspace sources when they don't yet exist.
+ */
+export interface InlineSourceConfig {
+  /** Source type */
+  type: 'mcp' | 'api' | 'local';
+  /** Provider label (e.g. "jira", "github", "custom") */
+  provider: string;
+  /** MCP server configuration (when type='mcp') */
+  mcp?: {
+    transport: 'http' | 'sse' | 'stdio';
+    url?: string;
+    command?: string;
+    args?: string[];
+    authType?: string;
+  };
+  /** API configuration (when type='api') */
+  api?: {
+    baseUrl: string;
+    authType?: string;
+  };
+  /** Local source configuration (when type='local') */
+  local?: {
+    path: string;
+  };
+  /** Icon (emoji or URL) */
+  icon?: string;
 }
 
 /**

@@ -305,6 +305,13 @@ export interface SessionToolContext {
    */
   updatePreferences?(updates: Record<string, unknown>): void;
 
+  /**
+   * Save facts to the current agent's persistent memory.
+   * Only available in sessions linked to a skill/agent with memory enabled.
+   * Injected by the backend when the session has a skillSlug.
+   */
+  saveAgentMemory?(facts: string[]): void;
+
   // ============================================================
   // Session Paths (for transform_data / render_template)
   // ============================================================

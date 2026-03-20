@@ -94,6 +94,10 @@ export interface PromptBuilderConfig {
   systemPromptPreset?: 'default' | 'mini' | string;
   /** Whether running in headless mode */
   isHeadless?: boolean;
+  /** Agent personality text (prepended to system prompt context) */
+  agentPersonality?: string;
+  /** Pre-formatted agent memory context (injected into system prompt) */
+  agentMemoryContext?: string;
 }
 
 /**

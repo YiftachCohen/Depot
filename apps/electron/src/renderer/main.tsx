@@ -10,6 +10,13 @@ import { windowWorkspaceIdAtom } from './atoms/sessions'
 import { Toaster } from '@/components/ui/sonner'
 import './index.css'
 
+if (import.meta.env.DEV) {
+  // DEBUG: Test if contextmenu events fire at all in Electron
+  document.addEventListener('contextmenu', (e) => {
+    console.log('[GLOBAL] contextmenu event fired on', (e.target as HTMLElement)?.tagName, e.clientX, e.clientY)
+  })
+}
+
 // Known-harmless console messages that should NOT be sent to Sentry.
 // These are dev-mode noise or expected warnings that aren't actionable.
 const IGNORED_CONSOLE_PATTERNS = [

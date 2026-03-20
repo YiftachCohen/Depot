@@ -16,8 +16,10 @@ import { registerSourcesHandlers } from './sources'
 import { registerStatusesHandlers } from './statuses'
 import { registerSystemCoreHandlers } from './system'
 import { registerWorkspaceCoreHandlers } from './workspace'
+import { registerAgentStateHandlers } from './agent-state'
 
 export function registerCoreRpcHandlers(server: RpcServer, deps: HandlerDeps): void {
+  registerAgentStateHandlers(server, deps)
   registerAuthHandlers(server, deps)
   registerAutomationsHandlers(server, deps)
   registerFilesHandlers(server, deps)
