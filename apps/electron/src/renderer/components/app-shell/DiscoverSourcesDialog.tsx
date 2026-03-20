@@ -28,7 +28,7 @@ const TRANSPORT_CONFIG: Record<string, { label: string; icon: React.ReactNode; c
 
 interface DiscoverSourcesDialogProps {
   workspaceId: string
-  trigger: React.ReactNode
+  trigger: React.ReactElement
   onImported?: () => void
 }
 
@@ -47,12 +47,13 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
   const discover = React.useCallback(async () => {
     setLoading(true)
     setDiscoveryError(null)
+    setServers([])
+    setSelected(new Set())
     setImportErrors(new Map())
     setImported(new Set())
     try {
       const result = await window.electronAPI.discoverGlobalMcpServers(workspaceId)
       setServers(result)
-      setSelected(new Set())
     } catch (err) {
       setDiscoveryError(err instanceof Error ? err.message : 'Failed to scan for MCP servers')
     } finally {

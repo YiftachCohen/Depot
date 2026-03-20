@@ -173,7 +173,7 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       const { lookupDiscoveredServer, createSource } = await import('@depot/shared/sources')
       const server = lookupDiscoveredServer(serverName, serverOrigin as 'claude-code' | 'claude-code-local' | 'claude-desktop')
       if (!server) throw new Error(`Discovered server not found: ${serverName} (${serverOrigin})`)
-      return createSource(workspace.rootPath, {
+      await createSource(workspace.rootPath, {
         name: server.name,
         provider: server.name,
         type: 'mcp',
