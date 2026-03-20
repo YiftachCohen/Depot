@@ -68,6 +68,8 @@ import { isGoogleOAuthConfigured as isGoogleOAuthConfiguredImpl } from '../auth/
 import { debug } from '../utils/debug.ts';
 import { getSessionPlansPath, getSessionPath, getSessionDataPath } from '../sessions/storage.ts';
 import { updatePreferences as updatePreferencesImpl } from '../config/preferences.ts';
+import { addMemoryFacts } from '../skills/agent-state.ts';
+import { loadSkillBySlug } from '../skills/storage.ts';
 
 // Re-export types that may be needed by consumers
 export type { SessionToolContext, SessionToolCallbacks } from '@depot/session-tools-core';
@@ -81,6 +83,10 @@ export interface ClaudeContextOptions {
   workspaceId: string;
   onPlanSubmitted: (planPath: string) => void;
   onAuthRequest: (request: unknown) => void;
+  /** Skill slug for agent memory scoping (optional — only set for skill-scoped sessions) */
+  skillSlug?: string;
+  /** Project root for skill resolution priority (project > workspace > global) */
+  projectRoot?: string;
 }
 
 /**
@@ -94,7 +100,7 @@ export interface ClaudeContextOptions {
  * - Icon management
  */
 export function createClaudeContext(options: ClaudeContextOptions): SessionToolContext {
-  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest } = options;
+  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug, projectRoot } = options;
 
   // File system implementation
   const fs: FileSystemInterface = {
@@ -252,6 +258,24 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     updatePreferences: (updates: Record<string, unknown>) => {
       updatePreferencesImpl(updates as any);
     },
+    saveAgentMemory: skillSlug
+      ? (facts: string[]) => {
+          // Sanitize facts: escape XML-like tags and normalize whitespace
+          const sanitizedFacts = facts
+            .map((fact) =>
+              fact
+                .replace(/[<>&]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch] as string))
+                .replace(/\s+/g, ' ')
+                .trim()
+            )
+            .filter((fact) => fact.length > 0);
+          if (sanitizedFacts.length === 0) return;
+
+          // Resolve skill to get the correct storage path (project vs workspace)
+          const resolvedSkill = loadSkillBySlug(workspacePath, skillSlug, projectRoot);
+          addMemoryFacts(workspacePath, skillSlug, sessionId, sanitizedFacts, resolvedSkill?.path);
+        }
+      : undefined,
     submitFeedback: (feedback: DeveloperFeedback) => {
       const feedbackDir = join(CONFIG_DIR, 'feedback');
       mkdirSync(feedbackDir, { recursive: true });

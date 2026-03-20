@@ -1183,6 +1183,7 @@ export class PiAgent extends BaseAgent {
       onAuthRequest: (request: unknown) => {
         this.onAuthRequest?.(request as any);
       },
+      skillSlug: this.config.session?.skillSlug,
     });
 
     return this._sessionToolContext;

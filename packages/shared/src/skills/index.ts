@@ -34,6 +34,24 @@ export {
   type SkillSessionOptions,
 } from './session-helpers.ts';
 export {
+  resolveAgentSources,
+  type SourceResolutionResult,
+} from './source-resolution.ts';
+export {
+  loadAgentState,
+  saveAgentState,
+  initAgentState,
+  addMemoryFacts,
+  deleteMemoryFact,
+  replaceMemoryFacts,
+  touchAgentState,
+  formatAgentMemoryForPrompt,
+  MEMORY_CONSOLIDATION_THRESHOLD,
+  type AgentState,
+  type AgentMemory,
+  type AgentMemoryFact,
+} from './agent-state.ts';
+export {
   AGENT_TEMPLATES,
   TEMPLATE_CATEGORIES,
   type TemplateCategory,

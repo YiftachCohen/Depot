@@ -474,3 +474,264 @@ Instructions here.
     expect(skill!.manifest).toBeUndefined();
   });
 });
+
+// ============================================================
+// Tests: parseDepotManifest — v2 fields
+// ============================================================
+
+const V2_MANIFEST = `
+name: Smart Agent
+icon: brain
+description: Full v2 agent
+personality: "Meticulous security auditor"
+permission_mode: ask
+memory:
+  enabled: true
+sources:
+  - jira
+source_configs:
+  jira:
+    type: mcp
+    provider: jira
+    mcp:
+      transport: http
+      url: "https://jira.example.com/mcp"
+      authType: oauth2
+quick_commands:
+  - name: Audit
+    prompt: "Audit the codebase"
+`;
+
+describe('parseDepotManifest — v2 fields', () => {
+  it('should parse personality string and trim it', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+personality: "  Friendly assistant  "
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.personality).toBe('Friendly assistant');
+  });
+
+  it('should leave personality undefined when not present', () => {
+    const manifest = parseDepotManifest(MINIMAL_MANIFEST);
+    expect(manifest.personality).toBeUndefined();
+  });
+
+  it('should leave personality undefined for empty string', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+personality: ""
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.personality).toBeUndefined();
+  });
+
+  it('should parse permission_mode "safe"', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+permission_mode: safe
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.permission_mode).toBe('safe');
+  });
+
+  it('should parse permission_mode "ask"', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+permission_mode: ask
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.permission_mode).toBe('ask');
+  });
+
+  it('should parse permission_mode "allow-all"', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+permission_mode: allow-all
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.permission_mode).toBe('allow-all');
+  });
+
+  it('should silently ignore invalid permission_mode', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+permission_mode: yolo
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.permission_mode).toBeUndefined();
+  });
+
+  it('should leave permission_mode undefined when not present', () => {
+    const manifest = parseDepotManifest(MINIMAL_MANIFEST);
+    expect(manifest.permission_mode).toBeUndefined();
+  });
+
+  it('should parse memory with enabled: true', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+memory:
+  enabled: true
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.memory).toBeDefined();
+    expect(manifest.memory!.enabled).toBe(true);
+  });
+
+  it('should parse memory with enabled: false', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+memory:
+  enabled: false
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.memory).toBeDefined();
+    expect(manifest.memory!.enabled).toBe(false);
+  });
+
+  it('should parse memory object with missing enabled as undefined', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+memory: {}
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.memory).toBeDefined();
+    expect(manifest.memory!.enabled).toBeUndefined();
+  });
+
+  it('should leave memory undefined when not present', () => {
+    const manifest = parseDepotManifest(MINIMAL_MANIFEST);
+    expect(manifest.memory).toBeUndefined();
+  });
+
+  it('should parse source_configs with MCP config', () => {
+    const manifest = parseDepotManifest(V2_MANIFEST);
+    expect(manifest.source_configs).toBeDefined();
+    expect(manifest.source_configs!['jira']).toBeDefined();
+
+    const jira = manifest.source_configs!['jira']!;
+    expect(jira.type).toBe('mcp');
+    expect(jira.provider).toBe('jira');
+    expect(jira.mcp).toBeDefined();
+    expect(jira.mcp!.transport).toBe('http');
+    expect(jira.mcp!.url).toBe('https://jira.example.com/mcp');
+    expect(jira.mcp!.authType).toBe('oauth2');
+  });
+
+  it('should parse source_configs with API config', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+source_configs:
+  stripe:
+    type: api
+    provider: stripe
+    api:
+      baseUrl: "https://api.stripe.com"
+      authType: api_key
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    const stripe = manifest.source_configs!['stripe']!;
+    expect(stripe.type).toBe('api');
+    expect(stripe.provider).toBe('stripe');
+    expect(stripe.api!.baseUrl).toBe('https://api.stripe.com');
+  });
+
+  it('should parse source_configs with local config', () => {
+    const yaml = `
+name: Agent
+icon: zap
+description: Test
+source_configs:
+  docs:
+    type: local
+    provider: filesystem
+    local:
+      path: "/home/user/docs"
+quick_commands:
+  - name: Run
+    prompt: "Go"
+`;
+    const manifest = parseDepotManifest(yaml);
+    const docs = manifest.source_configs!['docs']!;
+    expect(docs.type).toBe('local');
+    expect(docs.local!.path).toBe('/home/user/docs');
+  });
+
+  it('should leave source_configs undefined when not present', () => {
+    const manifest = parseDepotManifest(MINIMAL_MANIFEST);
+    expect(manifest.source_configs).toBeUndefined();
+  });
+
+  it('should parse a full v2 manifest with all fields', () => {
+    const manifest = parseDepotManifest(V2_MANIFEST);
+
+    expect(manifest.name).toBe('Smart Agent');
+    expect(manifest.icon).toBe('brain');
+    expect(manifest.description).toBe('Full v2 agent');
+    expect(manifest.personality).toBe('Meticulous security auditor');
+    expect(manifest.permission_mode).toBe('ask');
+    expect(manifest.memory).toEqual({ enabled: true });
+    expect(manifest.sources).toEqual(['jira']);
+    expect(manifest.source_configs).toBeDefined();
+    expect(manifest.quick_commands).toHaveLength(1);
+  });
+
+  it('should keep all v2 fields undefined for a minimal v1 manifest', () => {
+    const manifest = parseDepotManifest(MINIMAL_MANIFEST);
+
+    expect(manifest.personality).toBeUndefined();
+    expect(manifest.permission_mode).toBeUndefined();
+    expect(manifest.memory).toBeUndefined();
+    expect(manifest.source_configs).toBeUndefined();
+  });
+});

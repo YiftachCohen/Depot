@@ -426,6 +426,14 @@ export interface ElectronAPI {
   // Skills change listener (live updates when skills are added/removed/modified)
   onSkillsChanged(callback: (workspaceId: string, skills: LoadedSkill[]) => void): () => void
 
+  // Agent State (workspace-scoped, per-skill)
+  getAgentState(workspaceId: string, skillSlug: string): Promise<import('@depot/shared/skills').AgentState | null>
+  getAgentMemory(workspaceId: string, skillSlug: string): Promise<import('@depot/shared/skills').AgentMemoryFact[]>
+  addAgentMemory(workspaceId: string, skillSlug: string, facts: string[]): Promise<{ added: number }>
+  deleteAgentMemoryFact(workspaceId: string, skillSlug: string, factId: string): Promise<{ deleted: boolean }>
+  clearAgentMemory(workspaceId: string, skillSlug: string): Promise<{ cleared: boolean }>
+  onAgentStateChanged(callback: (data: { skillSlug: string }) => void): () => void
+
   // Statuses (workspace-scoped)
   listStatuses(workspaceId: string): Promise<import('@depot/shared/statuses').StatusConfig[]>
   reorderStatuses(workspaceId: string, orderedIds: string[]): Promise<void>
