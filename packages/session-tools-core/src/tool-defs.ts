@@ -34,6 +34,7 @@ import { handleTransformData } from './handlers/transform-data.ts';
 import { handleScriptSandbox } from './handlers/script-sandbox.ts';
 import { handleRenderTemplate } from './handlers/render-template.ts';
 import { handleSendDeveloperFeedback } from './handlers/send-developer-feedback.ts';
+import { handleSaveAgentMemory } from './handlers/save-agent-memory.ts';
 
 // ============================================================
 // Canonical Zod Schemas
@@ -138,6 +139,10 @@ export const RenderTemplateSchema = z.object({
 
 export const SendDeveloperFeedbackSchema = z.object({
   message: z.string().describe('Freeform markdown feedback — be detailed, use headings, lists, code blocks. Include what happened, what you expected, what would help, or any ideas/suggestions.'),
+});
+
+export const SaveAgentMemorySchema = z.object({
+  facts: z.array(z.string()).describe('Facts learned during this conversation worth remembering across sessions. Each fact should be a concise, self-contained statement.'),
 });
 
 // Browser tool schema (single CLI-like tool for all browser actions)
@@ -386,6 +391,15 @@ Only use 'attachments' for existing file paths on disk — the tool reads them a
   send_developer_feedback: `Send freeform feedback to the Depot Agent development team.
 
 Use this to share anything that would help improve the product — issues you hit, ideas for better tools, suggestions for improved workflows, or patterns you notice. Write in markdown with as much detail as possible. This is your direct line to the developers.`,
+
+  save_agent_memory: `Save facts to this agent's persistent memory. Use this when you learn important context, preferences, decisions, or patterns that should persist across sessions. Facts should be concise, self-contained statements.
+
+Examples of good facts to remember:
+- "User prefers 2-week sprints starting on Mondays"
+- "Team uses Jira project key PLAT for platform work"
+- "Production deploys happen on Tuesdays and Thursdays"
+
+Only call this tool when you learn genuinely useful information — not for every conversation detail.`,
 } as const;
 
 // ============================================================
@@ -444,6 +458,7 @@ export const SESSION_TOOL_DEFS: SessionToolDef[] = [
   { name: 'script_sandbox', description: TOOL_DESCRIPTIONS.script_sandbox, inputSchema: ScriptSandboxSchema, executionMode: 'registry', safeMode: 'allow', handler: handleScriptSandbox },
   { name: 'render_template', description: TOOL_DESCRIPTIONS.render_template, inputSchema: RenderTemplateSchema, executionMode: 'registry', safeMode: 'allow', handler: handleRenderTemplate },
   { name: 'send_developer_feedback', description: TOOL_DESCRIPTIONS.send_developer_feedback, inputSchema: SendDeveloperFeedbackSchema, executionMode: 'registry', safeMode: 'allow', handler: handleSendDeveloperFeedback },
+  { name: 'save_agent_memory', description: TOOL_DESCRIPTIONS.save_agent_memory, inputSchema: SaveAgentMemorySchema, executionMode: 'registry', safeMode: 'block', handler: handleSaveAgentMemory },
   { name: 'call_llm', description: TOOL_DESCRIPTIONS.call_llm, inputSchema: CallLlmSchema, executionMode: 'backend', safeMode: 'allow', handler: null },
   { name: 'spawn_session', description: TOOL_DESCRIPTIONS.spawn_session, inputSchema: SpawnSessionSchema, executionMode: 'backend', safeMode: 'block', handler: null },
   // Browser tool (backend-specific — requires BrowserPaneManager in Electron)

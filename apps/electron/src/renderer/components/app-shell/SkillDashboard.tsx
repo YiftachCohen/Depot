@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2 } from 'lucide-react'
+import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2, Brain, Copy, MoreHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { getCommandIcon, ICON_NAME_MAP, resolveIconComponent } from '@/lib/command-icon'
 import { useEntityIcon } from '@/lib/icon-cache'
@@ -17,6 +17,7 @@ import { InlineSvg } from '@/lib/inline-svg'
 import { skillsAtom } from '@/atoms/skills'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
 import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -29,6 +30,7 @@ import { isAgent } from '../../../shared/types'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../shared/types'
 import { TemplateVariableModal } from './TemplateVariableModal'
 import { AgentTemplateBrowser } from './AgentTemplateBrowser'
+import { AgentMemoryPanel } from './AgentMemoryPanel'
 import type { AgentTemplate } from '../../../shared/types'
 
 // ---------------------------------------------------------------------------
@@ -184,7 +186,7 @@ const CMD_CHIP = cn(
   'hover:bg-foreground/[0.05] hover:text-foreground/80 transition-colors',
 )
 const FOCUSED_CMD_CHIP = cn(
-  'inline-flex items-center gap-1.5 text-[13px] text-muted-foreground/80 cursor-pointer',
+  'inline-flex items-center gap-1.5 text-[13px] text-foreground/70 cursor-pointer',
   'rounded-lg px-3 py-1.5',
   'border border-border/60 bg-foreground/[0.02]',
   'hover:bg-foreground/[0.06] hover:border-foreground/20 hover:text-foreground/80 transition-colors',
@@ -254,6 +256,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const [pendingVarCommand, setPendingVarCommand] = useState<{ skill: LoadedSkill; cmd: QuickCommand } | null>(null)
   const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false)
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
+  const [agentStateMap, setAgentStateMap] = useState<Map<string, import('@depot/shared/skills').AgentState>>(new Map())
 
   // Load templates on mount
   useEffect(() => {
@@ -263,6 +266,41 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
         console.error('Failed to load agent templates:', err)
       })
   }, [])
+
+  // Load agent states for all agent skills + subscribe to changes
+  useEffect(() => {
+    if (!activeWorkspaceId) return
+    const agents = skills.filter(isAgent)
+    if (agents.length === 0) return
+
+    // Batch-load agent states
+    Promise.all(agents.map(async (s) => {
+      try {
+        const state = await window.electronAPI.getAgentState(activeWorkspaceId, s.slug)
+        return [s.slug, state] as const
+      } catch { return [s.slug, null] as const }
+    })).then((entries) => {
+      const map = new Map<string, import('@depot/shared/skills').AgentState>()
+      for (const [slug, state] of entries) {
+        if (state) map.set(slug, state)
+      }
+      setAgentStateMap(map)
+    })
+
+    // Subscribe to changes
+    const unsubscribe = window.electronAPI.onAgentStateChanged(({ skillSlug }) => {
+      window.electronAPI.getAgentState(activeWorkspaceId, skillSlug)
+        .then((state) => {
+          setAgentStateMap((prev) => {
+            const next = new Map(prev)
+            if (state) next.set(skillSlug, state)
+            else next.delete(skillSlug)
+            return next
+          })
+        }).catch(() => {})
+    })
+    return unsubscribe
+  }, [activeWorkspaceId, skills])
 
   const handleCreateFromTemplate = useCallback(async (
     templateId: string,
@@ -604,12 +642,39 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                 <div className="flex-1 min-w-0">
                   {/* Row 1: Name + activity dot */}
                   <div className="flex items-center gap-2">
-                    <span className="text-base font-medium truncate">{focusedSkill.metadata.name}</span>
+                    <span className="text-xl font-display truncate">{focusedSkill.metadata.name}</span>
                     <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
                   </div>
 
                   {/* Row 2: Description */}
-                  <p className="text-[13px] leading-relaxed text-muted-foreground/80 line-clamp-2 mt-1">{focusedSkill.metadata.description}</p>
+                  <p className="text-[13px] leading-relaxed text-foreground/60 line-clamp-2 mt-1">{focusedSkill.metadata.description}</p>
+
+                  {/* Row 2b: Personality + Memory + Permission indicators */}
+                  {focusedSkill.manifest && (focusedSkill.manifest.personality || focusedSkill.manifest.memory?.enabled || focusedSkill.manifest.permission_mode) && (
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-[11px] text-foreground/40">
+                      {focusedSkill.manifest.personality && (
+                        <span className="inline-flex items-center gap-1 italic line-clamp-1 max-w-full">
+                          <Brain className="h-3 w-3 shrink-0" />{focusedSkill.manifest.personality}
+                        </span>
+                      )}
+                      {(() => {
+                        const agentState = agentStateMap.get(focusedSkill.slug)
+                        const factCount = agentState?.memory?.facts?.length ?? 0
+                        if (!focusedSkill.manifest?.memory?.enabled) return null
+                        return <span className="inline-flex items-center gap-1"><Brain className="h-3 w-3 shrink-0" />{factCount > 0 ? `${factCount} fact${factCount !== 1 ? 's' : ''} in memory` : 'No memory yet'}</span>
+                      })()}
+                      {focusedSkill.manifest.permission_mode && (
+                        <span className={cn(
+                          'inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-medium',
+                          focusedSkill.manifest.permission_mode === 'safe' && 'bg-emerald-500/10 text-emerald-600',
+                          focusedSkill.manifest.permission_mode === 'ask' && 'bg-amber-500/10 text-amber-600',
+                          focusedSkill.manifest.permission_mode === 'allow-all' && 'bg-red-500/10 text-red-600',
+                        )}>
+                          {focusedSkill.manifest.permission_mode}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Row 3: Project paths as inline badges */}
                   {focusedSkill.manifest && (focusedPaths.length > 0 || addingPath) && (
@@ -650,25 +715,27 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                     </div>
                   )}
 
-                  {/* Row 4: Meta line — stats + actions */}
-                  <div className="flex items-center flex-wrap gap-1.5 mt-2 text-xs text-muted-foreground/60">
+                  {/* Row 4: Meta line — stats + primary actions + overflow menu */}
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-foreground/45">
                     {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
                     {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
                     {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
                     {(count > 0 || stats?.lastUsedAt) && <span aria-hidden>{'·'}</span>}
                     {focusedSkill.manifest && !addingPath && (
-                      <button
-                        type="button"
-                        onClick={() => setAddingPath(true)}
-                        className="hover:text-muted-foreground/90 transition-colors cursor-pointer"
-                      >
-                        + Add path
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setAddingPath(true)}
+                          className="text-foreground/50 hover:text-foreground/80 transition-colors cursor-pointer"
+                        >
+                          + Add path
+                        </button>
+                        <span aria-hidden>{'·'}</span>
+                      </>
                     )}
-                    {focusedSkill.manifest && !addingPath && <span aria-hidden>{'·'}</span>}
                     <EditPopover
                       trigger={
-                        <button type="button" className="inline-flex items-center gap-1 hover:text-muted-foreground/90 transition-colors cursor-pointer">
+                        <button type="button" className="inline-flex items-center gap-1 text-foreground/50 hover:text-foreground/80 transition-colors cursor-pointer">
                           <Pencil className="h-3 w-3" />
                           Edit
                         </button>
@@ -683,29 +750,42 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                     <button
                       type="button"
                       onClick={handleImproveAgent}
-                      className="inline-flex items-center gap-1 hover:text-muted-foreground/90 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 text-foreground/50 hover:text-foreground/80 transition-colors cursor-pointer"
                     >
                       <Sparkles className="h-3 w-3" />
                       Improve
                     </button>
                     <span aria-hidden>{'·'}</span>
-                    <button
-                      type="button"
-                      onClick={() => window.electronAPI.showInFolder(`${focusedSkill.path}/SKILL.md`)}
-                      className="inline-flex items-center gap-1 hover:text-muted-foreground/90 transition-colors cursor-pointer"
-                    >
-                      <FolderOpen className="h-3 w-3" />
-                      Open folder
-                    </button>
-                    <span aria-hidden>{'·'}</span>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteDialogOpen(true)}
-                      className="inline-flex items-center gap-1 hover:text-destructive/70 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      Delete
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button type="button" className="inline-flex items-center text-foreground/50 hover:text-foreground/80 transition-colors cursor-pointer rounded p-0.5 hover:bg-foreground/[0.06]">
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="min-w-[160px]">
+                        <DropdownMenuItem onClick={() => window.electronAPI.showInFolder(`${focusedSkill.path}/SKILL.md`)}>
+                          <FolderOpen className="h-3.5 w-3.5 mr-2" />
+                          Open folder
+                        </DropdownMenuItem>
+                        {focusedSkill.manifest && (
+                          <DropdownMenuItem onClick={async () => {
+                            try {
+                              const content = await window.electronAPI.readFile(`${focusedSkill.path}/depot.yaml`)
+                              await navigator.clipboard.writeText(content)
+                              toast.success('Copied depot.yaml to clipboard')
+                            } catch { toast.error('Failed to copy depot.yaml') }
+                          }}>
+                            <Copy className="h-3.5 w-3.5 mr-2" />
+                            Export depot.yaml
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive focus:text-destructive">
+                          <Trash2 className="h-3.5 w-3.5 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </div>
@@ -742,7 +822,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
             {/* Quick commands — chip style */}
             <motion.div variants={itemVariants}>
-                <h3 className="text-[11px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2.5">
+                <h3 className="text-[11px] font-medium text-foreground/40 uppercase tracking-widest mb-2.5">
                   {cmds.length > 0 ? 'Run a Task' : 'Start'}
                 </h3>
                 <div className="flex flex-wrap items-center gap-2">
@@ -751,23 +831,46 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                       {getCommandIcon(cmd.name, 'h-4 w-4 opacity-70', cmd.icon)}{cmd.name}
                     </button>
                   ))}
-                  <button type="button" onClick={() => handleSkillClick(focusedSkill)} className={cn(FOCUSED_CMD_CHIP, 'text-muted-foreground/60')}>
+                  <button type="button" onClick={() => handleSkillClick(focusedSkill)} className={cn(FOCUSED_CMD_CHIP, 'text-foreground/45')}>
                     <Plus className="h-4 w-4 opacity-70" />New Chat
                   </button>
                 </div>
             </motion.div>
 
+            {/* Agent Memory */}
+            {focusedSkill.manifest?.memory?.enabled !== false && agentStateMap.has(focusedSkill.slug) && activeWorkspaceId && (
+              <motion.div variants={itemVariants}>
+                <div className="border-t border-border/20 pt-4 mb-2" />
+                <AgentMemoryPanel
+                  workspaceId={activeWorkspaceId}
+                  skillSlug={focusedSkill.slug}
+                  facts={agentStateMap.get(focusedSkill.slug)?.memory?.facts ?? []}
+                  onFactsChanged={() => {
+                    window.electronAPI.getAgentState(activeWorkspaceId, focusedSkill.slug)
+                      .then((state) => {
+                        setAgentStateMap((prev) => {
+                          const next = new Map(prev)
+                          if (state) next.set(focusedSkill.slug, state)
+                          else next.delete(focusedSkill.slug)
+                          return next
+                        })
+                      }).catch(() => {})
+                  }}
+                />
+              </motion.div>
+            )}
+
             {/* Recent Sessions */}
             {recent.length > 0 && (
               <motion.div variants={itemVariants}>
                 <div className="border-t border-border/20 pt-4 mb-2" />
-                <h3 className="text-[11px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Recent</h3>
+                <h3 className="text-[11px] font-medium text-foreground/40 uppercase tracking-widest mb-2">Recent</h3>
                 <div className="space-y-0">
                   {recent.map((s) => (
                     <button key={s.id} type="button" onClick={() => navigate(routes.view.skills(focusedSkill.slug, s.id))}
                       className="w-full flex items-center gap-3 px-0 py-1.5 text-left hover:text-foreground transition-colors cursor-pointer group/recent">
-                      <span className="flex-1 min-w-0 text-sm text-foreground/80 truncate group-hover/recent:text-foreground transition-colors">{s.name || 'Untitled'}</span>
-                      {s.lastMessageAt && <span className="shrink-0 text-[11px] text-muted-foreground/50">{formatRelativeTime(s.lastMessageAt)}</span>}
+                      <span className="flex-1 min-w-0 text-sm text-foreground/85 truncate group-hover/recent:text-foreground transition-colors">{s.name || 'Untitled'}</span>
+                      {s.lastMessageAt && <span className="shrink-0 text-[11px] text-foreground/35">{formatRelativeTime(s.lastMessageAt)}</span>}
                     </button>
                   ))}
                 </div>
@@ -864,7 +967,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                         <div className="flex items-center justify-between gap-2">
                           <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))}
                             className="flex items-center gap-2 text-left rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer group/title">
-                            <span className="text-[13px] font-medium truncate">
+                            <span className="text-[13px] font-display truncate">
                               {skill.metadata.name}
                             </span>
                             <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
@@ -873,6 +976,11 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                             {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
                             {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
                             {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
+                            {(() => {
+                              const factCount = agentStateMap.get(skill.slug)?.memory?.facts?.length ?? 0
+                              if (factCount === 0) return null
+                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Brain className="h-2.5 w-2.5" />{factCount}</span></>
+                            })()}
                           </div>
                         </div>
                         <p className="text-[11px] leading-relaxed text-muted-foreground/70 line-clamp-1 mt-0.5">{skill.metadata.description}</p>

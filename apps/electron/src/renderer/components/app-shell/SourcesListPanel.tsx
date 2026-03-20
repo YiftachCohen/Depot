@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { DatabaseZap } from 'lucide-react'
+import { DatabaseZap, Plus } from 'lucide-react'
 import { SourceAvatar } from '@/components/ui/source-avatar'
 import { deriveConnectionStatus } from '@/components/ui/source-status-indicator'
 import { EntityPanel } from '@/components/ui/entity-panel'
@@ -63,6 +63,8 @@ export function SourcesListPanel({
     return 'No sources configured.'
   }, [sourceFilter])
 
+  const editContextKey = sourceFilter?.kind === 'type' ? `add-source-${sourceFilter.sourceType}` as EditContextKey : 'add-source'
+
   return (
     <EntityPanel<LoadedSource>
       items={filteredSources}
@@ -71,28 +73,29 @@ export function SourcesListPanel({
       selectedId={selectedSourceSlug}
       onItemClick={onSourceClick}
       className={className}
+      header={workspaceRootPath ? (
+        <div className="flex items-center justify-end px-2 pt-1.5 pb-0.5">
+          <EditPopover
+            align="end"
+            trigger={
+              <button
+                className="inline-flex items-center justify-center h-6 w-6 rounded-[6px] text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.05] transition-colors"
+                aria-label="Add source"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            }
+            {...getEditConfig(editContextKey, workspaceRootPath)}
+          />
+        </div>
+      ) : undefined}
       emptyState={
         <EntityListEmptyScreen
           icon={<DatabaseZap />}
           title={emptyMessage}
           description="Sources connect your agent to external data — MCP servers, REST APIs, and local folders."
           docKey="sources"
-        >
-          {workspaceRootPath && (
-            <EditPopover
-              align="center"
-              trigger={
-                <button className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-[8px] bg-background shadow-minimal hover:bg-foreground/[0.03] transition-colors">
-                  Add Source
-                </button>
-              }
-              {...getEditConfig(
-                sourceFilter?.kind === 'type' ? `add-source-${sourceFilter.sourceType}` as EditContextKey : 'add-source',
-                workspaceRootPath
-              )}
-            />
-          )}
-        </EntityListEmptyScreen>
+        />
       }
       mapItem={(source) => {
         const connectionStatus = deriveConnectionStatus(source, localMcpEnabled)

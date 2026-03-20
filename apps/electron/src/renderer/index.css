@@ -428,6 +428,7 @@ html[data-font="inter"] {
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
+  --font-display: var(--font-display);
 
   /* === Z-INDEX SCALE === */
   --z-index-base: var(--z-base);

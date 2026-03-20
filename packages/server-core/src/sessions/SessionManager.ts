@@ -69,7 +69,7 @@ import { DepotMcpClient, McpClientPool, McpPoolServer } from '@depot/shared/mcp'
 import { type Session, type SessionEvent, type FileAttachment, type SendMessageOptions, type UnreadSummary, RPC_CHANNELS, generateMessageId } from '@depot/shared/protocol'
 import { messageToStored, storedToMessage, type Message, type StoredAttachment, type ToolDisplayMeta } from '@depot/core/types'
 import { formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrlAsync, getEmojiIcon, resetSummarizationClient, resolveToolIcon, readFileAttachment, selectSpreadMessages, normalizePath } from '@depot/shared/utils'
-import { loadAllSkills, loadSkillBySlug, type LoadedSkill } from '@depot/shared/skills'
+import { loadAllSkills, loadSkillBySlug, resolveAgentSources, addMemoryFacts, loadAgentState, MEMORY_CONSOLIDATION_THRESHOLD, type LoadedSkill } from '@depot/shared/skills'
 import { getToolIconsDir, getMiniModel } from '@depot/shared/config'
 import type { SummarizeCallback } from '@depot/shared/sources'
 import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@depot/shared/agent/thinking-levels'
@@ -2057,7 +2057,7 @@ export class SessionManager implements ISessionManager {
     const globalDefaults = loadConfigDefaults()
 
     // Read permission mode from workspace config, fallback to global defaults
-    const defaultPermissionMode = options?.permissionMode
+    let defaultPermissionMode = options?.permissionMode
       ?? wsConfig?.defaults?.permissionMode
       ?? globalDefaults.workspaceDefaults.permissionMode
 
@@ -2067,7 +2067,47 @@ export class SessionManager implements ISessionManager {
     // Get default model from workspace config (used when no session-specific model is set)
     const defaultModel = wsConfig?.defaults?.model
     // Get default enabled sources from workspace config
-    const defaultEnabledSourceSlugs = options?.enabledSourceSlugs ?? wsConfig?.defaults?.enabledSourceSlugs
+    const hasExplicitSourceSelection = options?.enabledSourceSlugs !== undefined
+    let defaultEnabledSourceSlugs = options?.enabledSourceSlugs ?? wsConfig?.defaults?.enabledSourceSlugs
+
+    // Resolve working directory early so loadSkillBySlug can find project-local skills.
+    let resolvedWorkingDir: string | undefined
+    if (options?.workingDirectory === 'none') {
+      resolvedWorkingDir = undefined
+    } else if (options?.workingDirectory === 'user_default' || options?.workingDirectory === undefined) {
+      resolvedWorkingDir = userDefaultWorkingDir
+    } else {
+      resolvedWorkingDir = options.workingDirectory
+    }
+
+    // Load skill manifest for permission_mode and source resolution (independent concerns).
+    let skillPermissionMode: PermissionMode | undefined
+    if (options?.skillSlug) {
+      const skill = loadSkillBySlug(workspace.rootPath, options.skillSlug, resolvedWorkingDir)
+      if (skill?.manifest) {
+        // Apply manifest permission_mode as default if no explicit override
+        if (skill.manifest.permission_mode && !options?.permissionMode) {
+          skillPermissionMode = skill.manifest.permission_mode
+        }
+        // Resolve sources only when no slugs are already preset
+        if (!hasExplicitSourceSelection && (!defaultEnabledSourceSlugs || defaultEnabledSourceSlugs.length === 0) && skill.manifest.sources?.length) {
+          // Use auto-resolution when source_configs are present
+          if (skill.manifest.source_configs && Object.keys(skill.manifest.source_configs).length > 0) {
+            const resolution = await resolveAgentSources(workspace.rootPath, skill.manifest)
+            defaultEnabledSourceSlugs = [...resolution.resolved, ...resolution.created, ...resolution.needsAuth]
+            for (const warn of resolution.warnings) {
+              sessionLog.warn(`Source resolution: ${warn}`)
+            }
+          } else {
+            defaultEnabledSourceSlugs = skill.manifest.sources
+          }
+        }
+      }
+    }
+    // Apply skill-level permission mode override if resolved
+    if (skillPermissionMode) {
+      defaultPermissionMode = skillPermissionMode
+    }
 
     // Resolve backend target early for branching policy checks.
     const targetBackendContext = resolveBackendContext({
@@ -2078,19 +2118,6 @@ export class SessionManager implements ISessionManager {
     const targetProviderType = targetBackendContext.connection?.providerType
       ?? (targetBackendContext.provider === 'pi' ? 'pi' : 'anthropic')
     const targetPiAuthProvider = targetBackendContext.connection?.piAuthProvider
-
-    // Resolve working directory from options:
-    // - 'user_default' or undefined: Use workspace's configured default
-    // - 'none': No working directory (empty string means session folder only)
-    // - Absolute path: Use as-is
-    let resolvedWorkingDir: string | undefined
-    if (options?.workingDirectory === 'none') {
-      resolvedWorkingDir = undefined  // No working directory
-    } else if (options?.workingDirectory === 'user_default' || options?.workingDirectory === undefined) {
-      resolvedWorkingDir = userDefaultWorkingDir
-    } else {
-      resolvedWorkingDir = options.workingDirectory
-    }
 
     // Validate branch request up-front so branch metadata is only set for valid branches.
     // This prevents creating sessions that claim to be branched but don't have copied history.
@@ -4893,6 +4920,14 @@ export class SessionManager implements ISessionManager {
 
           sendSpan.mark('chat.complete')
           sendSpan.end()
+
+          // Auto-summarize agent memory for this turn (fire-and-forget)
+          if (managed.skillSlug && managed.agent) {
+            this.summarizeAgentSessionMemory(managed, userMessage.timestamp).catch(err => {
+              sessionLog.warn(`Agent memory summarization failed for ${managed.skillSlug}: ${err}`)
+            })
+          }
+
           this.onProcessingStopped(sessionId, 'complete')
           return  // Exit function, skip finally block (onProcessingStopped handles cleanup)
         }
@@ -5132,6 +5167,76 @@ export class SessionManager implements ISessionManager {
     })
 
     return true
+  }
+
+  /**
+   * Auto-summarize a completed agent turn into persistent memory.
+   * Runs asynchronously after session completion (fire-and-forget).
+   */
+  private async summarizeAgentSessionMemory(managed: ManagedSession, turnStartTimestamp: number): Promise<void> {
+    if (!managed.skillSlug || !managed.agent) return
+
+    // Check if the skill has memory enabled
+    const skill = loadSkillBySlug(managed.workspace.rootPath, managed.skillSlug, managed.workingDirectory)
+    if (!skill?.manifest?.memory?.enabled) return
+
+    // Collect messages from this turn only (starting at the user message that triggered it)
+    const recentMessages = managed.messages
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.timestamp >= turnStartTimestamp)
+      .slice(-10)  // Last 10 messages max
+
+    if (recentMessages.length < 2) return  // Need at least a user + assistant exchange
+
+    const conversationSnippet = JSON.stringify(
+      recentMessages.map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string'
+          ? m.content.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string)).replace(/\s+/g, ' ').slice(0, 500)
+          : '(structured content)',
+      })),
+    )
+
+    const prompt = `Extract 1-5 key facts from this conversation that would be useful in future sessions with this agent. Return ONLY a JSON array of strings, no other text.\n\nConversation JSON:\n${conversationSnippet}`
+
+    try {
+      const result = await managed.agent.runMiniCompletion(prompt)
+      if (!result) return
+
+      // Parse JSON array from response
+      const jsonMatch = result.match(/\[[\s\S]*\]/)
+      if (!jsonMatch) return
+
+      const facts = JSON.parse(jsonMatch[0]) as string[]
+      if (!Array.isArray(facts) || facts.length === 0) return
+
+      // Filter out facts that look like they contain secrets or PII
+      const sensitivePatterns = [
+        /\b[A-Za-z0-9+/=]{40,}\b/,             // Long base64-like tokens / API keys
+        /\b(sk|pk|api|key|token|secret|password)[_-][A-Za-z0-9]{16,}\b/i, // Prefixed API keys
+        /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z]{2,}\b/i, // Email addresses
+        /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/,        // Phone numbers
+        /\b\d{3}-\d{2}-\d{4}\b/,                // SSN
+        /\bAKIA[0-9A-Z]{16}\b/,                 // AWS access key
+        /\bghp_[A-Za-z0-9]{36}\b/,              // GitHub PAT
+        /-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----/, // Private keys
+      ]
+      const validFacts = facts
+        .filter(f => typeof f === 'string' && f.trim().length > 0)
+        .filter(f => !sensitivePatterns.some(p => p.test(f)))
+      if (validFacts.length > 0) {
+        addMemoryFacts(managed.workspace.rootPath, managed.skillSlug, managed.id, validFacts, skill.path)
+        sessionLog.info(`Agent memory: saved ${validFacts.length} facts for ${managed.skillSlug}`)
+      }
+
+      // Check if consolidation is needed
+      const state = loadAgentState(managed.workspace.rootPath, managed.skillSlug, skill.path)
+      if (state && state.memory.facts.length > MEMORY_CONSOLIDATION_THRESHOLD) {
+        sessionLog.info(`Agent memory: consolidation needed for ${managed.skillSlug} (${state.memory.facts.length} facts)`)
+        // Consolidation can be added as a follow-up feature
+      }
+    } catch (err) {
+      sessionLog.warn(`Agent memory summarization error: ${err}`)
+    }
   }
 
   /**

@@ -92,6 +92,16 @@ export class PromptBuilder {
     // Add workspace capabilities
     parts.push(this.formatWorkspaceCapabilities());
 
+    // Add agent personality if provided (from manifest v2)
+    if (this.config.agentPersonality) {
+      parts.push(`<agent_personality>\n${this.config.agentPersonality}\n</agent_personality>`);
+    }
+
+    // Add agent memory context if provided (from agent-state.json)
+    if (this.config.agentMemoryContext) {
+      parts.push(this.config.agentMemoryContext);
+    }
+
     // Add working directory context
     const workingDirContext = this.getWorkingDirectoryContext();
     if (workingDirContext) {
