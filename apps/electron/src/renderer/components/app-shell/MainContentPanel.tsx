@@ -256,6 +256,7 @@ export function MainContentPanel({
               sources={enabledSources ?? []}
               sourceFilter={sourceFilter}
               workspaceRootPath={workspaceRootPath}
+              workspaceId={activeWorkspaceId || undefined}
               onDeleteSource={onDeleteSource ?? (() => {})}
               onSourceClick={(source) => navigateToSource(source.config.slug)}
               selectedSourceSlug={navState.details?.sourceSlug ?? null}

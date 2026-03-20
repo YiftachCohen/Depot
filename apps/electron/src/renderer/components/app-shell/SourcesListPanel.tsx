@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { DatabaseZap, Plus } from 'lucide-react'
+import { DatabaseZap, Plus, Search } from 'lucide-react'
 import { SourceAvatar } from '@/components/ui/source-avatar'
 import { deriveConnectionStatus } from '@/components/ui/source-status-indicator'
 import { EntityPanel } from '@/components/ui/entity-panel'
@@ -8,6 +8,7 @@ import { EntityListEmptyScreen } from '@/components/ui/entity-list-empty'
 import { sourceSelection } from '@/hooks/useEntitySelection'
 import { SourceMenu } from './SourceMenu'
 import { EditPopover, getEditConfig, type EditContextKey } from '@/components/ui/EditPopover'
+import { DiscoverSourcesDialog } from './DiscoverSourcesDialog'
 import type { LoadedSource, SourceConnectionStatus, SourceFilter } from '../../../shared/types'
 
 const SOURCE_TYPE_CONFIG: Record<string, { label: string; colorClass: string }> = {
@@ -34,8 +35,10 @@ export interface SourcesListPanelProps {
   sources: LoadedSource[]
   sourceFilter?: SourceFilter | null
   workspaceRootPath?: string
+  workspaceId?: string
   onDeleteSource: (sourceSlug: string) => void
   onSourceClick: (source: LoadedSource) => void
+  onSourcesImported?: () => void
   selectedSourceSlug?: string | null
   localMcpEnabled?: boolean
   className?: string
@@ -45,8 +48,10 @@ export function SourcesListPanel({
   sources,
   sourceFilter,
   workspaceRootPath,
+  workspaceId,
   onDeleteSource,
   onSourceClick,
+  onSourcesImported,
   selectedSourceSlug,
   localMcpEnabled = true,
   className,
@@ -73,20 +78,36 @@ export function SourcesListPanel({
       selectedId={selectedSourceSlug}
       onItemClick={onSourceClick}
       className={className}
-      header={workspaceRootPath ? (
-        <div className="flex items-center justify-end px-2 pt-1.5 pb-0.5">
-          <EditPopover
-            align="end"
-            trigger={
-              <button
-                className="inline-flex items-center justify-center h-6 w-6 rounded-[6px] text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.05] transition-colors"
-                aria-label="Add source"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            }
-            {...getEditConfig(editContextKey, workspaceRootPath)}
-          />
+      header={(workspaceRootPath || workspaceId) ? (
+        <div className="flex items-center justify-end gap-1 px-2 pt-1.5 pb-0.5">
+          {workspaceId && (
+            <DiscoverSourcesDialog
+              workspaceId={workspaceId}
+              onImported={onSourcesImported}
+              trigger={
+                <button
+                  className="inline-flex items-center justify-center h-6 w-6 rounded-[6px] text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.05] transition-colors"
+                  aria-label="Discover global MCP servers"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                </button>
+              }
+            />
+          )}
+          {workspaceRootPath && (
+            <EditPopover
+              align="end"
+              trigger={
+                <button
+                  className="inline-flex items-center justify-center h-6 w-6 rounded-[6px] text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.05] transition-colors"
+                  aria-label="Add source"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              }
+              {...getEditConfig(editContextKey, workspaceRootPath)}
+            />
+          )}
         </div>
       ) : undefined}
       emptyState={
@@ -95,7 +116,20 @@ export function SourcesListPanel({
           title={emptyMessage}
           description="Sources connect your agent to external data — MCP servers, REST APIs, and local folders."
           docKey="sources"
-        />
+        >
+          {workspaceId && (
+            <DiscoverSourcesDialog
+              workspaceId={workspaceId}
+              onImported={onSourcesImported}
+              trigger={
+                <button className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-[8px] bg-background shadow-minimal hover:bg-foreground/[0.03] transition-colors">
+                  <Search className="size-3" />
+                  Discover MCP Servers
+                </button>
+              }
+            />
+          )}
+        </EntityListEmptyScreen>
       }
       mapItem={(source) => {
         const connectionStatus = deriveConnectionStatus(source, localMcpEnabled)

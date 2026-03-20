@@ -56,6 +56,8 @@ export type { CredentialHealthStatus, CredentialHealthIssue, CredentialHealthIss
 // Source types for session source selection
 import type { LoadedSource, FolderSourceConfig, SourceConnectionStatus } from '@depot/shared/sources/types';
 export type { LoadedSource, FolderSourceConfig, SourceConnectionStatus };
+import type { DiscoveredMcpServer } from '@depot/shared/sources/discovery';
+export type { DiscoveredMcpServer };
 
 // Skill types
 import type { LoadedSkill, SkillMetadata, QuickCommand, DepotSkillManifest, AgentTemplate } from '@depot/shared/skills/types';
@@ -393,6 +395,8 @@ export interface ElectronAPI {
   getWorkspacePermissionsConfig(workspaceId: string): Promise<import('@depot/shared/agent').PermissionsConfigFile | null>
   getDefaultPermissionsConfig(): Promise<{ config: import('@depot/shared/agent').PermissionsConfigFile | null; path: string }>
   getMcpTools(workspaceId: string, sourceSlug: string): Promise<McpToolsResult>
+  discoverGlobalMcpServers(workspaceId: string): Promise<DiscoveredMcpServer[]>
+  importDiscoveredServer(workspaceId: string, serverName: string, serverOrigin: string): Promise<void>
 
   // OAuth (server-owned credentials, client-orchestrated flow)
   performOAuth(args: { sourceSlug: string; sessionId?: string; authRequestId?: string }): Promise<{ success: boolean; error?: string; email?: string }>

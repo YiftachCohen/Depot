@@ -16,6 +16,8 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.workspace.GET_PERMISSIONS,
   RPC_CHANNELS.permissions.GET_DEFAULTS,
   RPC_CHANNELS.sources.GET_MCP_TOOLS,
+  RPC_CHANNELS.sources.DISCOVER_GLOBAL,
+  RPC_CHANNELS.sources.IMPORT_DISCOVERED,
 ] as const
 
 export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): void {
@@ -147,6 +149,46 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       return { config: null, path: defaultPath }
     }
   })
+
+  // Discover globally configured MCP servers (Claude Code + Claude Desktop)
+  // Redact env values before returning to renderer — secrets stay on the backend.
+  // The server-side import flow (sources.CREATE) re-reads env from the config file.
+  server.handle(RPC_CHANNELS.sources.DISCOVER_GLOBAL, async (_ctx, workspaceId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`)
+    const { discoverGlobalMcpServers } = await import('@depot/shared/sources')
+    const servers = discoverGlobalMcpServers(workspace.rootPath)
+    return servers.map(server => ({
+      ...server,
+      env: server.env ? Object.fromEntries(Object.keys(server.env).map(k => [k, '••••'])) : undefined,
+    }))
+  })
+
+  // Import a discovered MCP server by name + origin (server-side, unredacted env)
+  server.handle(
+    RPC_CHANNELS.sources.IMPORT_DISCOVERED,
+    async (_ctx, workspaceId: string, serverName: string, serverOrigin: string) => {
+      const workspace = getWorkspaceByNameOrId(workspaceId)
+      if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`)
+      const { lookupDiscoveredServer, createSource } = await import('@depot/shared/sources')
+      const server = lookupDiscoveredServer(serverName, serverOrigin as 'claude-code' | 'claude-code-local' | 'claude-desktop')
+      if (!server) throw new Error(`Discovered server not found: ${serverName} (${serverOrigin})`)
+      await createSource(workspace.rootPath, {
+        name: server.name,
+        provider: server.name,
+        type: 'mcp',
+        enabled: true,
+        mcp: {
+          transport: server.transport,
+          command: server.command,
+          args: server.args,
+          env: server.env,
+          url: server.url,
+          authType: 'none',
+        },
+      })
+    }
+  )
 
   // Get MCP tools for a source with permission status
   server.handle(RPC_CHANNELS.sources.GET_MCP_TOOLS, async (_ctx, workspaceId: string, sourceSlug: string) => {

@@ -167,10 +167,8 @@ if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PA
     export APPLE_TEAM_ID="$APPLE_TEAM_ID"
     export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD"
 
-    # Enable notarization in electron-builder by setting env vars
-    # The electron-builder.yml has notarize section commented out,
-    # but we can enable it via environment
-    export NOTARIZE=true
+    # electron-builder.yml sets notarize: true; actual notarization triggers
+    # only when Apple env vars above are present.
 fi
 
 # Run electron-builder
