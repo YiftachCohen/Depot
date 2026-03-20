@@ -265,15 +265,12 @@ async function main(): Promise<void> {
   // Verify session tools core exists (shared utilities for session-scoped tools)
   verifySessionToolsCore();
 
-  // Build session server (provides session-scoped tools like SubmitPlan)
-  // Depends on session-tools-core being built first
-  await buildSessionServer();
-
-  // Build Pi agent server (subprocess for Pi SDK sessions)
-  await buildPiAgentServer();
-
-  // Build unified network interceptor (CJS bundle for Node.js --require)
-  await buildInterceptor();
+  // Build session server, Pi agent server, and interceptor in parallel (independent builds)
+  await Promise.all([
+    buildSessionServer(),
+    buildPiAgentServer(),
+    buildInterceptor(),
+  ]);
 
   const buildDefines = getBuildDefines();
 
@@ -302,25 +299,18 @@ async function main(): Promise<void> {
     process.exit(exitCode);
   }
 
-  // Wait for file to stabilize
-  console.log("⏳ Waiting for file to stabilize...");
-  const stable = await waitForFileStable(OUTPUT_FILE);
+  // Verify the output in CI only (esbuild writes atomically, skip locally for speed)
+  if (process.env.CI) {
+    console.log("🔍 Verifying build output...");
+    const verification = await verifyJsFile(OUTPUT_FILE);
 
-  if (!stable) {
-    console.error("❌ Output file did not stabilize");
-    process.exit(1);
+    if (!verification.valid) {
+      console.error("❌ Build verification failed:", verification.error);
+      process.exit(1);
+    }
   }
 
-  // Verify the output
-  console.log("🔍 Verifying build output...");
-  const verification = await verifyJsFile(OUTPUT_FILE);
-
-  if (!verification.valid) {
-    console.error("❌ Build verification failed:", verification.error);
-    process.exit(1);
-  }
-
-  console.log("✅ Build complete and verified");
+  console.log("✅ Build complete");
   process.exit(0);
 }
 
