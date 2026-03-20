@@ -118,8 +118,8 @@ mac:
   artifactName: "Depot-${arch}.${ext}"
   # Code signing & notarization (disabled by default for local builds)
   # To enable: set CSC_LINK, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
-  # notarize:
-  #   teamId: ${APPLE_TEAM_ID}
+  # electron-builder 26.4.0+ requires this to be a boolean; set env vars to activate.
+  notarize: false
 
 dmg:
   # Use predictable naming: Depot-Agent-arm64.dmg, Depot-Agent-x64.dmg
