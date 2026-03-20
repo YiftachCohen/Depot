@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { DatabaseZap } from 'lucide-react'
+import { DatabaseZap, Search } from 'lucide-react'
 import { SourceAvatar } from '@/components/ui/source-avatar'
 import { deriveConnectionStatus } from '@/components/ui/source-status-indicator'
 import { EntityPanel } from '@/components/ui/entity-panel'
@@ -8,6 +8,7 @@ import { EntityListEmptyScreen } from '@/components/ui/entity-list-empty'
 import { sourceSelection } from '@/hooks/useEntitySelection'
 import { SourceMenu } from './SourceMenu'
 import { EditPopover, getEditConfig, type EditContextKey } from '@/components/ui/EditPopover'
+import { DiscoverSourcesDialog } from './DiscoverSourcesDialog'
 import type { LoadedSource, SourceConnectionStatus, SourceFilter } from '../../../shared/types'
 
 const SOURCE_TYPE_CONFIG: Record<string, { label: string; colorClass: string }> = {
@@ -34,8 +35,10 @@ export interface SourcesListPanelProps {
   sources: LoadedSource[]
   sourceFilter?: SourceFilter | null
   workspaceRootPath?: string
+  workspaceId?: string
   onDeleteSource: (sourceSlug: string) => void
   onSourceClick: (source: LoadedSource) => void
+  onSourcesImported?: () => void
   selectedSourceSlug?: string | null
   localMcpEnabled?: boolean
   className?: string
@@ -45,8 +48,10 @@ export function SourcesListPanel({
   sources,
   sourceFilter,
   workspaceRootPath,
+  workspaceId,
   onDeleteSource,
   onSourceClick,
+  onSourcesImported,
   selectedSourceSlug,
   localMcpEnabled = true,
   className,
@@ -64,6 +69,21 @@ export function SourcesListPanel({
   }, [sourceFilter])
 
   return (
+    <div className="flex flex-col h-full">
+      {workspaceId && filteredSources.length > 0 && (
+        <div className="flex items-center justify-end px-2 py-1.5 border-b border-border/30">
+          <DiscoverSourcesDialog
+            workspaceId={workspaceId}
+            onImported={onSourcesImported}
+            trigger={
+              <button className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/[0.03] transition-colors">
+                <Search className="size-3" />
+                Discover
+              </button>
+            }
+          />
+        </div>
+      )}
     <EntityPanel<LoadedSource>
       items={filteredSources}
       getId={(s) => s.config.slug}
@@ -78,20 +98,34 @@ export function SourcesListPanel({
           description="Sources connect your agent to external data — MCP servers, REST APIs, and local folders."
           docKey="sources"
         >
-          {workspaceRootPath && (
-            <EditPopover
-              align="center"
-              trigger={
-                <button className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-[8px] bg-background shadow-minimal hover:bg-foreground/[0.03] transition-colors">
-                  Add Source
-                </button>
-              }
-              {...getEditConfig(
-                sourceFilter?.kind === 'type' ? `add-source-${sourceFilter.sourceType}` as EditContextKey : 'add-source',
-                workspaceRootPath
-              )}
-            />
-          )}
+          <div className="flex items-center gap-2">
+            {workspaceRootPath && (
+              <EditPopover
+                align="center"
+                trigger={
+                  <button className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-[8px] bg-background shadow-minimal hover:bg-foreground/[0.03] transition-colors">
+                    Add Source
+                  </button>
+                }
+                {...getEditConfig(
+                  sourceFilter?.kind === 'type' ? `add-source-${sourceFilter.sourceType}` as EditContextKey : 'add-source',
+                  workspaceRootPath
+                )}
+              />
+            )}
+            {workspaceId && (
+              <DiscoverSourcesDialog
+                workspaceId={workspaceId}
+                onImported={onSourcesImported}
+                trigger={
+                  <button className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-[8px] bg-background shadow-minimal hover:bg-foreground/[0.03] transition-colors">
+                    <Search className="size-3" />
+                    Discover
+                  </button>
+                }
+              />
+            )}
+          </div>
         </EntityListEmptyScreen>
       }
       mapItem={(source) => {
@@ -125,5 +159,6 @@ export function SourcesListPanel({
         }
       }}
     />
+    </div>
   )
 }

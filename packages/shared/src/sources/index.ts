@@ -85,6 +85,14 @@ export type {
   BuiltServers,
 } from './server-builder.ts';
 
+// Discovery (scan system for global MCP servers)
+export {
+  discoverGlobalMcpServers,
+} from './discovery.ts';
+export type {
+  DiscoveredMcpServer,
+} from './discovery.ts';
+
 // Built-in Sources (always available in every workspace)
 export {
   getDocsSource,

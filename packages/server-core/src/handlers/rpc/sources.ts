@@ -16,6 +16,7 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.workspace.GET_PERMISSIONS,
   RPC_CHANNELS.permissions.GET_DEFAULTS,
   RPC_CHANNELS.sources.GET_MCP_TOOLS,
+  RPC_CHANNELS.sources.DISCOVER_GLOBAL,
 ] as const
 
 export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): void {
@@ -146,6 +147,14 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       log.error('Error reading default permissions config:', error)
       return { config: null, path: defaultPath }
     }
+  })
+
+  // Discover globally configured MCP servers (Claude Code + Claude Desktop)
+  server.handle(RPC_CHANNELS.sources.DISCOVER_GLOBAL, async (_ctx, workspaceId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`)
+    const { discoverGlobalMcpServers } = await import('@depot/shared/sources')
+    return discoverGlobalMcpServers(workspace.rootPath)
   })
 
   // Get MCP tools for a source with permission status
