@@ -108,37 +108,35 @@ async function main(): Promise<void> {
 
   console.log("🔨 Building preload entries...");
 
-  for (const output of OUTPUTS) {
-    const exitCode = await buildEntry(output.entry, output.outfile);
-    if (exitCode !== 0) {
-      console.error(`❌ Failed to build ${output.label} (exit code ${exitCode})`);
-      process.exit(exitCode);
+  // Build both preload entries in parallel (independent esbuild invocations)
+  const results = await Promise.all(
+    OUTPUTS.map(async (output) => {
+      const exitCode = await buildEntry(output.entry, output.outfile);
+      return { ...output, exitCode };
+    })
+  );
+
+  for (const result of results) {
+    if (result.exitCode !== 0) {
+      console.error(`❌ Failed to build ${result.label} (exit code ${result.exitCode})`);
+      process.exit(result.exitCode);
     }
   }
 
-  console.log("⏳ Waiting for preload outputs to stabilize...");
-
-  for (const output of OUTPUTS) {
-    const outputPath = join(ROOT_DIR, output.outfile);
-    const stable = await waitForFileStable(outputPath);
-    if (!stable) {
-      console.error(`❌ ${output.label} did not stabilize`);
-      process.exit(1);
+  // Verify in CI only (esbuild writes atomically, skip locally for speed)
+  if (process.env.CI) {
+    console.log("🔍 Verifying preload outputs...");
+    for (const output of OUTPUTS) {
+      const outputPath = join(ROOT_DIR, output.outfile);
+      const verification = await verifyJsFile(outputPath);
+      if (!verification.valid) {
+        console.error(`❌ ${output.label} verification failed:`, verification.error);
+        process.exit(1);
+      }
     }
   }
 
-  console.log("🔍 Verifying preload outputs...");
-
-  for (const output of OUTPUTS) {
-    const outputPath = join(ROOT_DIR, output.outfile);
-    const verification = await verifyJsFile(outputPath);
-    if (!verification.valid) {
-      console.error(`❌ ${output.label} verification failed:`, verification.error);
-      process.exit(1);
-    }
-  }
-
-  console.log("✅ Preload builds complete and verified");
+  console.log("✅ Preload builds complete");
   process.exit(0);
 }
 
