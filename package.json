@@ -55,6 +55,8 @@
     "browser-tool": "bun run scripts/browser-tool.ts",
     "electron:dist": "bun run electron:build && cd apps/electron && electron-builder --config electron-builder.yml",
     "electron:dist:mac": "bun run electron:build && cd apps/electron && electron-builder --config electron-builder.yml --mac",
+    "electron:dist:mac:arm64": "bun run electron:build && cd apps/electron && electron-builder --config electron-builder.yml --mac --arm64",
+    "electron:dist:mac:x64": "bun run electron:build && cd apps/electron && electron-builder --config electron-builder.yml --mac --x64",
     "electron:dist:win": "bun run electron:build && cd apps/electron && electron-builder --config electron-builder.yml --win",
     "electron:dist:linux": "bun run electron:build && cd apps/electron && electron-builder --config electron-builder.yml --linux",
     "electron:dist:dev:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false DEPOT_DEV_RUNTIME=1 bun run electron:build && cd apps/electron && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.yml --mac --$(uname -m | sed -e 's/aarch64/arm64/' -e 's/x86_64/x64/')",
