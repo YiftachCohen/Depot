@@ -69,17 +69,10 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
           # Windows code signing
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: |
-          # If code signing password is missing, disable signing entirely
-          if [ -z "$CSC_KEY_PASSWORD" ]; then
-            echo "CSC_KEY_PASSWORD not set — skipping macOS code signing"
-            unset CSC_LINK
-          fi
-          bun run ${{ matrix.build-script }}
+        run: bun run ${{ matrix.build-script }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
