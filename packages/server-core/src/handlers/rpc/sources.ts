@@ -150,11 +150,17 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
   })
 
   // Discover globally configured MCP servers (Claude Code + Claude Desktop)
+  // Redact env values before returning to renderer — secrets stay on the backend.
+  // The server-side import flow (sources.CREATE) re-reads env from the config file.
   server.handle(RPC_CHANNELS.sources.DISCOVER_GLOBAL, async (_ctx, workspaceId: string) => {
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`)
     const { discoverGlobalMcpServers } = await import('@depot/shared/sources')
-    return discoverGlobalMcpServers(workspace.rootPath)
+    const servers = discoverGlobalMcpServers(workspace.rootPath)
+    return servers.map(server => ({
+      ...server,
+      env: server.env ? Object.fromEntries(Object.keys(server.env).map(k => [k, '••••'])) : undefined,
+    }))
   })
 
   // Get MCP tools for a source with permission status

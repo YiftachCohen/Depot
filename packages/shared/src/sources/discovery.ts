@@ -110,6 +110,14 @@ function parseConfigFile(
       if (!config || typeof config !== 'object') continue;
 
       const transport = inferTransport(config);
+
+      // Skip malformed entries: stdio needs a command, http/sse needs a url
+      if (transport === 'stdio') {
+        if (typeof config.command !== 'string' || config.command.trim() === '') continue;
+      } else {
+        if (typeof config.url !== 'string' || config.url.trim() === '') continue;
+      }
+
       const server: DiscoveredMcpServer = {
         name,
         origin,
@@ -141,6 +149,10 @@ function parseConfigFile(
 // Deduplication
 // ============================================================
 
+function serializeArgs(args?: string[]): string {
+  return JSON.stringify(args ?? []);
+}
+
 /**
  * Deduplicate servers across config files.
  * If the same server name appears in multiple files, prefer the more specific source:
@@ -150,11 +162,12 @@ function deduplicateServers(servers: DiscoveredMcpServer[]): DiscoveredMcpServer
   const byKey = new Map<string, DiscoveredMcpServer>();
 
   for (const server of servers) {
-    // Key by name + transport identifier
     const transportKey = server.transport === 'stdio'
-      ? `stdio:${server.command}:${(server.args ?? []).join(' ')}`
+      ? `stdio:${server.command}:${serializeArgs(server.args)}`
       : `url:${server.url}`;
-    const key = `${server.name}::${transportKey}`;
+    // Include origin bucket so claude-desktop entries are never merged with claude-code
+    const originBucket = server.origin === 'claude-desktop' ? 'claude-desktop' : 'claude-code';
+    const key = `${originBucket}::${server.name}::${transportKey}`;
 
     const existing = byKey.get(key);
     if (!existing) {
@@ -190,7 +203,7 @@ function checkAlreadyImported(
       if (server.transport === 'stdio' && mcp.transport === 'stdio') {
         if (
           mcp.command === server.command &&
-          (mcp.args ?? []).join(' ') === (server.args ?? []).join(' ')
+          serializeArgs(mcp.args) === serializeArgs(server.args)
         ) {
           server.alreadyImported = true;
           break;

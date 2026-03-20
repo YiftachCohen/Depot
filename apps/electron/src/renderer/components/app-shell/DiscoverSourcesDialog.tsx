@@ -9,7 +9,10 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import type { DiscoveredMcpServer } from '../../../shared/types'
+import type { DiscoveredMcpServer, FolderSourceConfig } from '../../../shared/types'
+
+const getServerKey = (server: DiscoveredMcpServer) =>
+  `${server.name}::${server.origin}::${server.transport}::${server.command ?? ''}::${server.url ?? ''}`
 
 const ORIGIN_LABELS: Record<string, string> = {
   'claude-code': 'Claude Code',
@@ -57,20 +60,20 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
     }
   }, [open, discover])
 
-  const toggleServer = (name: string) => {
+  const toggleServer = (key: string) => {
     setSelected(prev => {
       const next = new Set(prev)
-      if (next.has(name)) {
-        next.delete(name)
+      if (next.has(key)) {
+        next.delete(key)
       } else {
-        next.add(name)
+        next.add(key)
       }
       return next
     })
   }
 
   const selectAll = () => {
-    const importable = servers.filter(s => !s.alreadyImported).map(s => s.name)
+    const importable = servers.filter(s => !s.alreadyImported).map(getServerKey)
     setSelected(new Set(importable))
   }
 
@@ -78,8 +81,8 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
     setImporting(true)
     try {
       for (const server of servers) {
-        if (!selected.has(server.name)) continue
-        await window.electronAPI.createSource(workspaceId, {
+        if (!selected.has(getServerKey(server))) continue
+        const payload: Partial<FolderSourceConfig> = {
           name: server.name,
           provider: server.name,
           type: 'mcp',
@@ -92,7 +95,8 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
             url: server.url,
             authType: 'none',
           },
-        } as never)
+        }
+        await window.electronAPI.createSource(workspaceId, payload)
       }
       setOpen(false)
       onImported?.()
@@ -147,16 +151,17 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
                 </button>
               )}
               {servers.map((server) => {
+                const serverKey = getServerKey(server)
                 const transport = TRANSPORT_CONFIG[server.transport]
-                const isSelected = selected.has(server.name)
+                const isSelected = selected.has(serverKey)
                 const subtitle = server.transport === 'stdio'
                   ? [server.command, ...(server.args ?? [])].join(' ')
                   : server.url ?? ''
 
                 return (
                   <button
-                    key={`${server.name}-${server.origin}`}
-                    onClick={() => !server.alreadyImported && toggleServer(server.name)}
+                    key={serverKey}
+                    onClick={() => !server.alreadyImported && toggleServer(serverKey)}
                     disabled={server.alreadyImported}
                     className={`
                       flex items-start gap-3 px-3 py-2.5 rounded-[8px] text-left transition-colors w-full
