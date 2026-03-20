@@ -189,6 +189,7 @@ export const CHANNEL_MAP = {
   onDefaultPermissionsChanged: listener(RPC_CHANNELS.permissions.DEFAULTS_CHANGED),
   getMcpTools: invoke(RPC_CHANNELS.sources.GET_MCP_TOOLS),
   discoverGlobalMcpServers: invoke(RPC_CHANNELS.sources.DISCOVER_GLOBAL),
+  importDiscoveredServer: invoke(RPC_CHANNELS.sources.IMPORT_DISCOVERED),
 
   // Session content search
   searchSessionContent: invoke(RPC_CHANNELS.sessions.SEARCH_CONTENT),

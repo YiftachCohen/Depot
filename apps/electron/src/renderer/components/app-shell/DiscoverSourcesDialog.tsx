@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Search, Download, Check, Loader2, Terminal, Globe, Radio } from 'lucide-react'
+import { Search, Download, Check, Loader2, Terminal, Globe, Radio, AlertCircle } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import type { DiscoveredMcpServer, FolderSourceConfig } from '../../../shared/types'
+import type { DiscoveredMcpServer } from '../../../shared/types'
 
 const getServerKey = (server: DiscoveredMcpServer) =>
   `${server.name}::${server.origin}::${server.transport}::${server.command ?? ''}::${server.url ?? ''}`
@@ -38,17 +38,23 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
   const [loading, setLoading] = React.useState(false)
   const [selected, setSelected] = React.useState<Set<string>>(new Set())
   const [importing, setImporting] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const [discoveryError, setDiscoveryError] = React.useState<string | null>(null)
+  /** Per-server import errors, keyed by serverKey */
+  const [importErrors, setImportErrors] = React.useState<Map<string, string>>(new Map())
+  /** Servers that were successfully imported in this session */
+  const [imported, setImported] = React.useState<Set<string>>(new Set())
 
   const discover = React.useCallback(async () => {
     setLoading(true)
-    setError(null)
+    setDiscoveryError(null)
+    setImportErrors(new Map())
+    setImported(new Set())
     try {
       const result = await window.electronAPI.discoverGlobalMcpServers(workspaceId)
       setServers(result)
       setSelected(new Set())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to scan for MCP servers')
+      setDiscoveryError(err instanceof Error ? err.message : 'Failed to scan for MCP servers')
     } finally {
       setLoading(false)
     }
@@ -73,41 +79,50 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
   }
 
   const selectAll = () => {
-    const importable = servers.filter(s => !s.alreadyImported).map(getServerKey)
+    const importable = servers
+      .filter(s => !s.alreadyImported && !imported.has(getServerKey(s)))
+      .map(getServerKey)
     setSelected(new Set(importable))
   }
 
   const handleImport = async () => {
     setImporting(true)
-    try {
-      for (const server of servers) {
-        if (!selected.has(getServerKey(server))) continue
-        const payload: Partial<FolderSourceConfig> = {
-          name: server.name,
-          provider: server.name,
-          type: 'mcp',
-          enabled: true,
-          mcp: {
-            transport: server.transport,
-            command: server.command,
-            args: server.args,
-            env: server.env,
-            url: server.url,
-            authType: 'none',
-          },
-        }
-        await window.electronAPI.createSource(workspaceId, payload)
+    setImportErrors(new Map())
+    const newImported = new Set(imported)
+    const errors = new Map<string, string>()
+
+    for (const server of servers) {
+      const key = getServerKey(server)
+      if (!selected.has(key)) continue
+
+      try {
+        await window.electronAPI.importDiscoveredServer(workspaceId, server.name, server.origin)
+        newImported.add(key)
+      } catch (err) {
+        errors.set(key, err instanceof Error ? err.message : 'Import failed')
       }
+    }
+
+    setImported(newImported)
+    setImportErrors(errors)
+    // Deselect successfully imported servers
+    setSelected(prev => {
+      const next = new Set(prev)
+      for (const key of newImported) next.delete(key)
+      return next
+    })
+
+    if (errors.size === 0) {
       setOpen(false)
       onImported?.()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to import servers')
-    } finally {
-      setImporting(false)
+    } else {
+      onImported?.()
     }
+
+    setImporting(false)
   }
 
-  const importableCount = servers.filter(s => !s.alreadyImported).length
+  const importableCount = servers.filter(s => !s.alreadyImported && !imported.has(getServerKey(s))).length
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -131,9 +146,9 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
               <Loader2 className="size-4 animate-spin mr-2" />
               <span className="text-sm">Scanning config files...</span>
             </div>
-          ) : error ? (
+          ) : discoveryError ? (
             <div className="flex items-center justify-center py-8 text-destructive">
-              <span className="text-sm">{error}</span>
+              <span className="text-sm">{discoveryError}</span>
             </div>
           ) : servers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -153,7 +168,9 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
               {servers.map((server) => {
                 const serverKey = getServerKey(server)
                 const transport = TRANSPORT_CONFIG[server.transport]
+                const isImported = server.alreadyImported || imported.has(serverKey)
                 const isSelected = selected.has(serverKey)
+                const rowError = importErrors.get(serverKey)
                 const subtitle = server.transport === 'stdio'
                   ? [server.command, ...(server.args ?? [])].join(' ')
                   : server.url ?? ''
@@ -161,11 +178,13 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
                 return (
                   <button
                     key={serverKey}
-                    onClick={() => !server.alreadyImported && toggleServer(serverKey)}
-                    disabled={server.alreadyImported}
+                    onClick={() => !isImported && toggleServer(serverKey)}
+                    disabled={isImported}
+                    aria-pressed={!isImported ? isSelected : undefined}
+                    aria-label={`${server.name}${isImported ? ', imported' : isSelected ? ', selected' : ', not selected'}`}
                     className={`
                       flex items-start gap-3 px-3 py-2.5 rounded-[8px] text-left transition-colors w-full
-                      ${server.alreadyImported
+                      ${isImported
                         ? 'opacity-50 cursor-default'
                         : isSelected
                           ? 'bg-accent/5 ring-1 ring-accent/20'
@@ -175,7 +194,7 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
                   >
                     {/* Checkbox area */}
                     <div className="mt-0.5 shrink-0">
-                      {server.alreadyImported ? (
+                      {isImported ? (
                         <div className="size-4 rounded border border-foreground/20 bg-foreground/5 flex items-center justify-center">
                           <Check className="size-3 text-muted-foreground" />
                         </div>
@@ -198,7 +217,7 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
                             {transport.label}
                           </span>
                         )}
-                        {server.alreadyImported && (
+                        {isImported && (
                           <span className="shrink-0 h-[18px] px-1.5 text-[10px] font-medium flex items-center rounded bg-foreground/5 text-muted-foreground">
                             Imported
                           </span>
@@ -215,6 +234,12 @@ export function DiscoverSourcesDialog({ workspaceId, trigger, onImported }: Disc
                           </span>
                         )}
                       </div>
+                      {rowError && (
+                        <div className="flex items-center gap-1 mt-1 text-destructive">
+                          <AlertCircle className="size-3 shrink-0" />
+                          <span className="text-[10px]">{rowError}</span>
+                        </div>
+                      )}
                     </div>
                   </button>
                 )

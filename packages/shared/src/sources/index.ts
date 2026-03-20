@@ -88,6 +88,7 @@ export type {
 // Discovery (scan system for global MCP servers)
 export {
   discoverGlobalMcpServers,
+  lookupDiscoveredServer,
 } from './discovery.ts';
 export type {
   DiscoveredMcpServer,

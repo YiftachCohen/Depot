@@ -253,3 +253,24 @@ export function discoverGlobalMcpServers(workspaceRootPath: string): DiscoveredM
 
   return deduplicated;
 }
+
+/**
+ * Look up a discovered server by name + origin and return the full
+ * unredacted config.  Used by the privileged import RPC so secrets
+ * never leave the backend.
+ */
+export function lookupDiscoveredServer(
+  name: string,
+  origin: DiscoveredMcpServer['origin']
+): DiscoveredMcpServer | undefined {
+  const configPaths = getConfigPaths();
+
+  for (const { path, origin: fileOrigin } of configPaths) {
+    if (fileOrigin !== origin) continue;
+    const servers = parseConfigFile(path, fileOrigin);
+    const match = servers.find(s => s.name === name);
+    if (match) return match;
+  }
+
+  return undefined;
+}
