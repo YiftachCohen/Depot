@@ -70,10 +70,11 @@ files:
 extraMetadata:
   main: dist/main.cjs
 
-# Auto-update: electron-updater fetches from this URL for update manifests (.yml files)
+# Auto-update: electron-updater fetches from GitHub Releases
 publish:
-  provider: generic
-  url: https://agents.depot.do/electron/latest
+  provider: github
+  owner: YiftachCohen
+  repo: Depot
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false
