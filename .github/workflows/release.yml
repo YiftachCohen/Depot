@@ -29,20 +29,29 @@ jobs:
             artifact-pattern: |
               apps/electron/release/*arm64*.dmg
               apps/electron/release/*arm64*.zip
+              apps/electron/release/*arm64*.zip.blockmap
+              apps/electron/release/latest-mac*.yml
             artifact-name: release-macos-arm64
           - os: macos-latest
             build-script: electron:dist:mac:x64
             artifact-pattern: |
               apps/electron/release/*x64*.dmg
               apps/electron/release/*x64*.zip
+              apps/electron/release/*x64*.zip.blockmap
+              apps/electron/release/latest-mac*.yml
             artifact-name: release-macos-x64
           - os: ubuntu-latest
             build-script: electron:dist:linux
-            artifact-pattern: apps/electron/release/*.AppImage
+            artifact-pattern: |
+              apps/electron/release/*.AppImage
+              apps/electron/release/latest-linux*.yml
             artifact-name: release-linux
           - os: windows-latest
             build-script: electron:dist:win
-            artifact-pattern: apps/electron/release/*.exe
+            artifact-pattern: |
+              apps/electron/release/*.exe
+              apps/electron/release/*.exe.blockmap
+              apps/electron/release/latest*.yml
             artifact-name: release-windows
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
