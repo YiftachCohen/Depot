@@ -84,7 +84,7 @@ export function useSyncDepotAppIcon(): void {
   }, [iconId, isDark])
 }
 
-interface CraftAgentsSymbolProps {
+interface DepotSymbolProps {
   className?: string
 }
 
@@ -92,7 +92,7 @@ interface CraftAgentsSymbolProps {
  * Depot icon symbol — renders the user-selected icon variant.
  * Used in toolbar, splash screen, onboarding, and menus.
  */
-export function CraftAgentsSymbol({ className }: CraftAgentsSymbolProps) {
+export function DepotSymbol({ className }: DepotSymbolProps) {
   const iconId = useDepotIconId()
   const icon = getIconById(iconId)
   return <>{icon.symbol(className)}</>

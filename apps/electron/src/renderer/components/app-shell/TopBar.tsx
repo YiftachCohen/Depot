@@ -9,7 +9,7 @@
 
 import * as Icons from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@depot/ui"
-import { CraftAgentsSymbol } from "../icons/CraftAgentsSymbol"
+import { DepotSymbol } from "../icons/DepotSymbol"
 import { PanelLeftRounded } from "../icons/PanelLeftRounded"
 import { TopBarButton } from "../ui/TopBarButton"
 import { isMac } from "@/lib/platform"
@@ -256,7 +256,7 @@ export function TopBar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <TopBarButton aria-label="Depot menu">
-              <CraftAgentsSymbol className="h-4 text-accent" />
+              <DepotSymbol className="h-4 text-accent" />
             </TopBarButton>
           </DropdownMenuTrigger>
           <StyledDropdownMenuContent align="start" minWidth="min-w-48">
