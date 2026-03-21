@@ -488,12 +488,15 @@ const EDIT_CONFIGS: Record<EditContextKey, (location: string) => EditConfig> = {
       filePath: `${location}/automations.json`,
       context:
         'The user is editing automations.json which configures automations. ' +
-        'Structure: { version: 2, automations: { EventName: [{ name?, matcher?, cron?, timezone?, permissionMode?, labels?, actions: [...] }] } }. ' +
-        'Each event maps to an array of matcher entries. Each matcher has an actions array ({ type: "prompt", prompt }). ' +
-        'Read ~/.craft-agent/docs/automations.md for full format reference. ' +
+        'CRITICAL: The file MUST have this exact top-level structure: { "automations": { "EventName": [ ...matchers ] } }. ' +
+        'The "automations" wrapper object is required — do NOT put event/cron/actions at the top level. ' +
+        'Example: { "automations": { "SchedulerTick": [{ "cron": "0 9 * * *", "timezone": "UTC", "actions": [{ "type": "prompt", "prompt": "Hello" }] }] } }. ' +
+        'Available events: SchedulerTick (requires cron), LabelAdd, LabelRemove, SessionStatusChange, FlagChange, SessionStart, SessionEnd. ' +
+        'Each event key maps to an array of matcher entries. Each matcher has: name? (string), cron? (5-field), timezone? (IANA), matcher? (regex), enabled? (bool), actions (array of { type: "prompt", prompt } or { type: "webhook", url, method?, body? }). ' +
+        'If the file already exists, read it first and merge new automations into the existing structure. ' +
         'After editing, confirm clearly what changed.',
     },
-    example: 'Change the cron schedule to every 30 minutes',
+    example: 'Run a daily task check every morning at 9am',
     model: 'sonnet',
     systemPromptPreset: 'mini',
     inlineExecution: true,
