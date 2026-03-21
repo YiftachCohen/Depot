@@ -395,6 +395,7 @@ export interface ElectronAPI {
   getWorkspacePermissionsConfig(workspaceId: string): Promise<import('@depot/shared/agent').PermissionsConfigFile | null>
   getDefaultPermissionsConfig(): Promise<{ config: import('@depot/shared/agent').PermissionsConfigFile | null; path: string }>
   getMcpTools(workspaceId: string, sourceSlug: string): Promise<McpToolsResult>
+  testSourceConnection(workspaceId: string, sourceSlug: string): Promise<{ success: boolean; error?: string; toolCount?: number }>
   discoverGlobalMcpServers(workspaceId: string): Promise<DiscoveredMcpServer[]>
   importDiscoveredServer(workspaceId: string, serverName: string, serverOrigin: string): Promise<void>
 

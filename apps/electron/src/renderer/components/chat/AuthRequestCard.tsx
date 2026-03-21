@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import type { Message, CredentialResponse } from '../../../shared/types'
 import type { AuthRequestType, AuthStatus } from '@depot/core/types'
 import { validateBasicAuthCredentials, getPasswordValue, getPasswordLabel, getPasswordPlaceholder } from '@/utils/auth-validation'
@@ -265,13 +266,22 @@ export function AuthRequestCard({ message, onRespondToCredential, sessionId, isI
     if (!authRequestId || !authSourceSlug) return
     setIsSubmitting(true)
     try {
-      await window.electronAPI.performOAuth({
+      const result = await window.electronAPI.performOAuth({
         sourceSlug: authSourceSlug,
         sessionId,
         authRequestId,
       })
+      if (!result.success && result.error) {
+        console.error('OAuth failed:', result.error)
+        toast.error('Authentication failed', {
+          description: result.error,
+        })
+      }
     } catch (error) {
       console.error('Failed to start OAuth:', error)
+      toast.error('Authentication failed', {
+        description: error instanceof Error ? error.message : 'OAuth flow failed',
+      })
     } finally {
       setIsSubmitting(false)
     }

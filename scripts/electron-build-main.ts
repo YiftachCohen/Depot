@@ -4,7 +4,7 @@
  */
 
 import { spawn } from "bun";
-import { existsSync, readFileSync, statSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, statSync, mkdirSync, copyFileSync } from "fs";
 import { join } from "path";
 
 const ROOT_DIR = join(import.meta.dir, "..");
@@ -254,6 +254,36 @@ async function buildPiAgentServer(): Promise<void> {
   console.log("✅ Pi agent server built successfully");
 }
 
+/**
+ * Copy interceptor source files into apps/electron/ so electron-builder can package them.
+ * The Anthropic backend loads these via Bun --preload at runtime.
+ */
+function copyInterceptorSources(): void {
+  const ELECTRON_DIR = join(ROOT_DIR, "apps/electron");
+  const sharedSrcDir = join("packages", "shared", "src");
+  const sourceDir = join(ROOT_DIR, sharedSrcDir);
+  const destDir = join(ELECTRON_DIR, sharedSrcDir);
+
+  if (!existsSync(INTERCEPTOR_SOURCE)) {
+    console.error("❌ Interceptor source not found at", INTERCEPTOR_SOURCE);
+    process.exit(1);
+  }
+
+  console.log("📋 Copying interceptor source files for packaging...");
+  mkdirSync(destDir, { recursive: true });
+  copyFileSync(INTERCEPTOR_SOURCE, join(destDir, "unified-network-interceptor.ts"));
+
+  // Copy supporting files imported by the interceptor at runtime
+  for (const file of ["interceptor-common.ts", "interceptor-request-utils.ts", "feature-flags.ts"]) {
+    const src = join(sourceDir, file);
+    if (existsSync(src)) {
+      copyFileSync(src, join(destDir, file));
+    }
+  }
+
+  console.log("✅ Interceptor sources copied");
+}
+
 async function main(): Promise<void> {
   loadEnvFile();
 
@@ -264,6 +294,9 @@ async function main(): Promise<void> {
 
   // Verify session tools core exists (shared utilities for session-scoped tools)
   verifySessionToolsCore();
+
+  // Copy interceptor sources into electron app tree for packaging
+  copyInterceptorSources();
 
   // Build session server, Pi agent server, and interceptor in parallel (independent builds)
   await Promise.all([

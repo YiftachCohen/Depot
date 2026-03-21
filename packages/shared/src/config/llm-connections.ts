@@ -747,9 +747,9 @@ export async function resolveAuthEnvVars(
       const tokenResult = await getValidOAuthToken(connectionSlug);
       if (tokenResult.accessToken) {
         envVars.CLAUDE_CODE_OAUTH_TOKEN = tokenResult.accessToken;
-      } else {
-        return { envVars, success: false, warning: `Failed to get OAuth token for: ${connectionSlug}` };
       }
+      // If no token found, the SDK subprocess will use its own native auth
+      // (e.g., Claude CLI keychain credentials). This is not an error.
     } else {
       // Non-Anthropic OAuth (e.g. anthropic_compat with OAuth)
       const llmOAuth = await credentialManager.getLlmOAuth(connectionSlug);
