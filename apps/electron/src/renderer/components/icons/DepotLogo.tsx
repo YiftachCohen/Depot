@@ -3,8 +3,8 @@ interface DepotLogoProps {
 }
 
 /**
- * Depot Agents pixel art logo - uses accent color from theme
- * Apply text-accent class to get the brand purple color
+ * Depot pixel art logo - uses accent color from theme
+ * Apply text-accent class to get the brand amber color
  */
 export function DepotLogo({ className }: DepotLogoProps) {
   return (
