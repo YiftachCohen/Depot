@@ -25,7 +25,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            build-script: electron:dist:mac:arm64
+            builder-args: "--mac --arm64"
             artifact-pattern: |
               apps/electron/release/*arm64*.dmg
               apps/electron/release/*arm64*.zip
@@ -33,7 +33,7 @@ jobs:
               apps/electron/release/latest-mac*.yml
             artifact-name: release-macos-arm64
           - os: macos-latest
-            build-script: electron:dist:mac:x64
+            builder-args: "--mac --x64"
             artifact-pattern: |
               apps/electron/release/*x64*.dmg
               apps/electron/release/*x64*.zip
@@ -41,13 +41,13 @@ jobs:
               apps/electron/release/latest-mac*.yml
             artifact-name: release-macos-x64
           - os: ubuntu-latest
-            build-script: electron:dist:linux
+            builder-args: "--linux"
             artifact-pattern: |
               apps/electron/release/*.AppImage
               apps/electron/release/latest-linux*.yml
             artifact-name: release-linux
           - os: windows-latest
-            build-script: electron:dist:win
+            builder-args: "--win"
             artifact-pattern: |
               apps/electron/release/*.exe
               apps/electron/release/*.exe.blockmap
@@ -76,7 +76,10 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build Electron app
+      - name: Build Electron bundles
+        run: bun run electron:build
+
+      - name: Package Electron app
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,7 +91,7 @@ jobs:
           # Windows code signing
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: bun run ${{ matrix.build-script }}
+        run: cd apps/electron && electron-builder --config electron-builder.yml ${{ matrix.builder-args }} --publish never
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
