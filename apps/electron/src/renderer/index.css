@@ -157,7 +157,7 @@
   --popover-foreground: var(--foreground);
   --border: oklch(from var(--foreground) l c h / 0.05);
   --input: oklch(from var(--foreground) l c h / 0.1);
-  --ring: oklch(from var(--foreground) l c h / 0.25);
+  --ring: oklch(from var(--accent) l c h / 0.3);
   --ring-width: 1px;
   --ring-offset: 0px;
 
@@ -185,6 +185,10 @@
   /* Layout */
   --font-size-base: 15px;
   --radius: 0rem;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
   --spacing: 0.25rem;
   --tracking-normal: 0em;
 
@@ -286,7 +290,7 @@
   --popover-foreground: var(--foreground);
   --border: oklch(from var(--foreground) l c h / 0.05);
   --input: oklch(from var(--foreground) l c h / 0.1);
-  --ring: oklch(from var(--foreground) l c h / 0.25);
+  --ring: oklch(from var(--accent) l c h / 0.3);
 
   /* Markdown list markers */
   --md-bullets: var(--foreground-50);
@@ -364,15 +368,6 @@ html[data-scenic][data-theme-override]::before {
    Panels with bg-background will become translucent glass */
 html[data-scenic] {
   --background: oklch(0.2 0.01 60 / 0.55);
-}
-
-/* Inter Font - Opt-in via data-font="inter" attribute
-   Loaded from Google Fonts in index.html with optical sizing (opsz) axis */
-html[data-font="inter"] {
-  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-default: var(--font-sans);
-  font-optical-sizing: auto;
-  font-feature-settings: "cv01", "cv02", "cv03", "cv04", "case";
 }
 
 /* Theme integration for Tailwind v4 */
