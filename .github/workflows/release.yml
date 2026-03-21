@@ -25,6 +25,8 @@ jobs:
       matrix:
         include:
           - os: macos-latest
+            platform: darwin
+            arch: arm64
             builder-args: "--mac --arm64"
             artifact-pattern: |
               apps/electron/release/*arm64*.dmg
@@ -33,6 +35,8 @@ jobs:
               apps/electron/release/latest-mac*.yml
             artifact-name: release-macos-arm64
           - os: macos-latest
+            platform: darwin
+            arch: x64
             builder-args: "--mac --x64"
             artifact-pattern: |
               apps/electron/release/*x64*.dmg
@@ -41,12 +45,16 @@ jobs:
               apps/electron/release/latest-mac*.yml
             artifact-name: release-macos-x64
           - os: ubuntu-latest
+            platform: linux
+            arch: x64
             builder-args: "--linux"
             artifact-pattern: |
               apps/electron/release/*.AppImage
               apps/electron/release/latest-linux*.yml
             artifact-name: release-linux
           - os: windows-latest
+            platform: win32
+            arch: x64
             builder-args: "--win"
             artifact-pattern: |
               apps/electron/release/*.exe
@@ -78,6 +86,9 @@ jobs:
 
       - name: Build Electron bundles
         run: bun run electron:build
+
+      - name: Prepare vendor binaries (Bun, uv, SDK, MCP servers)
+        run: bun run scripts/ci-prepare-vendor.ts --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
       - name: Package Electron app
         shell: bash
