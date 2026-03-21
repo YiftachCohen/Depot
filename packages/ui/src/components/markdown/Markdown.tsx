@@ -16,6 +16,7 @@ import { MarkdownHtmlBlock } from './MarkdownHtmlBlock'
 import { MarkdownImageBlock } from './MarkdownImageBlock'
 import { MarkdownLatexBlock } from './MarkdownLatexBlock'
 import { MarkdownPdfBlock } from './MarkdownPdfBlock'
+import { MarkdownTasklistBlock } from './MarkdownTasklistBlock'
 import { preprocessLinks } from './linkify'
 import { classifyMarkdownLinkTarget } from './link-target'
 import remarkCollapsibleSections from './remarkCollapsibleSections'
@@ -242,6 +243,10 @@ function createComponents(
           if (match?.[1] === 'datatable') {
             return wrapBlock('datatable', code, <MarkdownDatatableBlock code={code} className="my-2" />, props.node?.position)
           }
+          // Tasklist code blocks → rich task list with priorities, due dates, labels
+          if (match?.[1] === 'tasklist') {
+            return wrapBlock('tasklist', code, <MarkdownTasklistBlock code={code} className="my-2" />, props.node?.position)
+          }
           // Spreadsheet code blocks → Excel-style grid
           if (match?.[1] === 'spreadsheet') {
             return wrapBlock('spreadsheet', code, <MarkdownSpreadsheetBlock code={code} className="my-2" />, props.node?.position)
@@ -370,6 +375,10 @@ function createComponents(
         // Datatable code blocks → sortable/filterable data table
         if (match?.[1] === 'datatable') {
           return wrapBlock('datatable', code, <MarkdownDatatableBlock code={code} className="my-2" />, props.node?.position)
+        }
+        // Tasklist code blocks → rich task list with priorities, due dates, labels
+        if (match?.[1] === 'tasklist') {
+          return wrapBlock('tasklist', code, <MarkdownTasklistBlock code={code} className="my-2" />, props.node?.position)
         }
         // Spreadsheet code blocks → Excel-style grid
         if (match?.[1] === 'spreadsheet') {

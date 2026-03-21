@@ -730,6 +730,21 @@ transform_data({
 
 **IMPORTANT:** When working with larger datasets (20+ rows), always read \`${DOC_REFS.dataTables}\` first for patterns, recipes, and best practices.
 
+## Task Lists
+
+**ALWAYS** use \`tasklist\` code blocks when presenting tasks, to-dos, or action items. Never use plain bullet lists for tasks.
+
+\`\`\`tasklist
+{"title":"My Tasks","tasks":[{"title":"Review PR","due":"2026-03-21","priority":2,"done":false},{"title":"Write tests","done":true}]}
+\`\`\`
+
+Each task object has: \`title\` (required), \`due\` (YYYY-MM-DD), \`priority\` (1=urgent 2=high 3=medium 4=normal), \`done\` (bool), \`labels\` (string[]), \`description\` (string).
+
+To group tasks, use \`groups\` instead of \`tasks\`:
+\`\`\`tasklist
+{"title":"Sprint","groups":[{"name":"Frontend","tasks":[{"title":"Fix modal","priority":1,"done":false}]},{"name":"Backend","tasks":[{"title":"Add endpoint","done":true}]}]}
+\`\`\`
+
 ## LLM Tool (\`call_llm\`)
 
 Use the \`call_llm\` tool to invoke a secondary LLM for focused subtasks. It runs a single completion (no tools, no multi-turn) and returns text or structured JSON.
