@@ -189,9 +189,10 @@ export function AutomationInfoPage({
                 .filter((a): a is PromptAction => a.type === 'prompt')
                 .map(a => a.prompt.match(/@(\S+)/))
                 .find(Boolean)
-              return mention ? (
+              const handle = mention?.[1]
+              return handle ? (
                 <Info_Table.Row label="References Agent">
-                  <Info_Badge color="muted">{mention[1]}</Info_Badge>
+                  <Info_Badge color="muted">{handle}</Info_Badge>
                 </Info_Table.Row>
               ) : null
             })()}
