@@ -209,6 +209,7 @@ const EXPECTED_CHANNELS: string[] = [
   'sources:importDiscovered',
   'sources:saveCredentials',
   'sources:startOAuth',
+  'sources:testConnection',
   'statuses:changed',
   'statuses:list',
   'statuses:reorder',

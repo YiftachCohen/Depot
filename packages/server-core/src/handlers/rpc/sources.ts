@@ -1,9 +1,9 @@
 import { RPC_CHANNELS } from '@depot/shared/protocol'
 import { getWorkspaceByNameOrId } from '@depot/shared/config'
-import { loadWorkspaceSources } from '@depot/shared/sources'
+import { loadWorkspaceSources, markSourceAuthenticated } from '@depot/shared/sources'
 import { safeJsonParse } from '@depot/shared/utils/files'
 import { getCredentialManager } from '@depot/shared/credentials'
-import type { RpcServer } from '@depot/server-core/transport'
+import { pushTyped, type RpcServer } from '@depot/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
 
 export const HANDLED_CHANNELS = [
@@ -16,6 +16,7 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.workspace.GET_PERMISSIONS,
   RPC_CHANNELS.permissions.GET_DEFAULTS,
   RPC_CHANNELS.sources.GET_MCP_TOOLS,
+  RPC_CHANNELS.sources.TEST_CONNECTION,
   RPC_CHANNELS.sources.DISCOVER_GLOBAL,
   RPC_CHANNELS.sources.IMPORT_DISCOVERED,
 ] as const
@@ -88,6 +89,11 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
     // SourceCredentialManager handles credential type resolution
     const credManager = getSourceCredentialManager()
     await credManager.save(source, { value: credential })
+
+    // Mark source as authenticated and push status update to all clients
+    markSourceAuthenticated(workspace.rootPath, sourceSlug)
+    const updatedSources = loadWorkspaceSources(workspace.rootPath)
+    pushTyped(server, RPC_CHANNELS.sources.CHANGED, { to: 'workspace', workspaceId }, workspaceId, updatedSources)
 
     log.info(`Saved credentials for source: ${sourceSlug}`)
   })
@@ -213,7 +219,7 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       }
 
       const { DepotMcpClient } = await import('@depot/shared/mcp')
-      let client: InstanceType<typeof DepotMcpClient>
+      let client: InstanceType<typeof DepotMcpClient> | undefined
 
       if (source.config.mcp.transport === 'stdio') {
         if (!source.config.mcp.command) {
@@ -249,8 +255,14 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
         })
       }
 
-      const tools = await client.listTools()
-      await client.close()
+      let tools: { name: string; description?: string }[]
+      try {
+        tools = await client.listTools()
+      } finally {
+        await client.close().catch((closeError) => {
+          log.warn('Failed to close MCP client after fetching tools:', closeError)
+        })
+      }
 
       const { loadSourcePermissionsConfig, permissionsConfigCache } = await import('@depot/shared/agent')
       const permissionsConfig = loadSourcePermissionsConfig(workspace.rootPath, sourceSlug)
@@ -276,6 +288,111 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       if (errorMessage.includes('404')) {
         return { success: false, error: 'MCP server endpoint not found. The server may be offline or the URL may be incorrect.' }
       }
+      if (errorMessage.includes('401') || errorMessage.includes('403')) {
+        return { success: false, error: 'Authentication failed. Please re-authenticate with this source.' }
+      }
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // Test connection for a source — bypasses status checks, updates connectionStatus + lastTestedAt
+  server.handle(RPC_CHANNELS.sources.TEST_CONNECTION, async (_ctx, workspaceId: string, sourceSlug: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) return { success: false, error: 'Workspace not found' }
+
+    try {
+      const sources = await loadWorkspaceSources(workspace.rootPath)
+      const source = sources.find(s => s.config.slug === sourceSlug)
+      if (!source) return { success: false, error: 'Source not found' }
+      if (source.config.type !== 'mcp') return { success: false, error: 'Source is not an MCP server' }
+      if (!source.config.mcp) return { success: false, error: 'MCP config not found' }
+
+      const { DepotMcpClient } = await import('@depot/shared/mcp')
+      const { loadSourceConfig, saveSourceConfig } = await import('@depot/shared/sources')
+      let client: InstanceType<typeof DepotMcpClient> | undefined
+
+      if (source.config.mcp.transport === 'stdio') {
+        if (!source.config.mcp.command) {
+          return { success: false, error: 'Stdio MCP source is missing required "command" field' }
+        }
+        client = new DepotMcpClient({
+          transport: 'stdio',
+          command: source.config.mcp.command,
+          args: source.config.mcp.args,
+          env: source.config.mcp.env,
+        })
+      } else {
+        if (!source.config.mcp.url) {
+          return { success: false, error: 'MCP source URL is required for HTTP/SSE transport' }
+        }
+
+        let accessToken: string | undefined
+        if (source.config.mcp.authType === 'oauth' || source.config.mcp.authType === 'bearer') {
+          const credentialManager = getCredentialManager()
+          const credentialId = source.config.mcp.authType === 'oauth'
+            ? { type: 'source_oauth' as const, workspaceId: source.workspaceId, sourceId: sourceSlug }
+            : { type: 'source_bearer' as const, workspaceId: source.workspaceId, sourceId: sourceSlug }
+          const credential = await credentialManager.get(credentialId)
+          accessToken = credential?.value
+        }
+
+        client = new DepotMcpClient({
+          transport: 'http',
+          url: source.config.mcp.url,
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        })
+      }
+
+      let tools: { name: string; description?: string }[]
+      try {
+        tools = await client.listTools()
+      } finally {
+        await client.close().catch((closeError) => {
+          log.warn('Failed to close MCP client after connection test:', closeError)
+        })
+      }
+
+      // Connection succeeded — update source config
+      const config = loadSourceConfig(workspace.rootPath, sourceSlug)
+      if (config) {
+        config.connectionStatus = 'connected'
+        config.connectionError = undefined
+        config.isAuthenticated = true
+        config.lastTestedAt = Date.now()
+        saveSourceConfig(workspace.rootPath, config)
+      }
+
+      // Push updated sources to all clients
+      const updatedSources = loadWorkspaceSources(workspace.rootPath)
+      pushTyped(server, RPC_CHANNELS.sources.CHANGED, { to: 'workspace', workspaceId }, workspaceId, updatedSources)
+
+      log.info(`Connection test passed for source: ${sourceSlug} (${tools.length} tools)`)
+      return { success: true, toolCount: tools.length }
+    } catch (error) {
+      log.error('Connection test failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Connection failed'
+
+      // Update source config with failure
+      try {
+        const { loadSourceConfig, saveSourceConfig } = await import('@depot/shared/sources')
+        const config = loadSourceConfig(workspace.rootPath, sourceSlug)
+        if (config) {
+          const isAuthError = errorMessage.includes('401') || errorMessage.includes('403')
+          config.connectionStatus = isAuthError ? 'needs_auth' : 'failed'
+          if (isAuthError) {
+            config.isAuthenticated = false
+          }
+          config.connectionError = errorMessage
+          config.lastTestedAt = Date.now()
+          saveSourceConfig(workspace.rootPath, config)
+        }
+
+        const updatedSources = loadWorkspaceSources(workspace.rootPath)
+        pushTyped(server, RPC_CHANNELS.sources.CHANGED, { to: 'workspace', workspaceId }, workspaceId, updatedSources)
+      } catch {
+        // Ignore config update errors
+      }
+
       if (errorMessage.includes('401') || errorMessage.includes('403')) {
         return { success: false, error: 'Authentication failed. Please re-authenticate with this source.' }
       }
