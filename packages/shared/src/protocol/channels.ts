@@ -208,6 +208,7 @@ export const RPC_CHANNELS = {
     CHANGED: 'sources:changed',
     GET_PERMISSIONS: 'sources:getPermissions',
     GET_MCP_TOOLS: 'sources:getMcpTools',
+    TEST_CONNECTION: 'sources:testConnection',
     DISCOVER_GLOBAL: 'sources:discoverGlobal',
     IMPORT_DISCOVERED: 'sources:importDiscovered',
   },

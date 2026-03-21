@@ -7,7 +7,10 @@
 
 import * as React from 'react'
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, LogIn, Key, Eye, EyeOff } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Spinner } from '@depot/ui'
 import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopover'
 import { SourceAvatar } from '@/components/ui/source-avatar'
 import { SourceMenu } from '@/components/app-shell/SourceMenu'
@@ -352,6 +355,111 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
     window.electronAPI.openUrl(`craftagents://sources/source/${sourceSlug}?window=focused`)
   }, [sourceSlug])
 
+  // Shared helper to reload MCP tools
+  const reloadTools = useCallback(async () => {
+    setMcpToolsLoading(true)
+    setMcpToolsError(null)
+    try {
+      const toolsResult = await window.electronAPI.getMcpTools(workspaceId, sourceSlug)
+      if (toolsResult.success && toolsResult.tools) {
+        setMcpTools(toolsResult.tools)
+      } else {
+        setMcpToolsError(toolsResult.error || 'Failed to load tools')
+      }
+    } catch (err) {
+      setMcpToolsError(err instanceof Error ? err.message : 'Failed to load tools')
+    } finally {
+      setMcpToolsLoading(false)
+    }
+  }, [workspaceId, sourceSlug])
+
+  // Test connection state and handler
+  const [isTesting, setIsTesting] = useState(false)
+
+  const handleTestConnection = useCallback(async () => {
+    if (!source) return
+    setIsTesting(true)
+    try {
+      const result = await window.electronAPI.testSourceConnection(workspaceId, sourceSlug)
+      if (result.success) {
+        toast.success('Connection successful', {
+          description: result.toolCount ? `${result.toolCount} tools available` : undefined,
+        })
+        await reloadTools()
+      } else {
+        toast.error('Connection failed', {
+          description: result.error || 'Could not connect to server',
+        })
+      }
+    } catch (err) {
+      toast.error('Connection test failed', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+    } finally {
+      setIsTesting(false)
+    }
+  }, [source, workspaceId, sourceSlug, reloadTools])
+
+  // Re-authenticate state and handler
+  const [isReauthenticating, setIsReauthenticating] = useState(false)
+  const [showTokenInput, setShowTokenInput] = useState(false)
+  const [tokenValue, setTokenValue] = useState('')
+  const [showTokenPassword, setShowTokenPassword] = useState(false)
+
+  const isAuthError = mcpToolsError != null && (
+    mcpToolsError.includes('re-authenticate') ||
+    mcpToolsError.includes('requires authentication') ||
+    mcpToolsError.includes('Authentication failed')
+  )
+
+  const sourceAuthType = source?.config.mcp?.authType
+
+  const handleReauthenticate = useCallback(async () => {
+    if (!source) return
+
+    // For OAuth sources, try OAuth first — fall back to token input on failure
+    if (sourceAuthType === 'oauth') {
+      setIsReauthenticating(true)
+      try {
+        const result = await window.electronAPI.performOAuth({ sourceSlug })
+        if (result.success) {
+          toast.success('Authentication successful')
+          await reloadTools()
+          return
+        }
+        // OAuth failed — fall back to manual token entry
+        setShowTokenInput(true)
+      } catch {
+        // OAuth unavailable — fall back to manual token entry
+        setShowTokenInput(true)
+      } finally {
+        setIsReauthenticating(false)
+      }
+      return
+    }
+
+    // Non-OAuth: show token input directly
+    setShowTokenInput(true)
+  }, [source, sourceSlug, sourceAuthType, reloadTools])
+
+  const handleTokenSave = useCallback(async () => {
+    if (!tokenValue.trim()) return
+    setIsReauthenticating(true)
+    try {
+      await window.electronAPI.saveSourceCredentials(workspaceId, sourceSlug, tokenValue.trim())
+      toast.success('Credentials saved')
+      setShowTokenInput(false)
+      setTokenValue('')
+      await reloadTools()
+    } catch (err) {
+      toast.error('Failed to save credentials', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+    } finally {
+      setIsReauthenticating(false)
+    }
+  }, [tokenValue, workspaceId, sourceSlug, reloadTools])
+
   // Get source name for header
   const sourceName = source?.config.name || sourceSlug
 
@@ -431,7 +539,22 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
                   </button>
                 </Info_Table.Row>
               )}
-              <Info_Table.Row label="Last Tested" value={formatRelativeTime(source.config.lastTestedAt)} />
+              <Info_Table.Row label="Last Tested">
+                <div className="flex items-center gap-2">
+                  <span>{formatRelativeTime(source.config.lastTestedAt)}</span>
+                  {source.config.type === 'mcp' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={handleTestConnection}
+                      disabled={isTesting || (source.config.mcp?.transport === 'stdio' && !localMcpEnabled)}
+                    >
+                      {isTesting ? <Spinner className="text-[10px]" /> : 'Test'}
+                    </Button>
+                  )}
+                </div>
+              </Info_Table.Row>
             </Info_Table>
           </Info_Section>
 
@@ -473,11 +596,79 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
                 />
               }
             >
-              <ToolsDataTable
-                data={toolsData}
-                loading={mcpToolsLoading}
-                error={mcpToolsError ?? undefined}
-              />
+              {isAuthError && !mcpToolsLoading ? (
+                <div className="px-4 py-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0 text-sm text-muted-foreground">
+                      {mcpToolsError}
+                    </div>
+                    {!showTokenInput && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="shrink-0 gap-1.5"
+                        onClick={handleReauthenticate}
+                        disabled={isReauthenticating}
+                      >
+                        {isReauthenticating ? (
+                          <Spinner className="text-[10px]" />
+                        ) : (
+                          <LogIn className="h-3.5 w-3.5" />
+                        )}
+                        {isReauthenticating ? 'Authenticating...' : 'Re-authenticate'}
+                      </Button>
+                    )}
+                  </div>
+                  {showTokenInput && (
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={showTokenPassword ? 'text' : 'password'}
+                          value={tokenValue}
+                          onChange={(e) => setTokenValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && tokenValue.trim()) handleTokenSave()
+                            if (e.key === 'Escape') { setShowTokenInput(false); setTokenValue('') }
+                          }}
+                          placeholder="Enter bearer token"
+                          className="pr-9"
+                          autoFocus
+                          disabled={isReauthenticating}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowTokenPassword(!showTokenPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          tabIndex={-1}
+                        >
+                          {showTokenPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={handleTokenSave}
+                        disabled={!tokenValue.trim() || isReauthenticating}
+                      >
+                        {isReauthenticating ? <Spinner className="text-[10px]" /> : 'Save'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setShowTokenInput(false); setTokenValue('') }}
+                        disabled={isReauthenticating}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <ToolsDataTable
+                  data={toolsData}
+                  loading={mcpToolsLoading}
+                  error={mcpToolsError ?? undefined}
+                />
+              )}
             </Info_Section>
           )}
 
