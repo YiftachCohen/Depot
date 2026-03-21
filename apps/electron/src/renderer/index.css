@@ -24,19 +24,19 @@
 @property --background {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.98 0.003 265);
+  initial-value: oklch(0.98 0.005 75);
 }
 
 @property --foreground {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.185 0.01 270);
+  initial-value: oklch(0.185 0.015 60);
 }
 
 @property --accent {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.62 0.13 293);
+  initial-value: oklch(0.62 0.17 55);
 }
 
 @property --info {
@@ -77,16 +77,16 @@
 
 /* Light Mode */
 :root {
-  /* === 6 BASE COLORS === */
-  --background: oklch(0.98 0.003 265);
+  /* === 6 BASE COLORS (warm stone palette per DESIGN.md) === */
+  --background: oklch(0.98 0.005 75);       /* warm stone-50 #FAFAF9 */
   --background-elevated: color-mix(in srgb, var(--foreground) 1.5%, var(--background));
-  --foreground: oklch(0.185 0.01 270);
+  --foreground: oklch(0.185 0.015 60);      /* warm stone-900 #1C1917 */
   --foreground-dimmed: color-mix(in srgb, var(--foreground) 80%, var(--background)); /* unfocused panel text */
-  --foreground-rgb: 38, 36, 42;             /* RGB for shadow borders */
+  --foreground-rgb: 28, 25, 23;             /* RGB for shadow borders (stone-900) */
   --user-message-bubble: oklch(from var(--foreground) l c h / 0.05);
   --user-message-bubble-dimmed: oklch(from var(--foreground) l c h / 0.03);
-  --accent: oklch(0.62 0.13 293);           /* purple - brand, Auto mode */
-  --accent-rgb: 104, 78, 133;               /* darkened RGB for shadow-tinted (70% of accent) */
+  --accent: oklch(0.62 0.17 55);            /* amber-600 #D97706 - brand, Auto mode */
+  --accent-rgb: 180, 100, 8;               /* darkened RGB for shadow-tinted (70% of accent) */
   --info: oklch(0.75 0.16 70);              /* amber - warnings, Ask mode */
   --info-rgb: 180, 120, 40;                 /* RGB for shadow-tinted */
   --success: oklch(0.55 0.17 145);          /* green - connected, checkmarks */
@@ -232,16 +232,16 @@
 
 /* Dark Mode */
 .dark {
-  /* === 6 BASE COLORS === */
-  --background: oklch(0.2 0.005 270);
+  /* === 6 BASE COLORS (warm dark surfaces per DESIGN.md) === */
+  --background: oklch(0.2 0.01 60);          /* warm dark #1A1816 */
   --background-elevated: color-mix(in srgb, var(--foreground) 1.5%, var(--background));
-  --foreground: oklch(0.92 0.005 270);
+  --foreground: oklch(0.92 0.005 75);        /* warm off-white #FAFAF9 */
   --foreground-dimmed: color-mix(in srgb, var(--foreground) 80%, var(--background)); /* unfocused panel text */
-  --foreground-rgb: 227, 226, 229;           /* RGB for shadow borders */
+  --foreground-rgb: 250, 250, 249;           /* RGB for shadow borders (stone-50) */
   --user-message-bubble: oklch(from var(--foreground) l c h / 0.05);
   --user-message-bubble-dimmed: oklch(from var(--foreground) l c h / 0.03);
-  --accent: oklch(0.68 0.13 293);            /* brighter purple in dark */
-  --accent-rgb: 118, 92, 147;                /* darkened RGB for shadow-tinted (70% of accent) */
+  --accent: oklch(0.68 0.16 60);             /* brighter amber in dark */
+  --accent-rgb: 200, 130, 20;               /* darkened RGB for shadow-tinted (70% of accent) */
   --info: oklch(0.70 0.16 70);               /* amber */
   --info-rgb: 200, 140, 60;                  /* RGB for shadow-tinted */
   --success: oklch(0.60 0.17 145);           /* green */
@@ -363,7 +363,7 @@ html[data-scenic][data-theme-override]::before {
 /* Scenic mode: Make background color semi-transparent for glass effect
    Panels with bg-background will become translucent glass */
 html[data-scenic] {
-  --background: oklch(0.2 0.005 270 / 0.55);
+  --background: oklch(0.2 0.01 60 / 0.55);
 }
 
 /* Inter Font - Opt-in via data-font="inter" attribute
