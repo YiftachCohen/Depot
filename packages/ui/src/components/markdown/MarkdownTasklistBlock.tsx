@@ -61,11 +61,11 @@ interface TasklistData {
 
 // ── Priority styling ─────────────────────────────────────────────────────────
 
-const PRIORITY_DOT: Record<number, string> = {
-  1: 'bg-destructive',      // urgent — red
-  2: 'bg-info',             // high — amber
-  3: 'bg-[oklch(0.65_0.15_250)]', // medium — blue
-  4: 'bg-muted-foreground/30',    // normal — muted
+const PRIORITY_CIRCLE: Record<number, string> = {
+  1: 'text-destructive',             // urgent — red
+  2: 'text-[oklch(0.7_0.15_55)]',    // high — orange
+  3: 'text-[oklch(0.65_0.15_250)]',  // medium — blue
+  4: 'text-muted-foreground/30',     // normal — grey
 }
 
 const PRIORITY_BORDER: Record<number, string> = {
@@ -126,19 +126,17 @@ function TaskRow({ task }: { task: Task }) {
         PRIORITY_BORDER[priority] ?? PRIORITY_BORDER[4],
       )}
     >
-      {/* Checkbox */}
+      {/* Checkbox — Todoist-style colored circle outlines */}
       <div className="flex-none mt-[3px]">
         {task.done ? (
           <div className="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center">
             <Check className="w-2.5 h-2.5 text-success" strokeWidth={3} />
           </div>
         ) : (
-          <div className="relative w-4 h-4">
-            <Circle className="w-4 h-4 text-muted-foreground/30" strokeWidth={1.5} />
-            {priority <= 2 && (
-              <div className={cn('absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full', PRIORITY_DOT[priority])} />
-            )}
-          </div>
+          <Circle
+            className={cn('w-4 h-4', PRIORITY_CIRCLE[priority] ?? PRIORITY_CIRCLE[4])}
+            strokeWidth={priority <= 2 ? 2.5 : 1.5}
+          />
         )}
       </div>
 
