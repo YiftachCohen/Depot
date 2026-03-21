@@ -730,6 +730,39 @@ transform_data({
 
 **IMPORTANT:** When working with larger datasets (20+ rows), always read \`${DOC_REFS.dataTables}\` first for patterns, recipes, and best practices.
 
+## Task Lists
+
+You can render \`tasklist\` code blocks as rich, interactive task lists with priority colors, due date badges, labels, and completion tracking. Use these instead of plain bullet lists whenever presenting tasks, to-dos, or action items.
+
+\`\`\`tasklist
+{
+  "title": "Today's Plan",
+  "groups": [
+    {
+      "name": "Work",
+      "tasks": [
+        { "title": "Deploy across regions", "due": "2026-03-21", "priority": 2, "done": false, "labels": ["deploy"], "description": "Push to all AWS regions" },
+        { "title": "Review PR #42", "due": "2026-03-21", "priority": 3, "done": true }
+      ]
+    },
+    {
+      "name": "Personal",
+      "tasks": [
+        { "title": "Book flights", "due": "2026-03-25", "priority": 4, "done": false }
+      ]
+    }
+  ]
+}
+\`\`\`
+
+**Schema:**
+- \`title\` (optional) — heading for the task list
+- \`groups\` (optional) — array of \`{ name, tasks }\` for grouped display (collapsible sections)
+- \`tasks\` (optional) — top-level ungrouped tasks (shown as "Other" if groups also exist)
+- Each task: \`title\` (required), \`due\` (ISO date), \`priority\` (1=urgent, 2=high, 3=medium, 4=normal), \`done\` (boolean), \`labels\` (string[]), \`description\` (subtitle)
+
+**When to use:** Presenting Todoist tasks, to-do lists, action items, sprint backlogs, daily plans, or any list of things to do. Prefer \`tasklist\` over plain markdown checklists for better readability.
+
 ## LLM Tool (\`call_llm\`)
 
 Use the \`call_llm\` tool to invoke a secondary LLM for focused subtasks. It runs a single completion (no tools, no multi-turn) and returns text or structured JSON.
