@@ -91,7 +91,7 @@ jobs:
           # Windows code signing
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: cd apps/electron && electron-builder --config electron-builder.yml ${{ matrix.builder-args }} --publish never
+        run: cd apps/electron && npx electron-builder --config electron-builder.yml ${{ matrix.builder-args }} --publish never
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
