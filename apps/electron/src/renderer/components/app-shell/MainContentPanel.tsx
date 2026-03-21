@@ -363,16 +363,21 @@ export function MainContentPanel({
           </div>
           <div className="flex-1 min-w-0">
             {selectedAutomation ? (
+              (() => {
+                const canMutate = selectedAutomation.source !== 'skill'
+                return (
               <AutomationInfoPage
                 automation={selectedAutomation}
                 executions={executions}
                 testResult={automationTestResults?.[selectedAutomation.id]}
                 onTest={onTestAutomation ? () => onTestAutomation(selectedAutomation.id) : undefined}
-                onToggleEnabled={onToggleAutomation ? () => onToggleAutomation(selectedAutomation.id) : undefined}
-                onDuplicate={onDuplicateAutomation ? () => onDuplicateAutomation(selectedAutomation.id) : undefined}
-                onDelete={onDeleteAutomation ? () => onDeleteAutomation(selectedAutomation.id) : undefined}
+                onToggleEnabled={canMutate && onToggleAutomation ? () => onToggleAutomation(selectedAutomation.id) : undefined}
+                onDuplicate={canMutate && onDuplicateAutomation ? () => onDuplicateAutomation(selectedAutomation.id) : undefined}
+                onDelete={canMutate && onDeleteAutomation ? () => onDeleteAutomation(selectedAutomation.id) : undefined}
                 onReplay={onReplayAutomation}
               />
+                )
+              })()
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p className="text-sm">Select an automation to view details</p>

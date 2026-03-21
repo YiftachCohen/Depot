@@ -532,12 +532,16 @@ const EDIT_CONFIGS: Record<EditContextKey, (location: string) => EditConfig> = {
  * @example
  * const { context, example } = getEditConfig('workspace-permissions', workspace.rootPath)
  */
-export function getEditConfig(key: EditContextKey, location: string): EditConfig {
+export function getEditConfig(key: EditContextKey, location: string, extraContext?: string): EditConfig {
   const factory = EDIT_CONFIGS[key]
   if (!factory) {
     throw new Error(`Unknown edit context key: ${key}. Add it to EDIT_CONFIGS in EditPopover.tsx`)
   }
-  return factory(location)
+  const config = factory(location)
+  if (extraContext && config.context.context) {
+    config.context = { ...config.context, context: config.context.context + ' ' + extraContext }
+  }
+  return config
 }
 
 /**

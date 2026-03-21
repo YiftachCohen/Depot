@@ -1255,7 +1255,10 @@ export class SessionManager implements ISessionManager {
         this.broadcastSkillsChanged(workspaceId, skills)
         // Reload skill-level automations
         const automationSystem = this.automationSystems.get(workspaceRootPath)
-        if (automationSystem) automationSystem.loadSkillAutomations(skills)
+        if (automationSystem) {
+          automationSystem.loadSkillAutomations(skills)
+          this.broadcastAutomationsChanged(workspaceId)
+        }
       },
       onSkillChange: async (slug, skill) => {
         sessionLog.info(`Skill '${slug}' changed:`, skill ? 'updated' : 'deleted')
@@ -1265,7 +1268,10 @@ export class SessionManager implements ISessionManager {
         this.broadcastSkillsChanged(workspaceId, skills)
         // Reload skill-level automations
         const automationSystem = this.automationSystems.get(workspaceRootPath)
-        if (automationSystem) automationSystem.loadSkillAutomations(skills)
+        if (automationSystem) {
+          automationSystem.loadSkillAutomations(skills)
+          this.broadcastAutomationsChanged(workspaceId)
+        }
       },
 
       // Session metadata changes (edits to session.jsonl headers).

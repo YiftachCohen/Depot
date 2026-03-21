@@ -11,7 +11,7 @@ import yaml from 'js-yaml';
 import { z } from 'zod';
 import type { DepotSkillManifest, InlineSourceConfig, QuickCommand } from './types.ts';
 import type { AutomationMatcher } from '../automations/types.ts';
-import { AutomationMatcherSchema, VALID_EVENTS } from '../automations/schemas.ts';
+import { AutomationMatcherSchema, VALID_EVENTS, DEPRECATED_EVENT_ALIASES } from '../automations/schemas.ts';
 
 // ============================================================
 // Validation Helpers
@@ -266,9 +266,13 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
         // Silently skip unknown events (non-breaking, like permission_mode)
         continue;
       }
+      const canonicalEvent = DEPRECATED_EVENT_ALIASES[event] ?? event;
       const parsed = z.array(AutomationMatcherSchema).safeParse(matchers);
       if (parsed.success) {
-        validAutomations[event] = parsed.data as AutomationMatcher[];
+        validAutomations[canonicalEvent] = [
+          ...(validAutomations[canonicalEvent] ?? []),
+          ...parsed.data as AutomationMatcher[],
+        ];
       }
       // Silently skip invalid matchers (non-breaking)
     }
