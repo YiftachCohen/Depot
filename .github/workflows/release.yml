@@ -25,21 +25,36 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            build-script: electron:dist:mac
+            build-script: electron:dist:mac:arm64
             artifact-pattern: |
-              apps/electron/release/*.dmg
-              apps/electron/release/*.zip
-            artifact-name: release-macos
+              apps/electron/release/*arm64*.dmg
+              apps/electron/release/*arm64*.zip
+              apps/electron/release/*arm64*.zip.blockmap
+              apps/electron/release/latest-mac*.yml
+            artifact-name: release-macos-arm64
+          - os: macos-latest
+            build-script: electron:dist:mac:x64
+            artifact-pattern: |
+              apps/electron/release/*x64*.dmg
+              apps/electron/release/*x64*.zip
+              apps/electron/release/*x64*.zip.blockmap
+              apps/electron/release/latest-mac*.yml
+            artifact-name: release-macos-x64
           - os: ubuntu-latest
             build-script: electron:dist:linux
-            artifact-pattern: apps/electron/release/*.AppImage
+            artifact-pattern: |
+              apps/electron/release/*.AppImage
+              apps/electron/release/latest-linux*.yml
             artifact-name: release-linux
           - os: windows-latest
             build-script: electron:dist:win
-            artifact-pattern: apps/electron/release/*.exe
+            artifact-pattern: |
+              apps/electron/release/*.exe
+              apps/electron/release/*.exe.blockmap
+              apps/electron/release/latest*.yml
             artifact-name: release-windows
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -62,23 +77,17 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build Electron app
+        shell: bash
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
           # Windows code signing
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: |
-          # If code signing password is missing, disable signing entirely
-          if [ -z "$CSC_KEY_PASSWORD" ]; then
-            echo "CSC_KEY_PASSWORD not set — skipping macOS code signing"
-            unset CSC_LINK
-          fi
-          bun run ${{ matrix.build-script }}
+        run: bun run ${{ matrix.build-script }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -119,11 +128,12 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: ${{ steps.tag.outputs.tag }}
-          draft: true
+          draft: false
           prerelease: false
           generate_release_notes: true
           files: |
-            artifacts/release-macos/*
+            artifacts/release-macos-arm64/*
+            artifacts/release-macos-x64/*
             artifacts/release-linux/*
             artifacts/release-windows/*
         env:

@@ -208,6 +208,8 @@ export const RPC_CHANNELS = {
     CHANGED: 'sources:changed',
     GET_PERMISSIONS: 'sources:getPermissions',
     GET_MCP_TOOLS: 'sources:getMcpTools',
+    DISCOVER_GLOBAL: 'sources:discoverGlobal',
+    IMPORT_DISCOVERED: 'sources:importDiscovered',
   },
   oauth: {
     START: 'oauth:start',
