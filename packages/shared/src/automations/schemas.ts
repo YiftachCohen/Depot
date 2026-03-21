@@ -18,6 +18,7 @@ export const PromptActionSchema = z.object({
   prompt: z.string().min(1, 'Prompt cannot be empty'),
   llmConnection: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
+  skillSlug: z.string().min(1).optional(),
 });
 
 export const WebhookActionSchema = z.object({

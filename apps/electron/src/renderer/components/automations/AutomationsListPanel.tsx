@@ -53,10 +53,10 @@ interface AutomationItemProps {
   onClick: () => void
   onToggleSelect?: () => void
   onRangeSelect?: () => void
-  onDelete: () => void
-  onToggleEnabled: () => void
-  onTest: () => void
-  onDuplicate: () => void
+  onDelete?: () => void
+  onToggleEnabled?: () => void
+  onTest?: () => void
+  onDuplicate?: () => void
 }
 
 function AutomationItem({
@@ -115,6 +115,11 @@ function AutomationItem({
           {automation.actions.some(a => a.type === 'webhook') && (
             <MicroBadge colorClass="bg-orange-500/10 text-orange-600 dark:text-orange-400">
               Webhook
+            </MicroBadge>
+          )}
+          {automation.source === 'skill' && (
+            <MicroBadge colorClass="bg-purple-500/10 text-purple-600 dark:text-purple-400">
+              Agent
             </MicroBadge>
           )}
         </>
@@ -308,10 +313,10 @@ export function AutomationsListPanel({
                   onClick={() => handleItemClick(automation.id, index)}
                   onToggleSelect={() => handleToggleSelect(automation.id, index)}
                   onRangeSelect={() => handleRangeSelect(index)}
-                  onDelete={() => onDeleteAutomation?.(automation.id)}
-                  onToggleEnabled={() => onToggleAutomation?.(automation.id)}
+                  onDelete={automation.source !== 'skill' ? () => onDeleteAutomation?.(automation.id) : undefined}
+                  onToggleEnabled={automation.source !== 'skill' ? () => onToggleAutomation?.(automation.id) : undefined}
                   onTest={() => onTestAutomation?.(automation.id)}
-                  onDuplicate={() => onDuplicateAutomation?.(automation.id)}
+                  onDuplicate={automation.source !== 'skill' ? () => onDuplicateAutomation?.(automation.id) : undefined}
                 />
               ))}
             </div>

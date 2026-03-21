@@ -78,6 +78,9 @@ export type AutomationAction = PromptAction | WebhookAction
 // List Item (flattened from automations.json for display)
 // ============================================================================
 
+/** Where this automation is defined */
+export type AutomationSource = 'workspace' | 'skill'
+
 export interface AutomationListItem {
   /** Stable 6-char hex ID from automations.json, with fallback to event+index for legacy configs */
   id: string
@@ -105,6 +108,10 @@ export interface AutomationListItem {
   actions: AutomationAction[]
   /** Timestamp of last execution (ms since epoch) */
   lastExecutedAt?: number
+  /** Where this automation is defined — 'workspace' (automations.json) or 'skill' (depot.yaml) */
+  source?: AutomationSource
+  /** Skill slug that owns this automation (only for source: 'skill') */
+  skillSlug?: string
 }
 
 // ============================================================================
@@ -348,6 +355,55 @@ export function parseAutomationsConfig(json: unknown): AutomationListItem[] {
         actions,
       })
       index++
+    }
+  }
+
+  return items
+}
+
+/**
+ * Derive AutomationListItem[] from loaded skills that have automations in their depot.yaml.
+ * Each matcher in each skill's automations block becomes one item with source: 'skill'.
+ */
+export function parseSkillAutomations(skills: Array<{ slug: string; manifest?: { automations?: Record<string, unknown[]>; permission_mode?: string } }>): AutomationListItem[] {
+  const items: AutomationListItem[] = []
+  const allEvents = [...APP_EVENTS, ...AGENT_EVENTS] as string[]
+
+  for (const skill of skills) {
+    const automations = skill.manifest?.automations
+    if (!automations) continue
+
+    for (const [eventName, matchers] of Object.entries(automations)) {
+      if (!Array.isArray(matchers)) continue
+      const event = (allEvents.includes(eventName) ? eventName : eventName) as AutomationTrigger
+
+      for (let matcherIdx = 0; matcherIdx < matchers.length; matcherIdx++) {
+        const matcher = matchers[matcherIdx] as AutomationsConfigMatcher | undefined
+        if (!matcher) continue
+        const rawActions = matcher.actions
+        if (!rawActions || !Array.isArray(rawActions) || rawActions.length === 0) continue
+
+        const actions: AutomationAction[] = rawActions
+          .filter((a): a is AutomationAction => a.type === 'prompt' || a.type === 'webhook')
+        if (actions.length === 0) continue
+
+        items.push({
+          id: matcher.id ?? `skill:${skill.slug}:${eventName}-${matcherIdx}`,
+          event,
+          matcherIndex: matcherIdx,
+          name: deriveAutomationName(eventName, matcher),
+          summary: deriveAutomationSummary(eventName, matcher),
+          enabled: matcher.enabled !== false,
+          matcher: matcher.matcher,
+          cron: matcher.cron,
+          timezone: matcher.timezone,
+          permissionMode: matcher.permissionMode ?? (skill.manifest?.permission_mode as PermissionMode | undefined),
+          labels: matcher.labels,
+          actions,
+          source: 'skill',
+          skillSlug: skill.slug,
+        })
+      }
     }
   }
 

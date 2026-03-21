@@ -85,6 +85,7 @@ export type EditContextKey =
   | 'edit-views'
   | 'edit-tool-icons'
   | 'automation-config'
+  | 'skill-automation'
 
 /**
  * Full edit configuration including context for agent and example for UI.
@@ -493,6 +494,26 @@ const EDIT_CONFIGS: Record<EditContextKey, (location: string) => EditConfig> = {
         'After editing, confirm clearly what changed.',
     },
     example: 'Change the cron schedule to every 30 minutes',
+    model: 'sonnet',
+    systemPromptPreset: 'mini',
+    inlineExecution: true,
+  }),
+
+  'skill-automation': (location) => ({
+    context: {
+      label: 'Agent Automation',
+      filePath: `${location}/depot.yaml`,
+      context:
+        'The user wants to add or edit automations for this agent in its depot.yaml manifest. ' +
+        'Automations are defined under the top-level "automations" key as a map of event names to arrays of matchers. ' +
+        'Structure: automations: { EventName: [{ name?, matcher?, cron?, timezone?, enabled?, actions: [{ type: "prompt", prompt: "..." }] }] }. ' +
+        'Available events: SchedulerTick (use with cron), LabelAdd, LabelRemove, SessionStatusChange, FlagChange, SessionStart, SessionEnd. ' +
+        'For SchedulerTick, always include a cron expression (5-field format) and optional timezone (IANA). ' +
+        'Action types: "prompt" (creates a session with this agent) or "webhook" (HTTP request with url, method, body). ' +
+        'Preserve all existing fields in depot.yaml — only modify the automations section. ' +
+        'After editing, confirm clearly what was added or changed.',
+    },
+    example: 'Run a daily check every morning at 9am',
     model: 'sonnet',
     systemPromptPreset: 'mini',
     inlineExecution: true,
