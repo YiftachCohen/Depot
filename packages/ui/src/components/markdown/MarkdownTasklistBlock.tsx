@@ -242,7 +242,7 @@ export function MarkdownTasklistBlock({ code, className }: MarkdownTasklistBlock
   }
 
   const allTasks = [
-    ...(parsed.groups?.flatMap((g) => g.tasks) ?? []),
+    ...(parsed.groups?.flatMap((g) => g.tasks ?? []) ?? []),
     ...(parsed.tasks ?? []),
   ]
   const totalCount = allTasks.length
