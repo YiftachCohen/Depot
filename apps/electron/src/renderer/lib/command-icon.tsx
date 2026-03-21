@@ -14,6 +14,9 @@ import {
   FileBarChart, ShieldAlert, LayoutDashboard, Map, NotebookPen, ListChecks,
   Mail, CalendarCheck, MessageSquareHeart, TrendingUp, Lightbulb, Briefcase,
   Telescope, Swords, Scale,
+  Target, PenTool, UserCheck, GraduationCap, HeartHandshake, Presentation,
+  Receipt, Building2, Phone, BarChart2, Share2, Layout, Users, Award,
+  Calendar, BookMarked, Hash, BarChart, CheckCircle,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 
@@ -84,6 +87,25 @@ export const ICON_NAME_MAP: Record<string, IconComponent> = {
   'telescope': Telescope,
   'swords': Swords,
   'scale': Scale,
+  'target': Target,
+  'pen-tool': PenTool,
+  'user-check': UserCheck,
+  'graduation-cap': GraduationCap,
+  'heart-handshake': HeartHandshake,
+  'presentation': Presentation,
+  'receipt': Receipt,
+  'building-2': Building2,
+  'phone': Phone,
+  'bar-chart-2': BarChart2,
+  'bar-chart': BarChart,
+  'share-2': Share2,
+  'layout': Layout,
+  'users': Users,
+  'award': Award,
+  'calendar': Calendar,
+  'book-marked': BookMarked,
+  'hash': Hash,
+  'check-circle': CheckCircle,
 }
 
 /** Keyword-to-icon rules for auto-inference from command names. */
@@ -107,6 +129,14 @@ const KEYWORD_RULES: [string[], IconComponent][] = [
   [['config', 'setting'], Settings],
   [['inspect', 'observe', 'watch'], Eye],
   [['code', 'commit', 'staged'], FileCode],
+  [['prospect', 'sales', 'lead', 'account'], Target],
+  [['content', 'blog', 'copy', 'write'], PenTool],
+  [['hire', 'recruit', 'interview', 'candidate'], UserCheck],
+  [['onboard', 'training', 'sop'], GraduationCap],
+  [['customer', 'qbr', 'renewal', 'churn'], HeartHandshake],
+  [['strategy', 'okr', 'board', 'planning'], Presentation],
+  [['expense', 'budget', 'finance', 'forecast'], Receipt],
+  [['seo', 'keyword', 'ranking'], Search],
 ]
 
 /**

@@ -55,6 +55,17 @@ const LUCIDE_ICON_NAMES = new Set([
   'alert-triangle', 'server', 'search', 'message-square', 'eye', 'file-code',
   'settings', 'layers', 'database', 'code-2', 'code', 'bot', 'wrench',
   'book-open', 'globe', 'terminal', 'sparkles', 'folder-kanban',
+  'git-compare', 'file-text', 'file', 'list-ordered', 'file-plus', 'plus',
+  'clipboard-check', 'pie-chart', 'route', 'scan-search', 'scroll-text',
+  'clock', 'activity', 'siren', 'megaphone', 'file-clock', 'gantt-chart',
+  'calendar-range', 'list-tree', 'file-bar-chart', 'shield-alert',
+  'layout-dashboard', 'map', 'notebook-pen', 'list-checks', 'mail',
+  'calendar-check', 'message-square-heart', 'trending-up', 'lightbulb',
+  'briefcase', 'telescope', 'swords', 'scale',
+  'target', 'pen-tool', 'user-check', 'graduation-cap', 'heart-handshake',
+  'presentation', 'receipt', 'building-2', 'phone', 'bar-chart-2',
+  'bar-chart', 'share-2', 'layout', 'users', 'award', 'calendar',
+  'book-marked', 'hash', 'check-circle',
 ]);
 
 /**
