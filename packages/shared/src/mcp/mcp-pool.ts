@@ -26,6 +26,38 @@ import {
   sanitizeFilename,
 } from '../utils/binary-detection.ts';
 
+// ── Task data detection for rich formatting hints ──────────────────────────
+
+const TASKLIST_HINT = '\n\n[IMPORTANT: Present these tasks using a ```tasklist code block with JSON. Schema: {"title":"...","tasks":[{"title":"...","due":"YYYY-MM-DD","priority":1-4,"done":true/false,"labels":[],"description":"..."}]} or use "groups":[{"name":"...","tasks":[...]}] to group them. Do NOT use plain bullet lists.]';
+
+/**
+ * Heuristic check: does this tool result text look like it contains task/issue data?
+ * Matches common patterns from Todoist, Linear, Jira, Asana, GitHub Issues, etc.
+ * Checks for JSON arrays of objects with task-like fields, or repeated text patterns.
+ */
+function looksLikeTaskData(text: string): boolean {
+  // Quick length guard — very short or very long results aren't task lists
+  if (text.length < 50 || text.length > 100_000) return false;
+
+  // Count task-like field names in the text (works for both JSON and plaintext tool output)
+  const taskSignals = [
+    /\b(?:due[_-]?date|due)\b/i,
+    /\b(?:priority|urgency)\b/i,
+    /\b(?:completed|done|is[_-]?completed|checked)\b/i,
+    /\b(?:assignee|assigned[_-]?to)\b/i,
+    /\b(?:labels?|tags?)\b/i,
+    /\b(?:task|issue|ticket|todo|item)\b/i,
+  ];
+
+  let score = 0;
+  for (const re of taskSignals) {
+    if (re.test(text)) score++;
+  }
+
+  // Need at least 3 task-like signals (e.g. "due" + "priority" + "task")
+  return score >= 3;
+}
+
 /**
  * Configuration for an in-process API source server.
  * Used by sync() to connect API sources alongside MCP sources.
@@ -431,8 +463,14 @@ export class McpClientPool {
         }
       }
 
+      // Append formatting hint when tool results look like task/issue data
+      // so even smaller models (e.g. Haiku) produce rich tasklist blocks.
+      const finalText = (!result.isError && looksLikeTaskData(text))
+        ? text + TASKLIST_HINT
+        : text;
+
       return {
-        content: text,
+        content: finalText,
         isError: !!result.isError,
       };
     } catch (err) {

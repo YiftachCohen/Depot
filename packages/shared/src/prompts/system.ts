@@ -732,36 +732,18 @@ transform_data({
 
 ## Task Lists
 
-You can render \`tasklist\` code blocks as rich, interactive task lists with priority colors, due date badges, labels, and completion tracking. Use these instead of plain bullet lists whenever presenting tasks, to-dos, or action items.
+**ALWAYS** use \`tasklist\` code blocks when presenting tasks, to-dos, or action items. Never use plain bullet lists for tasks.
 
 \`\`\`tasklist
-{
-  "title": "Today's Plan",
-  "groups": [
-    {
-      "name": "Work",
-      "tasks": [
-        { "title": "Deploy across regions", "due": "2026-03-21", "priority": 2, "done": false, "labels": ["deploy"], "description": "Push to all AWS regions" },
-        { "title": "Review PR #42", "due": "2026-03-21", "priority": 3, "done": true }
-      ]
-    },
-    {
-      "name": "Personal",
-      "tasks": [
-        { "title": "Book flights", "due": "2026-03-25", "priority": 4, "done": false }
-      ]
-    }
-  ]
-}
+{"title":"My Tasks","tasks":[{"title":"Review PR","due":"2026-03-21","priority":2,"done":false},{"title":"Write tests","done":true}]}
 \`\`\`
 
-**Schema:**
-- \`title\` (optional) — heading for the task list
-- \`groups\` (optional) — array of \`{ name, tasks }\` for grouped display (collapsible sections)
-- \`tasks\` (optional) — top-level ungrouped tasks (shown as "Other" if groups also exist)
-- Each task: \`title\` (required), \`due\` (ISO date), \`priority\` (1=urgent, 2=high, 3=medium, 4=normal), \`done\` (boolean), \`labels\` (string[]), \`description\` (subtitle)
+Each task object has: \`title\` (required), \`due\` (YYYY-MM-DD), \`priority\` (1=urgent 2=high 3=medium 4=normal), \`done\` (bool), \`labels\` (string[]), \`description\` (string).
 
-**When to use:** Presenting Todoist tasks, to-do lists, action items, sprint backlogs, daily plans, or any list of things to do. Prefer \`tasklist\` over plain markdown checklists for better readability.
+To group tasks, use \`groups\` instead of \`tasks\`:
+\`\`\`tasklist
+{"title":"Sprint","groups":[{"name":"Frontend","tasks":[{"title":"Fix modal","priority":1,"done":false}]},{"name":"Backend","tasks":[{"title":"Add endpoint","done":true}]}]}
+\`\`\`
 
 ## LLM Tool (\`call_llm\`)
 
