@@ -815,7 +815,7 @@ function AppShellContent({
     automationPendingDelete, pendingDeleteAutomation, setAutomationPendingDelete,
     handleTestAutomation, handleToggleAutomation, handleDuplicateAutomation, handleDeleteAutomation, confirmDeleteAutomation,
     getAutomationHistory, handleReplayAutomation,
-  } = useAutomations(activeWorkspaceId, activeWorkspace?.rootPath)
+  } = useAutomations(activeWorkspaceId, activeWorkspace?.rootPath, skills)
 
   // Whether local MCP servers are enabled (affects stdio source status)
   const [localMcpEnabled, setLocalMcpEnabled] = React.useState(true)
@@ -2505,13 +2505,26 @@ function AppShellContent({
                   ]}
                 />
                 </div>
-                {/* Bottom Nav (pinned): Sources, Settings */}
+                {/* Bottom Nav (pinned): Automations, Sources, Settings */}
                 <div className="shrink-0 border-t border-foreground/8 pt-2 pb-1">
                 <LeftSidebar
                   isCollapsed={false}
                   getItemProps={getSidebarItemProps}
                   focusedItemId={focusedSidebarItemId}
                   links={[
+                    {
+                      id: "nav:automations",
+                      title: "Automations",
+                      label: automations.length > 0 ? String(automations.length) : undefined,
+                      icon: Zap,
+                      iconColor: 'var(--warning)',
+                      variant: (isAutomationsNavigation(navState) && !automationFilter) ? "default" : "ghost",
+                      onClick: handleAutomationsClick,
+                      contextMenu: {
+                        type: 'automations' as const,
+                        onAddAutomation: () => openAddAutomation(),
+                      },
+                    },
                     {
                       id: "nav:sources",
                       title: "Sources",

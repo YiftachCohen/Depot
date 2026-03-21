@@ -43,7 +43,9 @@ import { getSettingsPageComponent } from '@/pages/settings/settings-pages'
 import SettingsNavigator from '@/pages/settings/SettingsNavigator'
 import { routes } from '@/lib/navigate'
 import { AutomationInfoPage } from '../automations/AutomationInfoPage'
+import { AutomationsListPanel } from '../automations/AutomationsListPanel'
 import type { ExecutionEntry } from '../automations/types'
+import { AUTOMATION_TYPE_TO_FILTER_KIND } from '../automations/types'
 import { automationsAtom } from '@/atoms/automations'
 import { SkillDashboard } from './SkillDashboard'
 import { SessionList } from './SessionList'
@@ -317,31 +319,71 @@ export function MainContentPanel({
     )
   }
 
-  // Automations navigator - show automation info or empty state
+  // Automations navigator - split layout with automations list sidebar + detail view
   if (isAutomationsNavigation(navState)) {
-    if (navState.details) {
-      const automation = automations.find(h => h.id === navState.details!.automationId)
-      if (automation) {
-        return wrapWithStoplight(
-          <Panel variant="grow" className={className}>
-            <AutomationInfoPage
-              automation={automation}
-              executions={executions}
-              testResult={automationTestResults?.[automation.id]}
-              onTest={onTestAutomation ? () => onTestAutomation(automation.id) : undefined}
-              onToggleEnabled={onToggleAutomation ? () => onToggleAutomation(automation.id) : undefined}
-              onDuplicate={onDuplicateAutomation ? () => onDuplicateAutomation(automation.id) : undefined}
-              onDelete={onDeleteAutomation ? () => onDeleteAutomation(automation.id) : undefined}
-              onReplay={onReplayAutomation}
-            />
-          </Panel>
-        )
-      }
+    const routeFilter = navState.filter ?? null
+    const automationFilter = routeFilter?.automationType
+      ? { kind: AUTOMATION_TYPE_TO_FILTER_KIND[routeFilter.automationType] ?? ('all' as const) }
+      : null
+
+    // Empty state: full-width with nice empty screen (icon, description, add button)
+    if (automations.length === 0) {
+      return wrapWithStoplight(
+        <Panel variant="grow" className={className}>
+          <AutomationsListPanel
+            automations={automations}
+            automationFilter={automationFilter}
+            onAutomationClick={() => {}}
+            selectedAutomationId={null}
+            workspaceRootPath={workspaceRootPath}
+          />
+        </Panel>
+      )
     }
+
+    // Split layout when there are automations to browse
+    const selectedAutomation = navState.details
+      ? automations.find(h => h.id === navState.details!.automationId)
+      : undefined
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
-        <div className="flex items-center justify-center h-full text-muted-foreground">
-          <p className="text-sm">No automations configured</p>
+        <div className="flex h-full">
+          <div className="w-[240px] shrink-0 border-r border-border/50 overflow-y-auto">
+            <AutomationsListPanel
+              automations={automations}
+              automationFilter={automationFilter}
+              onAutomationClick={(id) => navigate(routes.view.automations({ automationId: id, type: routeFilter?.automationType }))}
+              onDeleteAutomation={onDeleteAutomation}
+              onToggleAutomation={onToggleAutomation}
+              onTestAutomation={onTestAutomation}
+              onDuplicateAutomation={onDuplicateAutomation}
+              selectedAutomationId={navState.details?.automationId ?? null}
+              workspaceRootPath={workspaceRootPath}
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            {selectedAutomation ? (
+              (() => {
+                const canMutate = selectedAutomation.source !== 'skill'
+                return (
+              <AutomationInfoPage
+                automation={selectedAutomation}
+                executions={executions}
+                testResult={automationTestResults?.[selectedAutomation.id]}
+                onTest={onTestAutomation ? () => onTestAutomation(selectedAutomation.id) : undefined}
+                onToggleEnabled={canMutate && onToggleAutomation ? () => onToggleAutomation(selectedAutomation.id) : undefined}
+                onDuplicate={canMutate && onDuplicateAutomation ? () => onDuplicateAutomation(selectedAutomation.id) : undefined}
+                onDelete={canMutate && onDeleteAutomation ? () => onDeleteAutomation(selectedAutomation.id) : undefined}
+                onReplay={onReplayAutomation}
+              />
+                )
+              })()
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <p className="text-sm">Select an automation to view details</p>
+              </div>
+            )}
+          </div>
         </div>
       </Panel>
     )

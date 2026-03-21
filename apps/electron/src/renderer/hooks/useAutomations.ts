@@ -9,11 +9,11 @@
  * - Syncing automations to Jotai atom for cross-component access
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useSetAtom } from 'jotai'
 import { toast } from 'sonner'
 import { automationsAtom } from '@/atoms/automations'
-import { parseAutomationsConfig, type AutomationListItem, type TestResult, type ExecutionEntry } from '@/components/automations/types'
+import { parseAutomationsConfig, parseSkillAutomations, type AutomationListItem, type TestResult, type ExecutionEntry } from '@/components/automations/types'
 
 async function loadAutomationsFromDisk(rootPath: string): Promise<AutomationListItem[]> {
   const automationsPath = `${rootPath}/automations.json`
@@ -39,10 +39,21 @@ export interface UseAutomationsResult {
 export function useAutomations(
   activeWorkspaceId: string | null | undefined,
   activeWorkspaceRootPath: string | undefined,
+  skills?: Array<{ slug: string; manifest?: { automations?: Record<string, unknown[]>; permission_mode?: string } }>,
 ): UseAutomationsResult {
-  const [automations, setAutomations] = useState<AutomationListItem[]>([])
+  const [workspaceAutomations, setWorkspaceAutomations] = useState<AutomationListItem[]>([])
   const [automationTestResults, setAutomationTestResults] = useState<Record<string, TestResult>>({})
   const [automationPendingDelete, setAutomationPendingDelete] = useState<string | null>(null)
+
+  // Derive skill automations from loaded skills (no disk reads)
+  const skillAutomations = useMemo(() => {
+    return skills ? parseSkillAutomations(skills) : []
+  }, [skills])
+
+  // Merge workspace + skill automations
+  const automations = useMemo(() => {
+    return [...workspaceAutomations, ...skillAutomations]
+  }, [workspaceAutomations, skillAutomations])
 
   // Sync automations to Jotai atom for cross-component access (MainContentPanel)
   const setAutomationsAtom = useSetAtom(automationsAtom)
@@ -65,9 +76,9 @@ export function useAutomations(
           }
         } catch { /* history unavailable — timestamps stay undefined */ }
       }
-      setAutomations(items)
+      setWorkspaceAutomations(items)
     } catch {
-      setAutomations([])
+      setWorkspaceAutomations([])
     }
   }, [activeWorkspaceRootPath, activeWorkspaceId])
 

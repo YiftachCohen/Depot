@@ -85,6 +85,7 @@ export type EditContextKey =
   | 'edit-views'
   | 'edit-tool-icons'
   | 'automation-config'
+  | 'skill-automation'
 
 /**
  * Full edit configuration including context for agent and example for UI.
@@ -487,12 +488,35 @@ const EDIT_CONFIGS: Record<EditContextKey, (location: string) => EditConfig> = {
       filePath: `${location}/automations.json`,
       context:
         'The user is editing automations.json which configures automations. ' +
-        'Structure: { version: 2, automations: { EventName: [{ name?, matcher?, cron?, timezone?, permissionMode?, labels?, actions: [...] }] } }. ' +
-        'Each event maps to an array of matcher entries. Each matcher has an actions array ({ type: "prompt", prompt }). ' +
-        'Read ~/.craft-agent/docs/automations.md for full format reference. ' +
+        'CRITICAL: The file MUST have this exact top-level structure: { "automations": { "EventName": [ ...matchers ] } }. ' +
+        'The "automations" wrapper object is required — do NOT put event/cron/actions at the top level. ' +
+        'Example: { "automations": { "SchedulerTick": [{ "cron": "0 9 * * *", "timezone": "UTC", "actions": [{ "type": "prompt", "prompt": "Hello" }] }] } }. ' +
+        'Available events: SchedulerTick (requires cron), LabelAdd, LabelRemove, SessionStatusChange, FlagChange, SessionStart, SessionEnd. ' +
+        'Each event key maps to an array of matcher entries. Each matcher has: name? (string), cron? (5-field), timezone? (IANA), matcher? (regex), enabled? (bool), actions (array of { type: "prompt", prompt } or { type: "webhook", url, method?, body? }). ' +
+        'If the file already exists, read it first and merge new automations into the existing structure. ' +
         'After editing, confirm clearly what changed.',
     },
-    example: 'Change the cron schedule to every 30 minutes',
+    example: 'Run a daily task check every morning at 9am',
+    model: 'sonnet',
+    systemPromptPreset: 'mini',
+    inlineExecution: true,
+  }),
+
+  'skill-automation': (location) => ({
+    context: {
+      label: 'Agent Automation',
+      filePath: `${location}/depot.yaml`,
+      context:
+        'The user wants to add or edit automations for this agent in its depot.yaml manifest. ' +
+        'Automations are defined under the top-level "automations" key as a map of event names to arrays of matchers. ' +
+        'Structure: automations: { EventName: [{ name?, matcher?, cron?, timezone?, enabled?, actions: [{ type: "prompt", prompt: "..." }] }] }. ' +
+        'Available events: SchedulerTick (use with cron), LabelAdd, LabelRemove, SessionStatusChange, FlagChange, SessionStart, SessionEnd. ' +
+        'For SchedulerTick, always include a cron expression (5-field format) and optional timezone (IANA). ' +
+        'Action types: "prompt" (creates a session with this agent) or "webhook" (HTTP request with url, method, body). ' +
+        'Preserve all existing fields in depot.yaml — only modify the automations section. ' +
+        'After editing, confirm clearly what was added or changed.',
+    },
+    example: 'Run a daily check every morning at 9am',
     model: 'sonnet',
     systemPromptPreset: 'mini',
     inlineExecution: true,
@@ -508,12 +532,16 @@ const EDIT_CONFIGS: Record<EditContextKey, (location: string) => EditConfig> = {
  * @example
  * const { context, example } = getEditConfig('workspace-permissions', workspace.rootPath)
  */
-export function getEditConfig(key: EditContextKey, location: string): EditConfig {
+export function getEditConfig(key: EditContextKey, location: string, extraContext?: string): EditConfig {
   const factory = EDIT_CONFIGS[key]
   if (!factory) {
     throw new Error(`Unknown edit context key: ${key}. Add it to EDIT_CONFIGS in EditPopover.tsx`)
   }
-  return factory(location)
+  const config = factory(location)
+  if (extraContext && config.context.context) {
+    config.context = { ...config.context, context: config.context.context + ' ' + extraContext }
+  }
+  return config
 }
 
 /**

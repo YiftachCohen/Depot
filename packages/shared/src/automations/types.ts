@@ -61,6 +61,8 @@ export interface PromptAction {
   llmConnection?: string;
   /** Model ID for the created session (falls back to provider default if invalid) */
   model?: string;
+  /** Skill slug to bind this session to (inherits personality, memory, sources, permission) */
+  skillSlug?: string;
 }
 
 /** HTTP method for webhook actions */
@@ -187,6 +189,8 @@ export interface PendingPrompt {
   llmConnection?: string;
   /** Model ID for the created session (falls back to provider default if invalid) */
   model?: string;
+  /** Skill slug to bind this session to (inherits personality, memory, sources, permission) */
+  skillSlug?: string;
 }
 
 export interface AutomationResult {

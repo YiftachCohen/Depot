@@ -8,7 +8,10 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import yaml from 'js-yaml';
+import { z } from 'zod';
 import type { DepotSkillManifest, InlineSourceConfig, QuickCommand } from './types.ts';
+import type { AutomationMatcher } from '../automations/types.ts';
+import { AutomationMatcherSchema, VALID_EVENTS, DEPRECATED_EVENT_ALIASES } from '../automations/schemas.ts';
 
 // ============================================================
 // Validation Helpers
@@ -252,6 +255,32 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     };
   }
 
+  // --- v3 optional fields ---
+
+  // automations: Record<string, AutomationMatcher[]>
+  let automations: Record<string, AutomationMatcher[]> | undefined;
+  if (data.automations !== undefined && typeof data.automations === 'object' && data.automations !== null && !Array.isArray(data.automations)) {
+    const validAutomations: Record<string, AutomationMatcher[]> = {};
+    for (const [event, matchers] of Object.entries(data.automations as Record<string, unknown>)) {
+      if (!VALID_EVENTS.includes(event)) {
+        // Silently skip unknown events (non-breaking, like permission_mode)
+        continue;
+      }
+      const canonicalEvent = DEPRECATED_EVENT_ALIASES[event] ?? event;
+      const parsed = z.array(AutomationMatcherSchema).safeParse(matchers);
+      if (parsed.success) {
+        validAutomations[canonicalEvent] = [
+          ...(validAutomations[canonicalEvent] ?? []),
+          ...parsed.data as AutomationMatcher[],
+        ];
+      }
+      // Silently skip invalid matchers (non-breaking)
+    }
+    if (Object.keys(validAutomations).length > 0) {
+      automations = validAutomations;
+    }
+  }
+
   return {
     name: (data.name as string).trim(),
     icon: (data.icon as string).trim(),
@@ -265,6 +294,7 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     personality,
     permission_mode: permissionMode,
     memory,
+    automations,
   };
 }
 

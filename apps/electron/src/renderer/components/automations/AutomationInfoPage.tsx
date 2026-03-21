@@ -23,7 +23,7 @@ import { AutomationActionRow } from './AutomationActionRow'
 import { AutomationTestPanel } from './AutomationTestPanel'
 import { AutomationEventTimeline } from './AutomationEventTimeline'
 import { PhaseBadge } from './PhaseBadge'
-import { getEventDisplayName, getPermissionDisplayName, type AutomationListItem, type ExecutionEntry, type TestResult } from './types'
+import { getEventDisplayName, getPermissionDisplayName, type AutomationListItem, type ExecutionEntry, type TestResult, type PromptAction } from './types'
 import { describeCron, computeNextRuns } from './utils'
 
 // ============================================================================
@@ -56,10 +56,17 @@ export function AutomationInfoPage({
   const workspace = useActiveWorkspace()
   const nextRuns = automation.cron ? computeNextRuns(automation.cron) : []
 
+  const automationContext = [
+    `The user is editing the specific automation named "${automation.name}"`,
+    `(event: "${automation.event}", index ${automation.matcherIndex} in the "${automation.event}" array).`,
+    `Current config: ${JSON.stringify({ name: automation.name, matcher: automation.matcher, cron: automation.cron, timezone: automation.timezone, enabled: automation.enabled, actions: automation.actions })}.`,
+    `IMPORTANT: Modify THIS existing entry in-place — do NOT create a new automation entry. Find the entry at index ${automation.matcherIndex} under the "${automation.event}" key and update it.`,
+  ].join(' ')
+
   const editActions = workspace?.rootPath ? (
     <EditPopover
       trigger={<EditButton />}
-      {...getEditConfig('automation-config', workspace.rootPath)}
+      {...getEditConfig('automation-config', workspace.rootPath, automationContext)}
       secondaryAction={{ label: 'Edit File', filePath: `${workspace.rootPath}/automations.json` }}
     />
   ) : undefined
@@ -172,6 +179,23 @@ export function AutomationInfoPage({
         {/* Section: Settings */}
         <Info_Section title="Settings" actions={editActions}>
           <Info_Table>
+            {automation.source === 'skill' && automation.skillSlug && (
+              <Info_Table.Row label="Agent">
+                <Info_Badge color="default">{automation.skillSlug}</Info_Badge>
+              </Info_Table.Row>
+            )}
+            {automation.source !== 'skill' && (() => {
+              const mention = automation.actions
+                .filter((a): a is PromptAction => a.type === 'prompt')
+                .map(a => a.prompt.match(/@(\S+)/))
+                .find(Boolean)
+              const handle = mention?.[1]
+              return handle ? (
+                <Info_Table.Row label="References Agent">
+                  <Info_Badge color="muted">{handle}</Info_Badge>
+                </Info_Table.Row>
+              ) : null
+            })()}
             <Info_Table.Row label="Access Level" value={getPermissionDisplayName(automation.permissionMode)} />
             <Info_Table.Row label="Status">
               <Info_Badge color={automation.enabled ? 'success' : 'muted'}>

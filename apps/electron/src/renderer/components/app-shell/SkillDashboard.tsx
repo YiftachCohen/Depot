@@ -16,6 +16,7 @@ import { useEntityIcon } from '@/lib/icon-cache'
 import { InlineSvg } from '@/lib/inline-svg'
 import { skillsAtom } from '@/atoms/skills'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
+import { automationsAtom } from '@/atoms/automations'
 import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -246,6 +247,7 @@ function AgentIcon({ skill, accent, workspaceId }: { skill: LoadedSkill; accent:
 export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string } = {}) {
   const skills = useAtomValue(skillsAtom)
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
+  const allAutomations = useAtomValue(automationsAtom)
   const { activeWorkspaceId, onCreateSession, onSendMessage, onEnabledSkillSlugsChange } = useAppShellContext()
   const [searchQuery, setSearchQuery] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -375,6 +377,17 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     }
     return stats
   }, [sessionMetaMap])
+
+  // Count automations per skill (for dashboard badges)
+  const skillAutomationCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const automation of allAutomations) {
+      if (automation.skillSlug) {
+        counts.set(automation.skillSlug, (counts.get(automation.skillSlug) ?? 0) + 1)
+      }
+    }
+    return counts
+  }, [allAutomations])
 
   const filteredSkills = useMemo(() => {
     let base = skills
@@ -837,6 +850,43 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                 </div>
             </motion.div>
 
+            {/* Agent Automations */}
+            <motion.div variants={itemVariants}>
+              <div className="border-t border-border/20 pt-4 mb-2" />
+              <div className="flex items-center justify-between mb-2.5">
+                <h3 className="text-[11px] font-medium text-foreground/40 uppercase tracking-widest">Automations</h3>
+                <EditPopover
+                  trigger={
+                    <button type="button" className="inline-flex items-center gap-1 text-[11px] text-foreground/40 hover:text-foreground/70 transition-colors cursor-pointer">
+                      <Plus className="h-3 w-3" />Add
+                    </button>
+                  }
+                  {...getEditConfig('skill-automation', focusedSkill.path)}
+                />
+              </div>
+              {(() => {
+                const skillAutos = allAutomations.filter(a => a.skillSlug === focusedSkill.slug)
+                if (skillAutos.length === 0) {
+                  return (
+                    <p className="text-[11px] text-foreground/30 italic">
+                      No automations configured for this agent.
+                    </p>
+                  )
+                }
+                return (
+                  <div className="space-y-1.5">
+                    {skillAutos.map((auto) => (
+                      <div key={auto.id} className="flex items-center gap-2 text-[12px]">
+                        <Zap className={cn('h-3 w-3 shrink-0', auto.enabled ? 'text-amber-500' : 'text-foreground/20')} />
+                        <span className={cn('flex-1 min-w-0 truncate', !auto.enabled && 'text-foreground/40 line-through')}>{auto.name}</span>
+                        <span className="shrink-0 text-[10px] text-foreground/30">{auto.summary}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </motion.div>
+
             {/* Agent Memory */}
             {focusedSkill.manifest?.memory?.enabled !== false && agentStateMap.has(focusedSkill.slug) && activeWorkspaceId && (
               <motion.div variants={itemVariants}>
@@ -980,6 +1030,11 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                               const factCount = agentStateMap.get(skill.slug)?.memory?.facts?.length ?? 0
                               if (factCount === 0) return null
                               return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Brain className="h-2.5 w-2.5" />{factCount}</span></>
+                            })()}
+                            {(() => {
+                              const autoCount = skillAutomationCounts.get(skill.slug) ?? 0
+                              if (autoCount === 0) return null
+                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Zap className="h-2.5 w-2.5" />{autoCount}</span></>
                             })()}
                           </div>
                         </div>

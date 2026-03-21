@@ -1253,6 +1253,12 @@ export class SessionManager implements ISessionManager {
       onSkillsListChange: async (skills) => {
         sessionLog.info(`Skills list changed in ${workspaceRootPath} (${skills.length} skills)`)
         this.broadcastSkillsChanged(workspaceId, skills)
+        // Reload skill-level automations
+        const automationSystem = this.automationSystems.get(workspaceRootPath)
+        if (automationSystem) {
+          automationSystem.loadSkillAutomations(skills)
+          this.broadcastAutomationsChanged(workspaceId)
+        }
       },
       onSkillChange: async (slug, skill) => {
         sessionLog.info(`Skill '${slug}' changed:`, skill ? 'updated' : 'deleted')
@@ -1260,6 +1266,12 @@ export class SessionManager implements ISessionManager {
         const { loadAllSkills } = await import('@depot/shared/skills')
         const skills = loadAllSkills(workspaceRootPath)
         this.broadcastSkillsChanged(workspaceId, skills)
+        // Reload skill-level automations
+        const automationSystem = this.automationSystems.get(workspaceRootPath)
+        if (automationSystem) {
+          automationSystem.loadSkillAutomations(skills)
+          this.broadcastAutomationsChanged(workspaceId)
+        }
       },
 
       // Session metadata changes (edits to session.jsonl headers).
@@ -1329,6 +1341,7 @@ export class SessionManager implements ISessionManager {
                 pending.llmConnection,
                 pending.model,
                 pending.automationName,
+                pending.skillSlug,
               )
             )
           )
@@ -1361,6 +1374,15 @@ export class SessionManager implements ISessionManager {
         },
       })
       this.automationSystems.set(workspaceRootPath, automationSystem)
+
+      // Load skill-level automations from depot.yaml manifests
+      try {
+        const skills = loadAllSkills(workspaceRootPath)
+        automationSystem.loadSkillAutomations(skills)
+      } catch (e) {
+        sessionLog.warn(`[Automations] Failed to load skill automations:`, e)
+      }
+
       sessionLog.info(`Initialized AutomationSystem for workspace ${workspaceId}`)
     }
   }
@@ -6489,6 +6511,7 @@ export class SessionManager implements ISessionManager {
     llmConnection?: string,
     model?: string,
     automationName?: string,
+    skillSlug?: string,
   ): Promise<{ sessionId: string }> {
     // Warn if llmConnection was specified but doesn't resolve
     if (llmConnection) {
@@ -6518,6 +6541,7 @@ export class SessionManager implements ISessionManager {
       enabledSourceSlugs: resolved?.sourceSlugs,
       llmConnection,
       model,
+      skillSlug,
     })
 
     // Populate triggeredBy metadata so title generation is explicitly skipped
@@ -6533,9 +6557,13 @@ export class SessionManager implements ISessionManager {
     // a synthetic empty session and temporarily show "New chat".
     this.sendEvent({ type: 'session_created', sessionId: session.id }, workspaceId)
 
-    // Send the prompt
+    // Send the prompt — include skill slug for full agent context inheritance
+    const skillSlugs = [
+      ...(skillSlug ? [skillSlug] : []),
+      ...(resolved?.skillSlugs ?? []),
+    ]
     await this.sendMessage(session.id, prompt, undefined, undefined, {
-      skillSlugs: resolved?.skillSlugs,
+      skillSlugs: skillSlugs.length > 0 ? skillSlugs : undefined,
     })
 
     return { sessionId: session.id }

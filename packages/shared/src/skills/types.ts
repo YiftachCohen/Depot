@@ -5,6 +5,8 @@
  * Skills are specialized instructions that extend Claude's capabilities.
  */
 
+import type { AutomationMatcher } from '../automations/types.ts';
+
 /**
  * Skill metadata from SKILL.md YAML frontmatter
  */
@@ -106,6 +108,11 @@ export interface DepotSkillManifest {
   permission_mode?: 'safe' | 'ask' | 'allow-all';
   /** Cross-session memory configuration */
   memory?: { enabled?: boolean };
+
+  // --- v3 fields (all optional, backward compatible) ---
+
+  /** Automations scoped to this agent — triggers that create sessions with this agent's full context */
+  automations?: Record<string, AutomationMatcher[]>;
 }
 
 /**

@@ -67,6 +67,7 @@ export class AutomationSystem implements AutomationsConfigProvider {
 
   private readonly options: AutomationSystemOptions;
   private config: AutomationsConfig | null = null;
+  private skillConfig: AutomationsConfig | null = null;
   private promptHandler: PromptHandler | null = null;
   private webhookHandler: WebhookHandler | null = null;
   private eventLogHandler: EventLogHandler | null = null;
@@ -239,7 +240,55 @@ export class AutomationSystem implements AutomationsConfigProvider {
   }
 
   getMatchersForEvent(event: AutomationEvent): AutomationMatcher[] {
-    return this.config?.automations[event] ?? [];
+    const workspace = this.config?.automations[event] ?? [];
+    const skill = this.skillConfig?.automations[event] ?? [];
+    return [...workspace, ...skill];
+  }
+
+  /**
+   * Load automations from skill manifests.
+   * Each skill's automations are stamped with skillSlug on prompt actions
+   * and inherit the skill's permission_mode as a fallback.
+   */
+  loadSkillAutomations(skills: Array<{ slug: string; manifest?: { automations?: Record<string, AutomationMatcher[]>; permission_mode?: string } }>): void {
+    const merged: Partial<Record<AutomationEvent, AutomationMatcher[]>> = {};
+
+    for (const skill of skills) {
+      const automations = skill.manifest?.automations;
+      if (!automations) continue;
+
+      const skillPermMode = skill.manifest?.permission_mode as AutomationMatcher['permissionMode'] | undefined;
+
+      for (const [event, matchers] of Object.entries(automations)) {
+        if (!merged[event as AutomationEvent]) {
+          merged[event as AutomationEvent] = [];
+        }
+        for (const matcher of matchers) {
+          // Stamp each prompt action with skillSlug
+          const stampedActions = matcher.actions.map(action => {
+            if (action.type === 'prompt') {
+              return { ...action, skillSlug: skill.slug };
+            }
+            return action;
+          });
+
+          merged[event as AutomationEvent]!.push({
+            ...matcher,
+            // Auto-generate ID from skill slug if missing
+            id: matcher.id ?? generateShortId(),
+            // Inherit skill's permission_mode if matcher doesn't define its own
+            permissionMode: matcher.permissionMode ?? skillPermMode,
+            actions: stampedActions,
+          });
+        }
+      }
+    }
+
+    this.skillConfig = { automations: merged };
+    const actionCount = Object.values(merged).reduce((sum, m) => sum + m.length, 0);
+    if (actionCount > 0) {
+      log.debug(`[AutomationSystem] Loaded ${actionCount} skill automations`);
+    }
   }
 
   // ============================================================================
