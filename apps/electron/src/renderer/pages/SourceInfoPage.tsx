@@ -366,6 +366,8 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
       } else {
         setMcpToolsError(toolsResult.error || 'Failed to load tools')
       }
+    } catch (err) {
+      setMcpToolsError(err instanceof Error ? err.message : 'Failed to load tools')
     } finally {
       setMcpToolsLoading(false)
     }
@@ -540,15 +542,17 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
               <Info_Table.Row label="Last Tested">
                 <div className="flex items-center gap-2">
                   <span>{formatRelativeTime(source.config.lastTestedAt)}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={handleTestConnection}
-                    disabled={isTesting}
-                  >
-                    {isTesting ? <Spinner className="text-[10px]" /> : 'Test'}
-                  </Button>
+                  {source.config.type === 'mcp' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={handleTestConnection}
+                      disabled={isTesting || (source.config.mcp?.transport === 'stdio' && !localMcpEnabled)}
+                    >
+                      {isTesting ? <Spinner className="text-[10px]" /> : 'Test'}
+                    </Button>
+                  )}
                 </div>
               </Info_Table.Row>
             </Info_Table>

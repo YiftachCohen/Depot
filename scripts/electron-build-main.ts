@@ -276,9 +276,11 @@ function copyInterceptorSources(): void {
   // Copy supporting files imported by the interceptor at runtime
   for (const file of ["interceptor-common.ts", "interceptor-request-utils.ts", "feature-flags.ts"]) {
     const src = join(sourceDir, file);
-    if (existsSync(src)) {
-      copyFileSync(src, join(destDir, file));
+    if (!existsSync(src)) {
+      console.error(`Missing required interceptor dependency at ${src}`);
+      process.exit(1);
     }
+    copyFileSync(src, join(destDir, file));
   }
 
   console.log("✅ Interceptor sources copied");

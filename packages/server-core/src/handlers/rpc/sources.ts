@@ -219,7 +219,7 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       }
 
       const { DepotMcpClient } = await import('@depot/shared/mcp')
-      let client: InstanceType<typeof DepotMcpClient>
+      let client: InstanceType<typeof DepotMcpClient> | undefined
 
       if (source.config.mcp.transport === 'stdio') {
         if (!source.config.mcp.command) {
@@ -255,8 +255,14 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
         })
       }
 
-      const tools = await client.listTools()
-      await client.close()
+      let tools: { name: string; description?: string }[]
+      try {
+        tools = await client.listTools()
+      } finally {
+        await client.close().catch((closeError) => {
+          log.warn('Failed to close MCP client after fetching tools:', closeError)
+        })
+      }
 
       const { loadSourcePermissionsConfig, permissionsConfigCache } = await import('@depot/shared/agent')
       const permissionsConfig = loadSourcePermissionsConfig(workspace.rootPath, sourceSlug)
@@ -303,7 +309,7 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
 
       const { DepotMcpClient } = await import('@depot/shared/mcp')
       const { loadSourceConfig, saveSourceConfig } = await import('@depot/shared/sources')
-      let client: InstanceType<typeof DepotMcpClient>
+      let client: InstanceType<typeof DepotMcpClient> | undefined
 
       if (source.config.mcp.transport === 'stdio') {
         if (!source.config.mcp.command) {
@@ -337,8 +343,14 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
         })
       }
 
-      const tools = await client.listTools()
-      await client.close()
+      let tools: { name: string; description?: string }[]
+      try {
+        tools = await client.listTools()
+      } finally {
+        await client.close().catch((closeError) => {
+          log.warn('Failed to close MCP client after connection test:', closeError)
+        })
+      }
 
       // Connection succeeded — update source config
       const config = loadSourceConfig(workspace.rootPath, sourceSlug)
@@ -367,6 +379,9 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
         if (config) {
           const isAuthError = errorMessage.includes('401') || errorMessage.includes('403')
           config.connectionStatus = isAuthError ? 'needs_auth' : 'failed'
+          if (isAuthError) {
+            config.isAuthenticated = false
+          }
           config.connectionError = errorMessage
           config.lastTestedAt = Date.now()
           saveSourceConfig(workspace.rootPath, config)
