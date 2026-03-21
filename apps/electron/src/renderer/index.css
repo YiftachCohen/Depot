@@ -483,6 +483,11 @@ html[data-font="inter"] {
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Headings use display font (Satoshi) per DESIGN.md */
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+  }
+
   /* Scrollbar styling */
   ::-webkit-scrollbar {
     width: 8px;
