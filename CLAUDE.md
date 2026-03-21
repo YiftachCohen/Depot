@@ -97,3 +97,6 @@ Jotai atoms in `apps/electron/src/renderer/atoms/` for sessions, skills, sources
 - UI components use Radix primitives + `class-variance-authority` + `tailwind-merge`
 - Path alias `@/*` maps to `src/*` in tsconfig
 - ESM throughout (`"type": "module"` in all packages), except Electron main process outputs CJS (`dist/main.cjs`)
+
+## gstack
+Use the /browse skill from gstack for all web browsing, never use mcp__claude-in-chrome__* tools. Use available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /retro, /investigate, /document-release, /codex, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade. If gstack skills aren't working, run cd .claude/skills/gstack && ./setup to build the binary and register skills.
