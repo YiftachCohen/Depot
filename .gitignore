@@ -70,3 +70,6 @@ credentials.enc
 # Multi-agent orchestration
 .swarm/
 .claude-flow/
+
+# gstack (embedded git repo)
+.claude/skills/gstack/
