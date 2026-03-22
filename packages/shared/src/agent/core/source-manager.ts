@@ -154,9 +154,10 @@ export class SourceManager {
    * Format source state as XML block for injection into user messages.
    * Shows active sources, inactive sources, and introduces new sources with taglines.
    *
+   * @param permissionMode - Current permission mode ('safe', 'ask', 'allow-all'). Used to adjust auth instructions.
    * @returns Formatted XML string for context injection
    */
-  formatSourceState(): string {
+  formatSourceState(permissionMode?: string): string {
     // Use intended active slugs (what UI shows) rather than just what built successfully
     const activeSlugs = [...this.intendedSlugs].sort();
 
@@ -209,6 +210,7 @@ export class SourceManager {
         return `${s.config.slug} (${reason})`;
       });
       parts.push(`Inactive: ${inactiveList.join(', ')}`);
+      parts.push('To use an inactive source, call its tools directly — the system will auto-activate it. Do NOT call source_oauth_trigger or source_test first.');
     }
 
     // Persistent reminder: if any active source has a guide, remind the LLM every message
@@ -255,9 +257,16 @@ export class SourceManager {
 
       // Provide context-aware fix instructions
       const authTool = this.getAuthToolName(s);
+      const isExploreMode = permissionMode === 'safe';
       if (authTool) {
-        output += `\n\nThis source requires re-authentication. The user may have revoked access or the token expired.`;
-        output += `\nTo fix: Re-authenticate using ${authTool}.`;
+        if (isExploreMode) {
+          output += `\n\nThis source requires re-authentication, but auth tools are blocked in Explore mode.`;
+          output += `\nTo fix: Ask the user to switch to Ask or Allow All mode (SHIFT+TAB), then re-authenticate using ${authTool}.`;
+          output += `\nAlternatively, try calling the source's tools directly — auto-activation may reconnect it.`;
+        } else {
+          output += `\n\nThis source requires re-authentication. The user may have revoked access or the token expired.`;
+          output += `\nTo fix: Re-authenticate using ${authTool}.`;
+        }
       } else if (s.config.mcp?.transport === 'stdio') {
         output += `\n\nThis is a local MCP server that is not responding. The server process may need to be restarted.`;
         output += `\nTo fix: Check if the server command/path is correct and the process can start.`;

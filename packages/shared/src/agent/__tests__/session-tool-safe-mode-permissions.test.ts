@@ -26,6 +26,7 @@ describe('session tool safe-mode classification', () => {
       'mcp__session__call_llm',
       'mcp__session__browser_tool',
       'mcp__session__script_sandbox',
+      'mcp__session__query_knowledge',
     ] as const;
 
     for (const toolName of allowedTools) {
@@ -40,6 +41,8 @@ describe('session tool safe-mode classification', () => {
       'mcp__session__source_credential_prompt',
       'mcp__session__spawn_session',
       'mcp__session__update_user_preferences',
+      'mcp__session__save_knowledge',
+      'mcp__session__reset_knowledge',
     ] as const;
 
     for (const toolName of blockedTools) {

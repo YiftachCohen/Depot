@@ -1645,7 +1645,7 @@ export class PiAgent extends BaseAgent {
       );
 
       // Build context from sources
-      const sourceContext = this.sourceManager.formatSourceState();
+      const sourceContext = this.sourceManager.formatSourceState(this.permissionManager.getPermissionMode());
 
       const promptModeDiagnostics = getPermissionModeDiagnostics(this._sessionId)
       this.debug(

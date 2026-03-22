@@ -77,11 +77,11 @@ export function AgentMemoryPanel({ workspaceId, skillSlug, facts, onFactsChanged
           No memories yet. Memories are learned during sessions.
         </p>
       ) : (
-        <div className="space-y-0">
+        <div className="space-y-0 max-h-[280px] overflow-y-auto overflow-x-hidden">
           {facts.map((fact) => (
             <div key={fact.id} className="group/fact flex items-start gap-2 py-1.5 -mx-1.5 px-1.5 rounded hover:bg-foreground/[0.03] transition-colors">
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] leading-relaxed text-foreground/70 line-clamp-2">{fact.content}</p>
+                <p className="text-[12px] leading-relaxed text-foreground/70 break-words">{fact.content}</p>
                 <span className="text-[10px] text-foreground/25">{formatRelativeTime(fact.createdAt)}</span>
               </div>
               <button

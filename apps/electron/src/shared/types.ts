@@ -439,6 +439,12 @@ export interface ElectronAPI {
   clearAgentMemory(workspaceId: string, skillSlug: string): Promise<{ cleared: boolean }>
   getKnowledgeStats(workspaceId: string, skillSlug: string): Promise<{ entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: string }>
   onAgentStateChanged(callback: (data: { skillSlug: string }) => void): () => void
+  queryKnowledgeEntities(workspaceId: string, skillSlug: string, options?: { domain?: string; entityType?: string; query?: string; tags?: string[]; limit?: number }): Promise<any[]>
+  queryKnowledgePatterns(workspaceId: string, skillSlug: string, options?: { limit?: number }): Promise<any[]>
+  triggerConsolidation(workspaceId: string, skillSlug: string): Promise<{ deduplicated: number; decayed: number; archived: number; purged: number }>
+  triggerObservation(workspaceId: string, skillSlug: string): Promise<{ sessionId: string }>
+  setObservationPaused(workspaceId: string, skillSlug: string, paused: boolean): Promise<{ paused: boolean }>
+  getObservationHistory(workspaceId: string, skillSlug: string): Promise<import('@depot/shared/skills').ObservationRun[]>
 
   // Statuses (workspace-scoped)
   listStatuses(workspaceId: string): Promise<import('@depot/shared/statuses').StatusConfig[]>

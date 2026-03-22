@@ -32,6 +32,7 @@ import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../sha
 import { TemplateVariableModal } from './TemplateVariableModal'
 import { AgentTemplateBrowser } from './AgentTemplateBrowser'
 import { AgentMemoryPanel } from './AgentMemoryPanel'
+import { KnowledgeBrowserPanel } from './KnowledgeBrowserPanel'
 import type { AgentTemplate } from '../../../shared/types'
 import { type AutomationListItem, type ExecutionEntry, type PromptAction } from '../automations/types'
 import { computeNextRuns, formatShortRelativeTime } from '../automations/utils'
@@ -61,6 +62,12 @@ quick_commands:
         placeholder: "e.g. example value"
   - name: "Another Command"
     prompt: "A simpler prompt with no variables"
+memory:
+  enabled: true
+knowledge:
+  enabled: true
+  domains:
+    - "general"
 \`\`\`
 
 The skill directory should be created at **~/.depot/skills/{slug}/** (not ~/.claude/skills/).
@@ -183,6 +190,13 @@ const fadeIn: Variants = {
 }
 
 // Shared class strings — command chips (minimal style)
+const OBSERVATION_HEALTH_DOT: Record<string, string> = {
+  green: 'bg-[#16A34A]',
+  yellow: 'bg-[#EAB308]',
+  red: 'bg-[#DC2626]',
+  gray: 'bg-foreground/20',
+}
+
 const CMD_CHIP = cn(
   'inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/80 cursor-pointer',
   'rounded-md px-1.5 py-0.5 -mx-0.5',
@@ -261,7 +275,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false)
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
   const [agentStateMap, setAgentStateMap] = useState<Map<string, import('@depot/shared/skills').AgentState>>(new Map())
-  const [knowledgeStatsMap, setKnowledgeStatsMap] = useState<Map<string, { entityCount: number; relationshipCount: number; patternCount: number }>>(new Map())
+  const [knowledgeStatsMap, setKnowledgeStatsMap] = useState<Map<string, { entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: 'green' | 'yellow' | 'red' | 'gray' }>>(new Map())
 
   // Load templates on mount
   useEffect(() => {
@@ -301,9 +315,9 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           return [s.slug, stats] as const
         } catch { return [s.slug, null] as const }
       })).then((entries) => {
-        const map = new Map<string, { entityCount: number; relationshipCount: number; patternCount: number }>()
+        const map = new Map<string, { entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: 'green' | 'yellow' | 'red' | 'gray' }>()
         for (const [slug, stats] of entries) {
-          if (stats && (stats.entityCount > 0 || stats.patternCount > 0)) map.set(slug, stats)
+          if (stats) map.set(slug, { ...stats, observationHealth: (stats.observationHealth ?? 'gray') as 'green' | 'yellow' | 'red' | 'gray' })
         }
         setKnowledgeStatsMap(map)
       })
@@ -327,7 +341,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           .then((stats) => {
             setKnowledgeStatsMap((prev) => {
               const next = new Map(prev)
-              if (stats && (stats.entityCount > 0 || stats.patternCount > 0)) next.set(skillSlug, stats)
+              if (stats) next.set(skillSlug, { ...stats, observationHealth: (stats.observationHealth ?? 'gray') as 'green' | 'yellow' | 'red' | 'gray' })
               else next.delete(skillSlug)
               return next
             })
@@ -712,8 +726,24 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                       {(() => {
                         const kStats = knowledgeStatsMap.get(focusedSkill.slug)
                         if (!focusedSkill.manifest?.knowledge?.enabled) return null
-                        if (!kStats || kStats.entityCount === 0) return <span className="inline-flex items-center gap-1"><Database className="h-3 w-3 shrink-0" />No knowledge yet</span>
-                        return <span className="inline-flex items-center gap-1"><Database className="h-3 w-3 shrink-0" />{kStats.entityCount} entit{kStats.entityCount !== 1 ? 'ies' : 'y'}, {kStats.relationshipCount} relationship{kStats.relationshipCount !== 1 ? 's' : ''}</span>
+                        const healthColor = kStats?.observationHealth ?? 'gray'
+                        const healthTitle = kStats?.lastObservation
+                          ? `Last observation: ${new Date(kStats.lastObservation).toLocaleString()}`
+                          : 'No observations yet'
+                        if (!kStats || kStats.entityCount === 0) return (
+                          <span className="inline-flex items-center gap-1">
+                            <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', OBSERVATION_HEALTH_DOT[healthColor])} title={healthTitle} aria-label={`Observation health: ${healthColor}`} />
+                            <Database className="h-3 w-3 shrink-0" />
+                            No knowledge yet
+                          </span>
+                        )
+                        return (
+                          <span className="inline-flex items-center gap-1">
+                            <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', OBSERVATION_HEALTH_DOT[healthColor])} title={healthTitle} aria-label={`Observation health: ${healthColor}`} />
+                            <Database className="h-3 w-3 shrink-0" />
+                            {kStats.entityCount} entit{kStats.entityCount !== 1 ? 'ies' : 'y'}, {kStats.relationshipCount} relationship{kStats.relationshipCount !== 1 ? 's' : ''}
+                          </span>
+                        )
                       })()}
                       {focusedSkill.manifest.permission_mode && (
                         <span className={cn(
@@ -901,6 +931,18 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
               />
             </motion.div>
 
+            {/* Knowledge Browser */}
+            {focusedSkill.manifest?.knowledge?.enabled && activeWorkspaceId && (
+              <motion.div variants={itemVariants}>
+                <div className="border-t border-border/20 pt-4 mb-2" />
+                <KnowledgeBrowserPanel
+                  workspaceId={activeWorkspaceId}
+                  skillSlug={focusedSkill.slug}
+                  onBack={() => {}}
+                />
+              </motion.div>
+            )}
+
             {/* Agent Memory */}
             {focusedSkill.manifest?.memory?.enabled !== false && agentStateMap.has(focusedSkill.slug) && activeWorkspaceId && (
               <motion.div variants={itemVariants}>
@@ -1048,7 +1090,8 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                             {(() => {
                               const kStats = knowledgeStatsMap.get(skill.slug)
                               if (!kStats) return null
-                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Database className="h-2.5 w-2.5" />{kStats.entityCount}</span></>
+                              const healthColor = kStats.observationHealth ?? 'gray'
+                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><span className={cn('inline-block h-1.5 w-1.5 rounded-full', OBSERVATION_HEALTH_DOT[healthColor])} /><Database className="h-2.5 w-2.5" />{kStats.entityCount}</span></>
                             })()}
                             {(() => {
                               const autoCount = skillAutomationCounts.get(skill.slug) ?? 0

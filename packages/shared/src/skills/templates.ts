@@ -8,6 +8,9 @@ import { writeFileSync } from 'fs'
 import type { AgentTemplate, DepotSkillManifest } from './types.ts'
 import { createSkill, writeDepotManifest } from './storage.ts'
 
+/** Default prompt for knowledge observation loops */
+export const DEFAULT_OBSERVATION_PROMPT = `Scan your connected sources for changes since your last observation. Map new entities, updated relationships, and emerging patterns. Use save_knowledge to persist your findings. Generate multiple synonym tags per entity to aid future retrieval. Be concise — focus on what changed.`;
+
 // ---------------------------------------------------------------------------
 // Template Categories
 // ---------------------------------------------------------------------------

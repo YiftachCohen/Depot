@@ -4,14 +4,27 @@ All notable changes to Depot are documented in this file.
 
 ## [1.2.1] - 2026-03-22
 
+### Added
+
+- **Knowledge observation scheduling** — Agents with `knowledge.observation_schedule` in their `depot.yaml` now automatically run observation loops on a cron schedule, scanning connected sources for changes and persisting findings to the knowledge store.
+- **Observation guards** — Budget limits (`token_budget.per_day`), concurrency protection, entity caps, and failure tracking prevent runaway observation costs. Guards block duplicate observations and auto-clear stale locks on startup.
+- **Knowledge browser panel** — Browse entities, patterns, and observation history inline on the skill dashboard. Includes domain filtering, search, confidence bars, relationship expansion, and a size warning banner for large stores (>5,000 entities).
+- **Manual observation and consolidation triggers** — Run observations or consolidation on-demand from the knowledge section header with visible action buttons.
+- **Observation health indicator** — Colored dot (green/yellow/red/gray) shows observation recency at a glance on skill cards and the detail view.
+- **Observation history tab** — View recent observation runs with duration, token usage, and outcome.
+- **Pause/resume observations** — Pause scheduled observations from the knowledge panel dropdown without disabling the skill.
+- **Post-observation consolidation** — Automatic deduplication and confidence decay runs after each successful observation.
+- **Failure notifications** — After 3 consecutive observation failures, a warning notification alerts the user to check source connectivity.
+- **Turn limiting** — `max_observation_turns` in the manifest caps agent tool-use cycles per observation session.
+- **Scrollable memory panel** — Agent memory list is now scrollable with text wrapping for long entries.
+- **Consolidation scheduling** — Scheduled knowledge consolidation runs independently on its own cron schedule.
+
 ### Security
 
 - **CVE remediation: 34 → 1 vulnerability.** Added 16 `overrides` in `package.json` to force-resolve transitive dependency CVEs (minimatch, undici, basic-ftp, underscore, axios, hono, tar, and more). Only remaining vuln is `@github/copilot` (awaiting upstream fix).
 - **Removed Sentry entirely** — No external crash telemetry for enterprise deployments. Crash data stays on-device via `electron-log`. Removed from 11 files (main process, renderer, preload, build scripts, tests).
 - **Replaced `markitdown-js` with `mammoth` + `turndown`** — Eliminated 4 CVEs and ~20 transitive dependencies (xmldom, xlsx, @azure/identity, axios, exiftool, ffmpeg, tesseract). DOCX conversion uses pure-JS mammoth+turndown; XLSX/PPTX falls back to the bundled Python CLI.
 - **Supply chain hardening** — Pinned wildcard dependency (`beautiful-mermaid@*` → `^1.1.3`), created `.npmrc` with `audit=true`, pinned beta dependencies to exact versions.
-
-### Added
 
 - Unit tests for office file conversion pipeline (`files-office-convert.isolated.ts`).
 

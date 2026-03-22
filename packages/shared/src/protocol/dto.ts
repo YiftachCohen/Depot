@@ -134,6 +134,8 @@ export interface CreateSessionOptions {
   skillSlug?: string
   /** Initial message to send after session creation (e.g., from a quick command prompt) */
   initialMessage?: string
+  /** Maximum turns per chat message (used for observation sessions) */
+  maxTurns?: number
 }
 
 export interface PermissionModeState {

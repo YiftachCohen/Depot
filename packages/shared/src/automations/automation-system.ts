@@ -26,6 +26,10 @@ import { type AutomationsConfig, type AutomationEvent, type AutomationMatcher, t
 import { validateAutomationsConfig } from './validation.ts';
 import { testMatcherAgainst, getMatchValueForSdkInput } from './utils.ts';
 import { SchedulerService, type SchedulerTickPayload } from '../scheduler/scheduler-service.ts';
+import type { KnowledgeManifestConfig } from '../skills/knowledge/types.ts';
+import { DEFAULT_CONSOLIDATION_SCHEDULE } from '../skills/knowledge/types.ts';
+import { DEFAULT_OBSERVATION_PROMPT } from '../skills/templates.ts';
+import { matchesCron } from './cron-matcher.ts';
 
 const log = createLogger('automation-system');
 
@@ -76,6 +80,7 @@ export class AutomationSystem implements AutomationsConfigProvider {
 
   // Session metadata tracking (moved from SessionManager)
   private readonly lastKnownMetadata: Map<string, SessionMetadataSnapshot> = new Map();
+  private consolidationListener: ((payload: EventPayloadMap['SchedulerTick']) => void) | null = null;
 
   constructor(options: AutomationSystemOptions) {
     this.options = options;
@@ -250,7 +255,7 @@ export class AutomationSystem implements AutomationsConfigProvider {
    * Each skill's automations are stamped with skillSlug on prompt actions
    * and inherit the skill's permission_mode as a fallback.
    */
-  loadSkillAutomations(skills: Array<{ slug: string; manifest?: { automations?: Record<string, AutomationMatcher[]>; permission_mode?: string } }>): void {
+  loadSkillAutomations(skills: Array<{ slug: string; path?: string; manifest?: { automations?: Record<string, AutomationMatcher[]>; permission_mode?: string; knowledge?: KnowledgeManifestConfig } }>): void {
     const merged: Partial<Record<AutomationEvent, AutomationMatcher[]>> = {};
 
     for (const skill of skills) {
@@ -284,11 +289,71 @@ export class AutomationSystem implements AutomationsConfigProvider {
       }
     }
 
+    // Synthesize observation automations from knowledge config
+    for (const skill of skills) {
+      const knowledge = skill.manifest?.knowledge;
+      if (!knowledge?.enabled || !knowledge.observationSchedule) continue;
+
+      const observationMatcher: AutomationMatcher = {
+        id: `__kobs_${skill.slug}`,
+        name: `Knowledge observation: ${skill.slug}`,
+        cron: knowledge.observationSchedule,
+        permissionMode: (knowledge.observationPermissionMode ?? 'allow-all') as AutomationMatcher['permissionMode'],
+        labels: ['__knowledge_observation__'],
+        actions: [{
+          type: 'prompt',
+          prompt: knowledge.observationPrompt ?? DEFAULT_OBSERVATION_PROMPT,
+          skillSlug: skill.slug,
+        }],
+      };
+
+      if (!merged['SchedulerTick']) merged['SchedulerTick'] = [];
+      merged['SchedulerTick']!.push(observationMatcher);
+    }
+
     this.skillConfig = { automations: merged };
     const actionCount = Object.values(merged).reduce((sum, m) => sum + m.length, 0);
     if (actionCount > 0) {
       log.debug(`[AutomationSystem] Loaded ${actionCount} skill automations`);
     }
+  }
+
+  /**
+   * Register consolidation schedules for knowledge-enabled skills.
+   * Listens to SchedulerTick events and runs consolidation on matching cron.
+   */
+  registerConsolidationSchedules(
+    skills: Array<{ slug: string; path?: string; manifest?: { knowledge?: KnowledgeManifestConfig } }>
+  ): void {
+    // Remove previous listener if reloading
+    if (this.consolidationListener) {
+      this.eventBus.off('SchedulerTick', this.consolidationListener);
+      this.consolidationListener = null;
+    }
+
+    const knowledgeSkills = skills.filter(s => s.manifest?.knowledge?.enabled);
+    if (knowledgeSkills.length === 0) return;
+
+    this.consolidationListener = async (_payload) => {
+      for (const skill of knowledgeSkills) {
+        const cron = skill.manifest!.knowledge!.consolidationSchedule ?? DEFAULT_CONSOLIDATION_SCHEDULE;
+        if (!matchesCron(cron)) continue;
+
+        try {
+          const { KnowledgeStoreManager, runConsolidation } = await import('../skills/knowledge/index.ts');
+          const manager = KnowledgeStoreManager.getInstance();
+          const store = await manager.open(
+            this.options.workspaceRootPath, skill.slug, skill.path);
+          const result = await runConsolidation(store);
+          log.debug(`[Knowledge] Consolidation for ${skill.slug}: dedup=${result.deduplicated}, decay=${result.decayed}, archive=${result.archived}, purge=${result.purged}`);
+        } catch (e) {
+          log.error(`[Knowledge] Consolidation failed for ${skill.slug}:`, e);
+        }
+      }
+    };
+
+    this.eventBus.on('SchedulerTick', this.consolidationListener);
+    log.debug(`[AutomationSystem] Registered consolidation schedules for ${knowledgeSkills.length} skills`);
   }
 
   // ============================================================================
@@ -606,6 +671,12 @@ export class AutomationSystem implements AutomationsConfigProvider {
 
     // Clear metadata
     this.lastKnownMetadata.clear();
+
+    // Clean up consolidation listener
+    if (this.consolidationListener) {
+      this.eventBus.off('SchedulerTick', this.consolidationListener);
+      this.consolidationListener = null;
+    }
 
     this.disposed = true;
     log.debug(`[AutomationSystem] Disposed`);

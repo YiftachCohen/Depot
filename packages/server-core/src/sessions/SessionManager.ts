@@ -78,6 +78,7 @@ import { listLabels } from '@depot/shared/labels/storage'
 import { extractLabelId } from '@depot/shared/labels'
 import { ensureLabelsExist } from '@depot/shared/labels/crud'
 import { AutomationSystem, AUTOMATIONS_HISTORY_FILE, createPromptHistoryEntry, type AutomationSystemMetadataSnapshot } from '@depot/shared/automations'
+import { checkObservationGuards, setObservationFlag, trackObservationFailure } from './knowledge-observation-guards.ts'
 
 // Import from server-core domain utilities
 import { sanitizeForTitle, shouldActivateBrowserOverlay, normalizeBrowserToolName, rollbackFailedBranchCreation, releaseBrowserOwnershipOnForcedStop } from '@depot/server-core/domain'
@@ -886,6 +887,8 @@ interface ManagedSession {
   // Whether the previous turn was interrupted (for context injection on next message).
   // Ephemeral — not persisted to disk. Cleared after one-shot injection.
   wasInterrupted?: boolean
+  // Maximum number of agent turns for this session (used by knowledge observation sessions)
+  maxTurns?: number
 }
 
 /**
@@ -1375,10 +1378,35 @@ export class SessionManager implements ISessionManager {
       })
       this.automationSystems.set(workspaceRootPath, automationSystem)
 
+      // Clear stale observation flags for knowledge-enabled skills (Part 5)
+      try {
+        const allSkills = loadAllSkills(workspaceRootPath)
+        for (const skill of allSkills) {
+          if (skill.manifest?.knowledge?.enabled) {
+            try {
+              const state = loadAgentState(workspaceRootPath, skill.slug, skill.path)
+              if (state?.observationInProgress && state.observationStartedAt) {
+                if (Date.now() - state.observationStartedAt > 3_600_000) {
+                  state.observationInProgress = false
+                  state.observationStartedAt = undefined
+                  saveAgentState(workspaceRootPath, skill.slug, state, skill.path)
+                  sessionLog.info(`[Knowledge] Cleared stale observation flag for ${skill.slug}`)
+                }
+              }
+            } catch (e) {
+              sessionLog.warn(`[Knowledge] Failed to check stale flag for ${skill.slug}:`, e)
+            }
+          }
+        }
+      } catch (e) {
+        sessionLog.warn(`[Knowledge] Failed stale observation recovery:`, e)
+      }
+
       // Load skill-level automations from depot.yaml manifests
       try {
         const skills = loadAllSkills(workspaceRootPath)
         automationSystem.loadSkillAutomations(skills)
+        automationSystem.registerConsolidationSchedules(skills)
       } catch (e) {
         sessionLog.warn(`[Automations] Failed to load skill automations:`, e)
       }
@@ -4857,7 +4885,9 @@ export class SessionManager implements ISessionManager {
       }
 
       sendSpan.mark('chat.starting')
-      const chatIterator = agent.chat(effectiveMessage, attachments)
+      const chatIterator = agent.chat(effectiveMessage, attachments, {
+        ...(managed.maxTurns ? { maxTurns: managed.maxTurns } : {}),
+      })
       sessionLog.info('Got chat iterator, starting iteration...')
 
       for await (const event of chatIterator) {
@@ -5534,6 +5564,92 @@ ${conversationSnippet}`
         tokenUsage: managed.tokenUsage,
         hasUnread: managed.hasUnread,  // Propagate unread state to renderer
       }, managed.workspace.id)
+    }
+
+    // 5b. Knowledge observation lifecycle cleanup
+    if (managed.labels?.includes('__knowledge_observation__') && managed.skillSlug) {
+      const isSuccess = reason === 'complete'
+      const skillSlug = managed.skillSlug
+      const rootPath = managed.workspace.rootPath
+
+      // Resolve skill path for correct state file location
+      let skillPath: string | undefined
+      try {
+        const { loadSkillBySlug } = await import('@depot/shared/skills')
+        skillPath = loadSkillBySlug(rootPath, skillSlug)?.path
+      } catch { /* non-critical */ }
+
+      // Capture observation start time BEFORE clearing the flag (for duration tracking)
+      let observationStartedAt: number | undefined
+      try {
+        const { loadAgentState: loadState } = await import('@depot/shared/skills')
+        observationStartedAt = loadState(rootPath, skillSlug, skillPath)?.observationStartedAt
+      } catch { /* non-critical */ }
+
+      // Clear in-progress flag
+      setObservationFlag(rootPath, skillSlug, false, skillPath)
+
+      // Calculate total tokens used
+      const tokensUsed = managed.tokenUsage
+        ? (managed.tokenUsage.inputTokens ?? 0) + (managed.tokenUsage.outputTokens ?? 0)
+        : 0
+
+      if (isSuccess) {
+        // Track token usage
+        if (tokensUsed > 0) {
+          const { updateKnowledgeTokenUsage } = await import('@depot/shared/skills')
+          updateKnowledgeTokenUsage(rootPath, skillSlug, tokensUsed, skillPath)
+        }
+        // Reset failure counter
+        trackObservationFailure(rootPath, skillSlug, false, skillPath)
+
+        // Post-observation consolidation
+        try {
+          const { KnowledgeStoreManager, runConsolidation } = await import('@depot/shared/skills/knowledge')
+          const { loadSkillBySlug } = await import('@depot/shared/skills')
+          const skill = loadSkillBySlug(rootPath, skillSlug)
+          const store = await KnowledgeStoreManager.getInstance().open(rootPath, skillSlug, skill?.path)
+          await runConsolidation(store)
+          sessionLog.info(`[Knowledge] Post-observation consolidation complete for ${skillSlug}`)
+        } catch (e) {
+          sessionLog.warn(`[Knowledge] Post-observation consolidation failed for ${skillSlug}:`, e)
+        }
+      } else {
+        // Track failure
+        const { shouldNotify } = trackObservationFailure(rootPath, skillSlug, true, skillPath)
+        if (shouldNotify) {
+          this.sendEvent({
+            type: 'info',
+            sessionId,
+            message: `Agent "${skillSlug}" has failed 3 consecutive observations. Check source connectivity.`,
+            level: 'warning',
+          }, managed.workspace.id)
+        }
+      }
+
+      // Record observation in history (Expansion 4)
+      try {
+        const { loadAgentState, saveAgentState } = await import('@depot/shared/skills')
+        const state = loadAgentState(rootPath, skillSlug, skillPath)
+        if (state) {
+          const durationMs = observationStartedAt
+            ? Date.now() - observationStartedAt
+            : 0
+          const history = state.observationHistory ?? []
+          history.unshift({
+            timestamp: Date.now(),
+            durationMs,
+            entitiesAdded: 0, // TODO: track delta from knowledge store stats
+            tokensUsed,
+            outcome: isSuccess ? 'success' : 'failure',
+          })
+          // Cap at 20 entries
+          state.observationHistory = history.slice(0, 20)
+          saveAgentState(rootPath, skillSlug, state, skillPath)
+        }
+      } catch (e) {
+        sessionLog.warn(`[Knowledge] Failed to record observation history for ${skillSlug}:`, e)
+      }
     }
 
     // 6. Always persist
@@ -6693,6 +6809,18 @@ ${conversationSnippet}`
     automationName?: string,
     skillSlug?: string,
   ): Promise<{ sessionId: string }> {
+    // Knowledge observation guards (Part 2)
+    if (labels?.includes('__knowledge_observation__') && skillSlug) {
+      const { loadSkillBySlug } = await import('@depot/shared/skills')
+      const skill = loadSkillBySlug(workspaceRootPath, skillSlug)
+      const guardResult = await checkObservationGuards(workspaceRootPath, skillSlug, skill?.path, skill?.manifest?.knowledge?.tokenBudget?.perDay)
+      if (!guardResult.allowed) {
+        sessionLog.info(`[Knowledge] Observation skipped for ${skillSlug}: ${guardResult.reason}`)
+        return { sessionId: '' }
+      }
+      setObservationFlag(workspaceRootPath, skillSlug, true, skill?.path)
+    }
+
     // Warn if llmConnection was specified but doesn't resolve
     if (llmConnection) {
       const connection = resolveSessionConnection(llmConnection)
@@ -6729,6 +6857,14 @@ ${conversationSnippet}`
     const managed = this.sessions.get(session.id)
     if (managed) {
       managed.triggeredBy = { automationName, timestamp: Date.now() }
+
+      // Thread maxTurns for knowledge observation sessions
+      if (labels?.includes('__knowledge_observation__') && skillSlug) {
+        const { loadSkillBySlug: loadSkill } = await import('@depot/shared/skills')
+        const obsSkill = loadSkill(workspaceRootPath, skillSlug)
+        managed.maxTurns = obsSkill?.manifest?.knowledge?.maxObservationTurns ?? 20
+      }
+
       this.persistSession(managed)
     }
 
