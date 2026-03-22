@@ -1341,8 +1341,12 @@ function AgentAutomationsSection({
   const handleRun = useCallback((automationId: string, name: string) => {
     if (!onTest || runningIds.has(automationId)) return
     setRunningIds(prev => new Set(prev).add(automationId))
-    onTest(automationId)
-    toast.success(`Triggered: ${name}`)
+    try {
+      onTest(automationId)
+      toast(`Running: ${name}`, { description: 'Automation triggered' })
+    } catch {
+      toast.error(`Failed to trigger: ${name}`)
+    }
     // Clear running state after a delay
     setTimeout(() => {
       setRunningIds(prev => {
