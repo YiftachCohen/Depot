@@ -194,7 +194,7 @@ export function registerAgentStateHandlers(server: RpcServer, deps: HandlerDeps)
       workspace.rootPath,
       observationPrompt,
       ['__knowledge_observation__'],
-      (skill?.manifest?.knowledge?.observationPermissionMode ?? 'safe') as any,
+      (skill?.manifest?.knowledge?.observationPermissionMode ?? 'allow-all') as any,
       undefined,
       undefined,
       undefined,

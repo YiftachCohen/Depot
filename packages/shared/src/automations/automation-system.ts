@@ -298,7 +298,7 @@ export class AutomationSystem implements AutomationsConfigProvider {
         id: `__kobs_${skill.slug}`,
         name: `Knowledge observation: ${skill.slug}`,
         cron: knowledge.observationSchedule,
-        permissionMode: (knowledge.observationPermissionMode ?? 'safe') as AutomationMatcher['permissionMode'],
+        permissionMode: (knowledge.observationPermissionMode ?? 'allow-all') as AutomationMatcher['permissionMode'],
         labels: ['__knowledge_observation__'],
         actions: [{
           type: 'prompt',
