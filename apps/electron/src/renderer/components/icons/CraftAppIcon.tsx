@@ -1,17 +1,17 @@
-import craftLogo from "@/assets/craft_logo_c.svg"
+import depotLogo from "@/assets/craft_logo_c.svg"
 
-interface CraftAppIconProps {
+interface DepotAppIconProps {
   className?: string
   size?: number
 }
 
 /**
- * CraftAppIcon - Displays the Depot logo (segmented "D" icon)
+ * DepotAppIcon - Displays the Depot logo (segmented "D" icon)
  */
-export function CraftAppIcon({ className, size = 64 }: CraftAppIconProps) {
+export function DepotAppIcon({ className, size = 64 }: DepotAppIconProps) {
   return (
     <img
-      src={craftLogo}
+      src={depotLogo}
       alt="Depot"
       width={size}
       height={size}
@@ -19,3 +19,6 @@ export function CraftAppIcon({ className, size = 64 }: CraftAppIconProps) {
     />
   )
 }
+
+/** @deprecated Use DepotAppIcon instead */
+export const CraftAppIcon = DepotAppIcon

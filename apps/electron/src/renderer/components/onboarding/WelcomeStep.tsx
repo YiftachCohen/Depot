@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react"
-import { CraftAgentsSymbol } from "@/components/icons/CraftAgentsSymbol"
+import { DepotSymbol } from "@/components/icons/DepotSymbol"
 import { Input } from "@/components/ui/input"
 import { StepFormLayout, ContinueButton } from "./primitives"
 
@@ -56,7 +56,7 @@ export function WelcomeStep({
     <StepFormLayout
       iconElement={
         <div className="flex size-16 items-center justify-center">
-          <CraftAgentsSymbol className="size-10 text-accent" />
+          <DepotSymbol className="size-10 text-accent" />
         </div>
       }
       title={isExistingUser ? 'Update Settings' : 'Welcome to Depot'}

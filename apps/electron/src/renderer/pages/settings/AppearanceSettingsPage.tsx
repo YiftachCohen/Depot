@@ -32,7 +32,7 @@ import { Info_DataTable, SortableHeader } from '@/components/info/Info_DataTable
 import { Info_Badge } from '@/components/info/Info_Badge'
 import type { PresetTheme } from '@config/theme'
 import { DEPOT_ICONS } from '@/components/icons/depot-icon-registry'
-import { useDepotIconId, setDepotIcon } from '@/components/icons/CraftAgentsSymbol'
+import { useDepotIconId, setDepotIcon } from '@/components/icons/DepotSymbol'
 
 export const meta: DetailsPageMeta = {
   navigator: 'settings',

@@ -105,7 +105,7 @@ Choose an appropriate icon, write a clear description, and create 2-4 useful qui
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-const ACCENT_PALETTE = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#06b6d4','#ef4444','#6366f1']
+const ACCENT_PALETTE = ['#D97706','#16A34A','#2563EB','#DC2626','#0D9488','#CA8A04','#7C3AED','#BE185D']
 
 export function getAccentColor(slug: string): string {
   let hash = 0

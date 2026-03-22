@@ -59,7 +59,7 @@ import { TransportConnectionBanner, shouldShowTransportConnectionBanner } from '
 import { getFileManagerName } from '@/lib/platform'
 import { ActionRegistryProvider } from '@/actions'
 import { toast } from 'sonner'
-import { useSyncDepotAppIcon } from '@/components/icons/CraftAgentsSymbol'
+import { useSyncDepotAppIcon } from '@/components/icons/DepotSymbol'
 
 type AppState = 'loading' | 'onboarding' | 'reauth' | 'ready'
 

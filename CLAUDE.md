@@ -100,6 +100,12 @@ Jotai atoms in `apps/electron/src/renderer/atoms/` for sessions, skills, sources
 - Path alias `@/*` maps to `src/*` in tsconfig
 - ESM throughout (`"type": "module"` in all packages), except Electron main process outputs CJS (`dist/main.cjs`)
 
+## Design System
+Always read DESIGN.md before making any visual or UI decisions.
+All font choices, colors, spacing, and aesthetic direction are defined there.
+Do not deviate without explicit user approval.
+In QA mode, flag any code that doesn't match DESIGN.md.
+
 ## Deploy Configuration (configured by /setup-deploy)
 - Platform: GitHub Releases (Electron desktop app)
 - Production URL: none (desktop app, not a hosted service)
