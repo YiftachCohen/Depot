@@ -30,7 +30,7 @@ function resolveScriptsDir(): string {
   const envScripts = process.env.DEPOT_SCRIPTS || process.env.CRAFT_SCRIPTS
   if (envScripts) return envScripts
   // Dev fallback: resolve from repo root
-  return join(__dirname, '../../../../../../apps/electron/resources/scripts')
+  return join(__dirname, '../../../../../apps/electron/resources/scripts')
 }
 
 /**

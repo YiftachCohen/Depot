@@ -74,8 +74,8 @@ describe('convertOfficeToMarkdown', () => {
 
       const result = await convertOfficeToMarkdown(docxPath)
 
-      // Heading1 style should produce a markdown heading
-      expect(result).toContain('Test Heading')
+      // Heading1 style should produce a markdown heading with ATX '#' prefix
+      expect(result).toMatch(/^#\s+Test Heading/m)
     } finally {
       await rm(tmpDir, { recursive: true, force: true })
     }
@@ -87,18 +87,22 @@ describe('convertOfficeToMarkdown', () => {
     ).rejects.toThrow()
   })
 
-  it('throws on unsupported extension via Python CLI failure', async () => {
+  it('routes .xlsx through Python CLI path (succeeds or throws clear error)', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'depot-test-'))
     const fakePath = join(tmpDir, 'test.xlsx')
 
     try {
       await writeFile(fakePath, 'not a real xlsx')
-      // This will go through the Python CLI path — may fail if uv/markitdown not available
+      // The Python CLI path either succeeds (uv + markitdown installed) or
+      // throws with a clear error message — both are acceptable
       try {
-        await convertOfficeToMarkdown(fakePath)
+        const result = await convertOfficeToMarkdown(fakePath)
+        // If it succeeded, verify we got a string back
+        expect(typeof result).toBe('string')
       } catch (err) {
-        // Either "uv not found" or "conversion failed" — both are acceptable error states
+        // If it failed, verify the error is meaningful
         expect(err).toBeInstanceOf(Error)
+        expect((err as Error).message).toMatch(/conversion failed|uv/i)
       }
     } finally {
       await rm(tmpDir, { recursive: true, force: true })
