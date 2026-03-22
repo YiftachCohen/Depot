@@ -1,6 +1,9 @@
 # dependencies (bun install)
 node_modules
 
+# Python bytecode
+__pycache__/
+
 # output
 out
 dist
