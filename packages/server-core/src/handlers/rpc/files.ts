@@ -8,13 +8,75 @@ import { getSessionAttachmentsPath, validateSessionId } from '@depot/shared/sess
 import { getWorkspaceByNameOrId } from '@depot/shared/config'
 import { resizeImageForAPI, getImageSize } from '@depot/server-core/services'
 import { sanitizeFilename, validateFilePath } from '@depot/server-core/handlers'
-import { MarkItDown } from 'markitdown-js'
+import mammoth from 'mammoth'
+import TurndownService from 'turndown'
+// @ts-expect-error — turndown-plugin-gfm has no type declarations
+import { gfm } from 'turndown-plugin-gfm'
+import { spawn } from 'child_process'
+import { extname } from 'path'
 import type { RpcServer } from '@depot/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
 import { requestClientOpenFileDialog } from '@depot/server-core/transport'
 
 // Re-export from server-core for backward compatibility
 export { sanitizeFilename, validateFilePath } from '@depot/server-core/handlers'
+
+/**
+ * Resolve the path to the bundled Python scripts directory.
+ * Works in both dev (source tree) and packaged Electron (DEPOT_SCRIPTS / CRAFT_SCRIPTS env).
+ */
+function resolveScriptsDir(): string {
+  // Electron main sets DEPOT_SCRIPTS; standalone server sets CRAFT_SCRIPTS
+  const envScripts = process.env.DEPOT_SCRIPTS || process.env.CRAFT_SCRIPTS
+  if (envScripts) return envScripts
+  // Dev fallback: resolve from repo root
+  return join(__dirname, '../../../../../../apps/electron/resources/scripts')
+}
+
+/**
+ * Convert an office file to markdown text.
+ * - .docx: Uses mammoth (docx→HTML) + turndown (HTML→Markdown) — pure JS, no vulnerable deps.
+ * - .doc/.xlsx/.pptx: Shells out to the Python markitdown_cli.py (bundled in Electron resources).
+ */
+export async function convertOfficeToMarkdown(filePath: string): Promise<string> {
+  const ext = extname(filePath).toLowerCase()
+
+  if (ext === '.docx') {
+    const buffer = await readFile(filePath)
+    const { value: html } = await mammoth.convertToHtml({ buffer })
+    const turndown = new TurndownService({ headingStyle: 'atx' })
+    turndown.use(gfm)
+    return turndown.turndown(html)
+  }
+
+  // For .doc (binary Word), .xlsx, .pptx — use the Python markitdown CLI
+  return new Promise<string>((resolve, reject) => {
+    const scriptsDir = resolveScriptsDir()
+    const proc = spawn('uv', ['run', 'markitdown_cli.py', filePath], {
+      cwd: scriptsDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 30_000,
+    })
+
+    let stdout = ''
+    let stderr = ''
+    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+    proc.on('error', (err) => {
+      reject(new Error(
+        `Office conversion failed: ${err.message}. ` +
+        `For .doc/.xlsx/.pptx support, ensure Python 3.12+ and uv are installed.`
+      ))
+    })
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Office conversion failed (exit ${code}): ${stderr.trim()}`))
+      } else {
+        resolve(stdout)
+      }
+    })
+  })
+}
 
 export const HANDLED_CHANNELS = [
   RPC_CHANNELS.file.READ,
@@ -321,12 +383,11 @@ export function registerFilesHandlers(server: RpcServer, deps: HandlerDeps): voi
         const mdFileName = `${id}_${safeName}.md`
         const mdPath = join(attachmentsDir, mdFileName)
         try {
-          const markitdown = new MarkItDown()
-          const result = await markitdown.convert(storedPath)
-          if (!result || !result.textContent) {
+          const markdown = await convertOfficeToMarkdown(storedPath)
+          if (!markdown) {
             throw new Error('Conversion returned empty result')
           }
-          await writeFile(mdPath, result.textContent, 'utf-8')
+          await writeFile(mdPath, markdown, 'utf-8')
           markdownPath = mdPath
           filesToCleanup.push(mdPath)
           deps.platform.logger.info(`Converted Office file to markdown: ${mdPath}`)
