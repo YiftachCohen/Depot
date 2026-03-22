@@ -1939,7 +1939,7 @@ This is a branched conversation. All prior messages in this conversation are par
     )
     const contextParts = this.promptBuilder.buildContextParts(
       { plansFolderPath: getSessionPlansPath(this.workspaceRootPath, this.modeSessionId) },
-      this.sourceManager.formatSourceState()
+      this.sourceManager.formatSourceState(getPermissionMode(this.modeSessionId))
     );
 
     parts.push(...contextParts);
@@ -1985,7 +1985,7 @@ This is a branched conversation. All prior messages in this conversation are par
     )
     const contextParts = this.promptBuilder.buildContextParts(
       { plansFolderPath: getSessionPlansPath(this.workspaceRootPath, this.modeSessionId) },
-      this.sourceManager.formatSourceState()
+      this.sourceManager.formatSourceState(getPermissionMode(this.modeSessionId))
     );
 
     for (const part of contextParts) {
