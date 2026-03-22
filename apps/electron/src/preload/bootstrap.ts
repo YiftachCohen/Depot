@@ -12,7 +12,6 @@
  * connection is established.
  */
 
-import '@sentry/electron/preload'
 import { contextBridge, ipcRenderer, shell } from 'electron'
 import { WsRpcClient, type TransportConnectionState } from '../transport/client'
 import { buildClientApi } from '../transport/build-api'
