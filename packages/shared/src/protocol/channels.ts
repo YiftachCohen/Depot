@@ -249,6 +249,7 @@ export const RPC_CHANNELS = {
     ADD_MEMORY: 'agentState:addMemory',
     DELETE_FACT: 'agentState:deleteFact',
     CLEAR_MEMORY: 'agentState:clearMemory',
+    GET_KNOWLEDGE_STATS: 'agentState:getKnowledgeStats',
     CHANGED: 'agentState:changed',
   },
   statuses: {

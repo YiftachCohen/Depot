@@ -35,6 +35,9 @@ import { handleScriptSandbox } from './handlers/script-sandbox.ts';
 import { handleRenderTemplate } from './handlers/render-template.ts';
 import { handleSendDeveloperFeedback } from './handlers/send-developer-feedback.ts';
 import { handleSaveAgentMemory } from './handlers/save-agent-memory.ts';
+import { handleSaveKnowledge } from './handlers/save-knowledge.ts';
+import { handleQueryKnowledge } from './handlers/query-knowledge.ts';
+import { handleResetKnowledge } from './handlers/reset-knowledge.ts';
 
 // ============================================================
 // Canonical Zod Schemas
@@ -143,6 +146,44 @@ export const SendDeveloperFeedbackSchema = z.object({
 
 export const SaveAgentMemorySchema = z.object({
   facts: z.array(z.string()).describe('Facts learned during this conversation worth remembering across sessions. Each fact should be a concise, self-contained statement.'),
+});
+
+export const SaveKnowledgeSchema = z.object({
+  entities: z.array(z.object({
+    type: z.string().describe('Entity type (e.g., "log_group", "alarm", "sprint", "team_member")'),
+    name: z.string().describe('Entity name'),
+    domain: z.string().describe('Domain this entity belongs to (e.g., "cloudwatch", "jira", "todoist")'),
+    properties: z.record(z.unknown()).optional().describe('Type-specific properties as key-value pairs'),
+    tags: z.array(z.string()).optional().describe('Tags for retrieval — include synonyms (e.g., ["latency", "performance", "slow", "p99"])'),
+  })).optional().describe('Structured entities to save'),
+  relationships: z.array(z.object({
+    source: z.string().describe('Source entity name'),
+    target: z.string().describe('Target entity name'),
+    source_domain: z.string().optional().describe('Source entity domain (for disambiguation)'),
+    target_domain: z.string().optional().describe('Target entity domain (for disambiguation)'),
+    relation: z.string().describe('Relationship type (e.g., "triggers", "belongs_to", "assigned_to")'),
+    properties: z.record(z.unknown()).optional().describe('Relationship metadata'),
+  })).optional().describe('Relationships between entities'),
+  patterns: z.array(z.object({
+    description: z.string().describe('Pattern description (e.g., "PaymentLatencyHigh alarms correlate with deployments")'),
+    related_entities: z.array(z.string()).optional().describe('Names of related entities'),
+    pattern_type: z.enum(['recurring', 'correlation', 'trend', 'anomaly']).optional().describe('Type of pattern'),
+  })).optional().describe('Patterns observed across entities'),
+  observations: z.array(z.string()).optional().describe('Free-form observations to record'),
+});
+
+export const QueryKnowledgeSchema = z.object({
+  domain: z.string().optional().describe('Filter by domain (e.g., "cloudwatch")'),
+  entity_type: z.string().optional().describe('Filter by entity type (e.g., "alarm")'),
+  tags: z.array(z.string()).optional().describe('Filter by tags'),
+  query: z.string().optional().describe('Substring search in entity names and types'),
+  include_relationships: z.boolean().optional().describe('Include relationships for matched entities'),
+  limit: z.number().optional().describe('Maximum number of results (default: 100)'),
+});
+
+export const ResetKnowledgeSchema = z.object({
+  confirm: z.literal(true).describe('Must be true to confirm the reset'),
+  domain: z.string().optional().describe('Only reset a specific domain (omit to reset all)'),
 });
 
 // Browser tool schema (single CLI-like tool for all browser actions)
@@ -400,6 +441,24 @@ Examples of good facts to remember:
 - "Production deploys happen on Tuesdays and Thursdays"
 
 Only call this tool when you learn genuinely useful information — not for every conversation detail.`,
+
+  save_knowledge: `Save structured knowledge to this agent's knowledge store. Use this to persist entities, relationships, patterns, and observations about the domain you're learning.
+
+Entities are the core building blocks — things like services, alarms, team members, sprints, log groups. Include multiple synonym tags for each entity to aid future retrieval (e.g., an alarm about latency should have tags like "latency", "performance", "slow", "p99").
+
+Relationships connect entities — "triggers", "belongs_to", "assigned_to", "depends_on". Reference entities by name (they'll be auto-resolved or auto-created).
+
+Patterns are higher-level insights — "PaymentLatencyHigh alarms correlate with deployments".
+
+Only available for knowledge-enabled agents.`,
+
+  query_knowledge: `Query this agent's knowledge store. Search for entities by domain, type, tags, or substring. Optionally include relationships for matched entities.
+
+Use this to recall what you've learned about the domain — entities, their relationships, and patterns you've observed.`,
+
+  reset_knowledge: `Reset this agent's knowledge store. Requires confirm: true as a safety gate. Optionally scope to a specific domain to only clear knowledge about that domain.
+
+WARNING: This permanently deletes knowledge. The agent will need to re-learn everything through observation loops and conversations.`,
 } as const;
 
 // ============================================================
@@ -459,6 +518,9 @@ export const SESSION_TOOL_DEFS: SessionToolDef[] = [
   { name: 'render_template', description: TOOL_DESCRIPTIONS.render_template, inputSchema: RenderTemplateSchema, executionMode: 'registry', safeMode: 'allow', handler: handleRenderTemplate },
   { name: 'send_developer_feedback', description: TOOL_DESCRIPTIONS.send_developer_feedback, inputSchema: SendDeveloperFeedbackSchema, executionMode: 'registry', safeMode: 'allow', handler: handleSendDeveloperFeedback },
   { name: 'save_agent_memory', description: TOOL_DESCRIPTIONS.save_agent_memory, inputSchema: SaveAgentMemorySchema, executionMode: 'registry', safeMode: 'block', handler: handleSaveAgentMemory },
+  { name: 'save_knowledge', description: TOOL_DESCRIPTIONS.save_knowledge, inputSchema: SaveKnowledgeSchema, executionMode: 'registry', safeMode: 'block', handler: handleSaveKnowledge },
+  { name: 'query_knowledge', description: TOOL_DESCRIPTIONS.query_knowledge, inputSchema: QueryKnowledgeSchema, executionMode: 'registry', safeMode: 'allow', handler: handleQueryKnowledge },
+  { name: 'reset_knowledge', description: TOOL_DESCRIPTIONS.reset_knowledge, inputSchema: ResetKnowledgeSchema, executionMode: 'registry', safeMode: 'block', handler: handleResetKnowledge },
   { name: 'call_llm', description: TOOL_DESCRIPTIONS.call_llm, inputSchema: CallLlmSchema, executionMode: 'backend', safeMode: 'allow', handler: null },
   { name: 'spawn_session', description: TOOL_DESCRIPTIONS.spawn_session, inputSchema: SpawnSessionSchema, executionMode: 'backend', safeMode: 'block', handler: null },
   // Browser tool (backend-specific — requires BrowserPaneManager in Electron)
@@ -469,6 +531,8 @@ export const SESSION_TOOL_DEFS: SessionToolDef[] = [
 export interface SessionToolFilterOptions {
   /** Include the experimental send_developer_feedback tool. */
   includeDeveloperFeedback?: boolean;
+  /** Include knowledge tools (save_knowledge, query_knowledge, reset_knowledge). Only for knowledge-enabled agents. */
+  includeKnowledgeTools?: boolean;
 }
 
 /**
@@ -480,8 +544,14 @@ export interface SessionToolFilterOptions {
 export function getSessionToolDefs(options?: SessionToolFilterOptions): SessionToolDef[] {
   const includeDeveloperFeedback = options?.includeDeveloperFeedback ?? true;
 
+  const includeKnowledgeTools = options?.includeKnowledgeTools ?? false;
+  const KNOWLEDGE_TOOL_NAMES = new Set(['save_knowledge', 'query_knowledge', 'reset_knowledge']);
+
   return SESSION_TOOL_DEFS.filter(def => {
     if (!includeDeveloperFeedback && def.name === 'send_developer_feedback') {
+      return false;
+    }
+    if (!includeKnowledgeTools && KNOWLEDGE_TOOL_NAMES.has(def.name)) {
       return false;
     }
     return true;

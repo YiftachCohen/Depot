@@ -276,6 +276,12 @@ export abstract class BaseAgent implements AgentBackend {
   private createPromptBuilder(): PromptBuilder {
     let agentPersonality: string | undefined;
     let agentMemoryContext: string | undefined;
+    // TODO: Pre-load knowledge store during session creation (async), then pass
+    // agentKnowledgeContext and agentBriefingContext to PromptBuilder.
+    // Requires making session init await KnowledgeStoreManager.open() before
+    // the first turn, so the context is available synchronously here.
+    let agentKnowledgeContext: string | undefined;
+    let agentBriefingContext: string | undefined;
     if (this.config.session?.skillSlug) {
       const slug = this.config.session.skillSlug;
       const skill = loadSkillBySlug(this.config.workspace.rootPath, slug);
@@ -291,6 +297,8 @@ export abstract class BaseAgent implements AgentBackend {
       isHeadless: this.config.isHeadless,
       agentPersonality,
       agentMemoryContext,
+      agentKnowledgeContext,
+      agentBriefingContext,
     });
   }
 

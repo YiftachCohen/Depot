@@ -59,3 +59,4 @@ export {
   getTemplatesByCategory,
   createAgentFromTemplate,
 } from './templates.ts';
+// Knowledge Fabric is re-exported from its own subpath: @depot/shared/skills/knowledge

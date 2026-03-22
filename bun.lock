@@ -104,7 +104,7 @@
     },
     "apps/cli": {
       "name": "@depot/cli",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "bin": {
         "craft-cli": "src/index.ts",
       },
@@ -120,7 +120,7 @@
     },
     "apps/electron": {
       "name": "@depot/electron",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "dependencies": {
         "@depot/core": "workspace:*",
         "@depot/server-core": "workspace:*",
@@ -164,7 +164,7 @@
     },
     "apps/viewer": {
       "name": "@depot/viewer",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "dependencies": {
         "@depot/core": "workspace:*",
         "@depot/ui": "workspace:*",
@@ -191,7 +191,7 @@
     },
     "packages/core": {
       "name": "@depot/core",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "devDependencies": {
         "@types/uuid": "^11.0.0",
       },
@@ -202,7 +202,7 @@
     },
     "packages/pi-agent-server": {
       "name": "@depot/pi-agent-server",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "bin": {
         "pi-agent-server": "./dist/index.js",
       },
@@ -222,7 +222,7 @@
     },
     "packages/server": {
       "name": "@depot/server",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "bin": {
         "craft-server": "src/index.ts",
       },
@@ -238,7 +238,7 @@
     },
     "packages/server-core": {
       "name": "@depot/server-core",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "dependencies": {
         "@depot/core": "workspace:*",
         "@depot/shared": "workspace:*",
@@ -253,7 +253,7 @@
     },
     "packages/session-mcp-server": {
       "name": "@depot/session-mcp-server",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "bin": {
         "session-mcp-server": "./dist/index.js",
       },
@@ -269,7 +269,7 @@
     },
     "packages/session-tools-core": {
       "name": "@depot/session-tools-core",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "dependencies": {
         "beautiful-mermaid": "*",
         "gray-matter": "^4.0.3",
@@ -282,7 +282,7 @@
     },
     "packages/shared": {
       "name": "@depot/shared",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "dependencies": {
         "@depot/core": "workspace:*",
         "@depot/session-tools-core": "workspace:*",
@@ -295,6 +295,7 @@
         "glob": "^13.0.0",
         "incr-regex-package": "^1.0.4",
         "shell-quote": "^1.8.3",
+        "sql.js": "^1.14.1",
       },
       "devDependencies": {
         "@types/shell-quote": "^1.7.5",
@@ -308,7 +309,7 @@
     },
     "packages/ui": {
       "name": "@depot/ui",
-      "version": "0.7.5",
+      "version": "1.1.1",
       "dependencies": {
         "@depot/core": "workspace:*",
         "@paper-design/shaders-react": "^0.0.69",
@@ -3076,6 +3077,8 @@
     "spdx-license-ids": ["spdx-license-ids@3.0.22", "", {}, "sha512-4PRT4nh1EImPbt2jASOKHX7PB7I+e4IWNLvkKFDxNhJlfjbYlleYQh285Z/3mPTHSAK/AvdMmw5BNNuYH8ShgQ=="],
 
     "sprintf-js": ["sprintf-js@1.0.3", "", {}, "sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g=="],
+
+    "sql.js": ["sql.js@1.14.1", "", {}, "sha512-gcj8zBWU5cFsi9WUP+4bFNXAyF1iRpA3LLyS/DP5xlrNzGmPIizUeBggKa8DbDwdqaKwUcTEnChtd2grWo/x/A=="],
 
     "ssf": ["ssf@0.11.2", "", { "dependencies": { "frac": "~1.1.2" } }, "sha512-+idbmIXoYET47hH+d7dfm2epdOMUDjqcB4648sTZ+t2JwoyBFL/insLfB/racrDmsKB3diwsDA696pZMieAC5g=="],
 

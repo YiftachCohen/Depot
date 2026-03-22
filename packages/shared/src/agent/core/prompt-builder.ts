@@ -102,6 +102,16 @@ export class PromptBuilder {
       parts.push(this.config.agentMemoryContext);
     }
 
+    // Add agent knowledge context if provided (from knowledge store)
+    if (this.config.agentKnowledgeContext) {
+      parts.push(this.config.agentKnowledgeContext);
+    }
+
+    // Add agent briefing context if provided (morning briefing)
+    if (this.config.agentBriefingContext) {
+      parts.push(this.config.agentBriefingContext);
+    }
+
     // Add working directory context
     const workingDirContext = this.getWorkingDirectoryContext();
     if (workingDirContext) {

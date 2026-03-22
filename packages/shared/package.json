@@ -31,6 +31,7 @@
     "./sources": "./src/sources/index.ts",
     "./sources/types": "./src/sources/types.ts",
     "./skills": "./src/skills/index.ts",
+    "./skills/knowledge": "./src/skills/knowledge/index.ts",
     "./workspaces": "./src/workspaces/index.ts",
     "./utils": "./src/utils/index.ts",
     "./utils/toolNames": "./src/utils/toolNames.ts",
@@ -66,13 +67,14 @@
     "@depot/session-tools-core": "workspace:*",
     "@isaacs/ttlcache": "^2.1.4",
     "@leeoniya/ufuzzy": "^1.0.19",
+    "@mariozechner/pi-ai": "0.56.2",
     "bash-parser": "^0.5.0",
     "croner": "^10.0.1",
     "filtrex": "^3.1.0",
+    "glob": "^13.0.0",
     "incr-regex-package": "^1.0.4",
     "shell-quote": "^1.8.3",
-    "@mariozechner/pi-ai": "0.56.2",
-    "glob": "^13.0.0"
+    "sql.js": "^1.14.1"
   },
   "peerDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.19",
