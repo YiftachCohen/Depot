@@ -29,7 +29,7 @@ export const iconComponents: ComponentEntry[] = [
     id: 'depot-symbol',
     name: 'DepotSymbol',
     category: 'Icons',
-    description: 'Depot Agents "E" pixel art symbol icon (brand color: #9570BE)',
+    description: 'Depot "D" pixel art symbol icon (brand color: #D97706)',
     component: DepotSymbol,
     props: [
       {
