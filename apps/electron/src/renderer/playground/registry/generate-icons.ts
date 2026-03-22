@@ -137,7 +137,7 @@ export function createCircleIcon(color: string): string {
 export const internalIcons = {
   session: createCircleIcon('#10B981'), // Emerald green
   docs: createCircleIcon('#3B82F6'), // Blue
-  preferences: createCircleIcon('#8B5CF6'), // Purple
+  preferences: createCircleIcon('#D97706'), // Amber
 } as const
 `
 
