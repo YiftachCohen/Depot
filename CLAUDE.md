@@ -100,5 +100,28 @@ Jotai atoms in `apps/electron/src/renderer/atoms/` for sessions, skills, sources
 - Path alias `@/*` maps to `src/*` in tsconfig
 - ESM throughout (`"type": "module"` in all packages), except Electron main process outputs CJS (`dist/main.cjs`)
 
+## Deploy Configuration (configured by /setup-deploy)
+- Platform: GitHub Releases (Electron desktop app)
+- Production URL: none (desktop app, not a hosted service)
+- Deploy workflow: `.github/workflows/release.yml` (triggered by `v*` tags or manual dispatch)
+- Deploy status command: `gh run list --workflow=release.yml --limit 1`
+- Merge method: squash
+- Project type: desktop app (Electron)
+- Post-deploy health check: `gh release view --json tagName,isDraft,assets`
+
+### Custom deploy hooks
+- Pre-merge: `bun run validate:dev` (typecheck + shared tests + doc tools)
+- Deploy trigger: push a `v*` git tag (e.g., `git tag v1.2.0 && git push origin v1.2.0`)
+- Deploy status: `gh run list --workflow=release.yml --limit 1`
+- Health check: `gh release view --json tagName,isDraft,assets` (verify release exists with all platform artifacts)
+
+### Release checklist
+1. Bump VERSION in `package.json` (currently `1.1.1`)
+2. Update CHANGELOG if needed
+3. Merge PR to main
+4. Tag: `git tag v{version} && git push origin v{version}`
+5. `release.yml` builds macOS (arm64 + x64), Linux, Windows and creates a GitHub Release
+6. Electron auto-update picks up the new release
+
 ## gstack
 Use the /browse skill from gstack for all web browsing, never use mcp__claude-in-chrome__* tools. Use available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /retro, /investigate, /document-release, /codex, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade. If gstack skills aren't working, run cd .claude/skills/gstack && ./setup to build the binary and register skills.
