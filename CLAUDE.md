@@ -82,6 +82,8 @@ Skills use a `depot.yaml` manifest with metadata, sources, and quick commands wi
 
 **v2 manifest fields** (all optional, backward-compatible): `personality` (injected into system prompt as `<agent_personality>`), `permission_mode` (`safe`/`ask`/`allow-all`), `memory: { enabled: true }` (cross-session fact persistence), `source_configs` (inline source definitions for auto-creation). Source auto-resolution in `packages/shared/src/skills/source-resolution.ts`. Agent state (memory, timestamps) stored as `agent-state.json` sidecar per skill, managed by `packages/shared/src/skills/agent-state.ts`. The `save_agent_memory` session tool lets agents persist facts; session end triggers LLM-based auto-summarization into memory.
 
+**v3 manifest fields** (Knowledge Fabric, all optional): `knowledge: { enabled, observation_schedule, consolidation_schedule, observation_prompt, observation_permission_mode, token_budget: { per_day }, max_observation_turns, domains }`. When enabled, agents get 3 additional tools: `save_knowledge` (entities/relationships/patterns/observations), `query_knowledge` (tag/domain/type search), `reset_knowledge` (full or domain-scoped). Knowledge stored in SQLite via sql.js (WASM) at `{skill-dir}/agent-knowledge.db`, managed by `KnowledgeStoreManager` singleton. Smart context loading injects `<agent_knowledge>` XML into system prompts. Knowledge modules in `packages/shared/src/skills/knowledge/`.
+
 ### State Management (Renderer)
 Jotai atoms in `apps/electron/src/renderer/atoms/` for sessions, skills, sources, browser pane, panel stack, overlays, and automations.
 
