@@ -264,7 +264,8 @@ export class PrerequisiteManager {
   }
 
   /**
-   * Check if a specific file has been read (for testing).
+   * Check if a specific file has been read.
+   * Used by BaseAgent.chat() to skip redundant skill re-reads on follow-up turns.
    */
   hasRead(filePath: string): boolean {
     return this.readFiles.has(expandPath(filePath));

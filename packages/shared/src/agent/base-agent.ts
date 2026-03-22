@@ -1136,9 +1136,15 @@ ${formattedMessages}
       return;
     }
 
+    // Filter to only skill paths not yet read (skip redundant re-reads on follow-up turns).
+    // After context compaction, resetReadState() clears the read set so re-reads fire again.
+    const unreadSkillPaths = new Map(
+      [...skillPaths].filter(([_, path]) => !this.prerequisiteManager.hasRead(path))
+    );
+
     // Register skill prerequisites — blocks all tools until SKILL.md files are read.
-    if (skillPaths.size > 0) {
-      this.prerequisiteManager.registerSkillPrerequisites([...skillPaths.values()]);
+    if (unreadSkillPaths.size > 0) {
+      this.prerequisiteManager.registerSkillPrerequisites([...unreadSkillPaths.values()]);
     }
 
     // Set working directory from the first matched skill's project_paths (if any).
@@ -1167,8 +1173,17 @@ ${formattedMessages}
     }
 
     // Prepend read directive to the message so the model reads SKILL.md first.
-    const directive = this.formatSkillDirective(skillPaths);
-    const messageParts = [branchSeedContext, projectContext, directive, cleanMessage].filter(Boolean);
+    const directive = this.formatSkillDirective(unreadSkillPaths);
+
+    // When the user typed only skill mentions (no other text) and all skills are already
+    // read, the 'files listed above' fallback is stale — no directive will be prepended.
+    const effectiveCleanMessage =
+      cleanMessage === 'Follow the skill instructions from the files listed above.' &&
+      unreadSkillPaths.size === 0
+        ? 'Continue following the skill instructions you have already read.'
+        : cleanMessage;
+
+    const messageParts = [branchSeedContext, projectContext, directive, effectiveCleanMessage].filter(Boolean);
     const effectiveMessage = messageParts.join('\n\n');
 
     yield* this.chatImpl(effectiveMessage, attachments, options);
