@@ -120,7 +120,7 @@ When `/land-and-deploy` or `/ship` runs, the deploy flow **automatically handles
 
 1. **Ask bump type**: Prompt the user to choose `patch` / `minor` / `major` (default: `patch`)
 2. **After merge to main**: Switch to main, pull latest
-3. **Bump version**: Update `version` in root `package.json` using the chosen bump type
+3. **Bump version**: Update `version` in root `package.json` **and all workspace `package.json` files** using the chosen bump type
 4. **Commit**: `git commit -am "chore: bump version to v{new_version}"`
 5. **Tag**: `git tag v{new_version}`
 6. **Push**: `git push origin main && git push origin v{new_version}`
@@ -128,13 +128,17 @@ When `/land-and-deploy` or `/ship` runs, the deploy flow **automatically handles
 
 Version bump command (run from repo root after merge):
 ```bash
-# Read current version, compute new version, update package.json, commit, tag, push
+# Read current version, compute new version, update ALL package.json files, commit, tag, push
 CURRENT=$(node -p "require('./package.json').version")
 # For patch: NEW=$(node -p "const [a,b,c]=('$CURRENT').split('.').map(Number); a+'.'+b+'.'+(c+1)")
 # For minor: NEW=$(node -p "const [a,b,c]=('$CURRENT').split('.').map(Number); a+'.'+(b+1)+'.0'")
 # For major: NEW=$(node -p "const [a,b,c]=('$CURRENT').split('.').map(Number); (a+1)+'.0.0'")
-node -e "const p=require('./package.json'); p.version='$NEW'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n')"
-git add package.json && git commit -m "chore: bump version to v$NEW"
+# IMPORTANT: Update root + all workspace package.json files (electron-builder reads apps/electron/package.json for update manifests)
+for f in package.json apps/*/package.json packages/*/package.json; do
+  [ -f "$f" ] && node -e "const p=JSON.parse(require('fs').readFileSync('$f','utf8')); p.version='$NEW'; require('fs').writeFileSync('$f', JSON.stringify(p, null, 2)+'\n')"
+done
+git add package.json apps/*/package.json packages/*/package.json
+git commit -m "chore: bump version to v$NEW"
 git tag "v$NEW" && git push origin main && git push origin "v$NEW"
 ```
 
@@ -149,7 +153,7 @@ git tag "v$NEW" && git push origin main && git push origin "v$NEW"
 1. Pre-merge validation: `bun run validate:dev`
 2. Squash-merge PR to main
 3. Ask user for bump type (patch/minor/major, default: patch)
-4. Bump `version` in `package.json`, commit, tag `v{version}`, push
+4. Bump `version` in all `package.json` files (root + apps/* + packages/*), commit, tag `v{version}`, push
 5. `release.yml` builds macOS (arm64 + x64), Linux, Windows and creates a GitHub Release
 6. Electron auto-update picks up the new release
 
