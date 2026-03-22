@@ -1290,8 +1290,11 @@ function AgentAutomationsSection({
       if (a.source !== 'skill' && !a.skillSlug) {
         return a.actions.some(action => {
           if (action.type !== 'prompt') return false
-          const mentionPattern = new RegExp(`@${skillSlug}\\b`)
-          return mentionPattern.test((action as PromptAction).prompt)
+          const prompt = (action as PromptAction).prompt
+          const idx = prompt.indexOf(`@${skillSlug}`)
+          if (idx === -1) return false
+          const after = prompt[idx + skillSlug.length + 1]
+          return after === undefined || /\W/.test(after)
         })
       }
       return false
@@ -1299,27 +1302,31 @@ function AgentAutomationsSection({
   }, [automations, skillSlug])
 
   // Fetch execution history for each automation
+  // Uses a stable key to avoid double-fetching when atom identity changes
+  const autoIds = agentAutomations.map(a => a.id).join(',')
   useEffect(() => {
     if (!getHistory || agentAutomations.length === 0) return
     let stale = false
 
     const fetchAll = async () => {
-      const entries: Record<string, ExecutionEntry[]> = {}
-      for (const auto of agentAutomations) {
-        try {
+      const results = await Promise.allSettled(
+        agentAutomations.map(async (auto) => {
           const history = await getHistory(auto.id)
-          if (stale) return
-          entries[auto.id] = history.slice(0, 2)
-        } catch {
-          entries[auto.id] = []
-        }
+          return { id: auto.id, entries: history.slice(0, 2) }
+        }),
+      )
+      if (stale) return
+      const entries: Record<string, ExecutionEntry[]> = {}
+      for (const r of results) {
+        if (r.status === 'fulfilled') entries[r.value.id] = r.value.entries
+        else if (r.status === 'rejected') { /* graceful degradation — card renders without history */ }
       }
-      if (!stale) setHistoryMap(entries)
+      setHistoryMap(entries)
     }
 
     fetchAll()
 
-    // Re-fetch when automations change
+    // Re-fetch when automations execute (event fires on toggle/test/execution)
     const cleanup = window.electronAPI.onAutomationsChanged?.(() => {
       if (!stale) fetchAll()
     })
@@ -1328,7 +1335,8 @@ function AgentAutomationsSection({
       stale = true
       cleanup?.()
     }
-  }, [agentAutomations, getHistory])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoIds, getHistory])
 
   const handleRun = useCallback((automationId: string, name: string) => {
     if (!onTest || runningIds.has(automationId)) return
@@ -1377,10 +1385,12 @@ function AgentAutomationsSection({
 
             return (
               <div key={auto.id} className="group">
-                {/* Main automation row */}
-                <button
-                  type="button"
+                {/* Main automation row — div+role to avoid nested <button> */}
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => navigate(routes.view.automations({ automationId: auto.id }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(routes.view.automations({ automationId: auto.id })) } }}
                   aria-label={`View ${auto.name} automation`}
                   className="w-full flex items-center gap-2 text-[12px] text-left rounded-md -mx-1 px-1 py-1 hover:bg-foreground/[0.03] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
                 >
@@ -1445,7 +1455,7 @@ function AgentAutomationsSection({
                       : <Play className="h-3 w-3 text-foreground/40" />
                     }
                   </button>
-                </button>
+                </div>
 
                 {/* Inline execution history */}
                 {entries.length > 0 && (
