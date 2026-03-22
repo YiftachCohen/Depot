@@ -67,6 +67,7 @@ import { parseMentions, stripAllMentions, resolveFileMentions } from '../mention
 import { loadAllSkills } from '../skills/storage.ts';
 import { loadSkillBySlug } from '../skills/storage.ts';
 import { loadAgentState, formatAgentMemoryForPrompt } from '../skills/agent-state.ts';
+import { buildKnowledgeContext, buildBriefingContext } from '../skills/knowledge/context.ts';
 import type { LoadedSkill } from '../skills/types.ts';
 import { findProjectContextFile } from '../prompts/system.ts';
 
@@ -316,12 +317,11 @@ export abstract class BaseAgent implements AgentBackend {
       // Inject knowledge context if the store was pre-loaded via initKnowledgeStore()
       if (this.knowledgeStore && knowledgeEnabled) {
         try {
-          const { buildKnowledgeContext, buildBriefingContext } = require('../skills/knowledge/context.ts');
           const domains = skill!.manifest!.knowledge!.domains ?? [];
           agentKnowledgeContext = buildKnowledgeContext(this.knowledgeStore, '', slug, domains) || undefined;
           agentBriefingContext = buildBriefingContext(this.knowledgeStore, agentState?.lastUserSessionTimestamp ?? null) || undefined;
         } catch (err) {
-          this.debug(`Knowledge context load failed: ${err}`);
+          this.debug(`Knowledge context build failed (store may have been evicted): ${err}`);
         }
       }
     }

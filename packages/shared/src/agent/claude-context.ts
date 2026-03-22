@@ -71,6 +71,7 @@ import { updatePreferences as updatePreferencesImpl } from '../config/preference
 import { addMemoryFacts } from '../skills/agent-state.ts';
 import { loadSkillBySlug } from '../skills/storage.ts';
 import type { KnowledgeStore } from '../skills/knowledge/store.ts';
+import { KnowledgeStoreManager } from '../skills/knowledge/store.ts';
 
 // Re-export types that may be needed by consumers
 export type { SessionToolContext, SessionToolCallbacks } from '@depot/session-tools-core';
@@ -265,7 +266,6 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
       // is first created. WASM init takes <200ms.
       let storePromise: Promise<KnowledgeStore>;
       try {
-        const { KnowledgeStoreManager } = require('../skills/knowledge/store.ts');
         storePromise = KnowledgeStoreManager.getInstance().open(workspacePath, skillSlug, resolvedSkill!.path);
         storePromise
           .then((store: KnowledgeStore) => { knowledgeStore = store; })
@@ -275,7 +275,7 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
           });
       } catch (err) {
         knowledgeStoreFailed = true;
-        debug('claude-context', `Knowledge store module load failed: ${err}`);
+        debug('claude-context', `Knowledge store init failed synchronously: ${err}`);
         storePromise = Promise.reject(err);
         storePromise.catch(() => {}); // Prevent unhandled rejection — error surfaced via knowledgeStoreFailed flag
       }
@@ -318,7 +318,10 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
           if (args.includeRelationships) {
             const rels = store.queryRelationshipsForEntity(entity.id);
             for (const rel of rels) {
-              lines.push(`  → ${rel.relationType} (confidence: ${rel.confidence.toFixed(2)})`);
+              const otherId = rel.sourceEntityId === entity.id ? rel.targetEntityId : rel.sourceEntityId;
+              const direction = rel.sourceEntityId === entity.id ? '→' : '←';
+              const otherName = entities.find(e => e.id === otherId)?.name ?? otherId;
+              lines.push(`  ${direction} ${rel.relationType} ${otherName} (confidence: ${rel.confidence.toFixed(2)})`);
             }
           }
         }

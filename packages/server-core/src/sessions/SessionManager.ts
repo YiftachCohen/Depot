@@ -69,7 +69,7 @@ import { DepotMcpClient, McpClientPool, McpPoolServer } from '@depot/shared/mcp'
 import { type Session, type SessionEvent, type FileAttachment, type SendMessageOptions, type UnreadSummary, RPC_CHANNELS, generateMessageId } from '@depot/shared/protocol'
 import { messageToStored, storedToMessage, type Message, type StoredAttachment, type ToolDisplayMeta } from '@depot/core/types'
 import { formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrlAsync, getEmojiIcon, resetSummarizationClient, resolveToolIcon, readFileAttachment, selectSpreadMessages, normalizePath } from '@depot/shared/utils'
-import { loadAllSkills, loadSkillBySlug, resolveAgentSources, addMemoryFacts, loadAgentState, saveAgentState, MEMORY_CONSOLIDATION_THRESHOLD, type LoadedSkill } from '@depot/shared/skills'
+import { loadAllSkills, loadSkillBySlug, resolveAgentSources, addMemoryFacts, loadAgentState, saveAgentState, initAgentState, MEMORY_CONSOLIDATION_THRESHOLD, type LoadedSkill } from '@depot/shared/skills'
 import { getToolIconsDir, getMiniModel } from '@depot/shared/config'
 import type { SummarizeCallback } from '@depot/shared/sources'
 import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@depot/shared/agent/thinking-levels'
@@ -5202,21 +5202,17 @@ export class SessionManager implements ISessionManager {
 
     const skill = loadSkillBySlug(managed.workspace.rootPath, managed.skillSlug, managed.workingDirectory)
 
-    // Update lastUserSessionTimestamp for morning briefing (knowledge agents)
+    // Knowledge-enabled agents: update timestamp and extract structured knowledge
     if (skill?.manifest?.knowledge?.enabled) {
+      // Update lastUserSessionTimestamp for morning briefing
       try {
         const state = loadAgentState(managed.workspace.rootPath, managed.skillSlug, skill.path)
-        if (state) {
-          state.lastUserSessionTimestamp = Date.now()
-          saveAgentState(managed.workspace.rootPath, managed.skillSlug, state, skill.path)
-        }
+          ?? initAgentState(managed.workspace.rootPath, managed.skillSlug, skill.path)
+        state.lastUserSessionTimestamp = Date.now()
+        saveAgentState(managed.workspace.rootPath, managed.skillSlug, state, skill.path)
       } catch (err) {
         sessionLog.warn(`Failed to update lastUserSessionTimestamp: ${err}`)
       }
-    }
-
-    // Knowledge-enabled agents: extract structured knowledge instead of flat facts
-    if (skill?.manifest?.knowledge?.enabled) {
       await this.extractSessionKnowledge(managed, skill, turnStartTimestamp)
       return // Skip flat fact extraction — knowledge extraction subsumes it
     }
@@ -5367,14 +5363,23 @@ ${conversationSnippet}`
         for (const r of extracted.relationships) {
           if (typeof r.source === 'string') r.source = stripPii(r.source)
           if (typeof r.target === 'string') r.target = stripPii(r.target)
+          if (typeof r.relation === 'string') r.relation = stripPii(r.relation)
         }
       }
+
+      // Map snake_case from LLM prompt to camelCase expected by store
+      const mappedPatterns = Array.isArray(extracted.patterns)
+        ? extracted.patterns.map((p: any) => ({
+            ...p,
+            patternType: p.patternType ?? p.pattern_type,
+          }))
+        : extracted.patterns
 
       const saved = store.saveKnowledge(
         {
           entities: extracted.entities,
           relationships: extracted.relationships,
-          patterns: extracted.patterns,
+          patterns: mappedPatterns,
           observations: cleanObs,
         },
         managed.id,
