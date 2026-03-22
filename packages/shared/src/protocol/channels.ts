@@ -250,6 +250,12 @@ export const RPC_CHANNELS = {
     DELETE_FACT: 'agentState:deleteFact',
     CLEAR_MEMORY: 'agentState:clearMemory',
     GET_KNOWLEDGE_STATS: 'agentState:getKnowledgeStats',
+    QUERY_KNOWLEDGE_ENTITIES: 'agentState:queryKnowledgeEntities',
+    QUERY_KNOWLEDGE_PATTERNS: 'agentState:queryKnowledgePatterns',
+    TRIGGER_CONSOLIDATION: 'agentState:triggerConsolidation',
+    TRIGGER_OBSERVATION: 'agentState:triggerObservation',
+    SET_OBSERVATION_PAUSED: 'agentState:setObservationPaused',
+    GET_OBSERVATION_HISTORY: 'agentState:getObservationHistory',
     CHANGED: 'agentState:changed',
   },
   statuses: {

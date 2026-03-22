@@ -45,15 +45,18 @@ export {
   deleteMemoryFact,
   replaceMemoryFacts,
   touchAgentState,
+  updateKnowledgeTokenUsage,
   formatAgentMemoryForPrompt,
   MEMORY_CONSOLIDATION_THRESHOLD,
   type AgentState,
   type AgentMemory,
   type AgentMemoryFact,
+  type ObservationRun,
 } from './agent-state.ts';
 export {
   AGENT_TEMPLATES,
   TEMPLATE_CATEGORIES,
+  DEFAULT_OBSERVATION_PROMPT,
   type TemplateCategory,
   getTemplateById,
   getTemplatesByCategory,

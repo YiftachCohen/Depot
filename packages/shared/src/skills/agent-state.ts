@@ -72,6 +72,21 @@ export interface AgentState {
   observationStartedAt?: number;
   /** Whether the first-knowledge celebration toast has been shown */
   firstKnowledgeSeen?: boolean;
+  /** Consecutive observation session failures (for notification threshold) */
+  consecutiveObservationFailures?: number;
+  /** Whether observations are paused by the user (skips scheduled observations) */
+  observationPaused?: boolean;
+  /** Recent observation session history (capped at 20 entries, newest first) */
+  observationHistory?: ObservationRun[];
+}
+
+/** A single observation session run record */
+export interface ObservationRun {
+  timestamp: number;
+  durationMs: number;
+  entitiesAdded: number;
+  tokensUsed: number;
+  outcome: 'success' | 'failure' | 'partial';
 }
 
 // ============================================================
@@ -260,6 +275,39 @@ export function touchAgentState(workspaceRootPath: string, skillSlug: string, sk
   if (!state) return;
   state.lastActiveAt = Date.now();
   saveAgentState(workspaceRootPath, skillSlug, state, skillDir);
+}
+
+// ============================================================
+// Knowledge Token Budget
+// ============================================================
+
+/**
+ * Update daily knowledge token usage.
+ * Resets the counter when the calendar date changes (local timezone).
+ */
+export function updateKnowledgeTokenUsage(
+  workspaceRootPath: string,
+  skillSlug: string,
+  tokensUsed: number,
+  skillDir?: string,
+): void {
+  try {
+    let state = loadAgentState(workspaceRootPath, skillSlug, skillDir);
+    if (!state) return;
+
+    const today = new Intl.DateTimeFormat('en-CA').format(new Date());
+    const usage = state.knowledgeTokenUsage;
+
+    if (usage && usage.date === today) {
+      usage.tokensUsed += tokensUsed;
+    } else {
+      state.knowledgeTokenUsage = { date: today, tokensUsed };
+    }
+
+    saveAgentState(workspaceRootPath, skillSlug, state, skillDir);
+  } catch {
+    // Non-critical — worst case is budget not tracked
+  }
 }
 
 // ============================================================

@@ -723,10 +723,10 @@ export class ClaudeAgent extends BaseAgent {
   protected async *chatImpl(
     userMessage: string,
     attachments?: FileAttachment[],
-    options?: ChatOptions
+    chatOpts?: ChatOptions
   ): AsyncGenerator<AgentEvent> {
     // Extract options (ChatOptions interface from AgentBackend)
-    const _isRetry = options?.isRetry ?? false;
+    const _isRetry = chatOpts?.isRetry ?? false;
 
     // Clear any leftover steer from a previous turn (safety net — should already be null)
     this.pendingSteerMessage = null;
@@ -850,6 +850,8 @@ export class ClaudeAgent extends BaseAgent {
       const options: Options = {
         ...getDefaultOptions(this.config.envOverrides),
         model,
+        // Max turns for observation sessions (limits agentic tool-use cycles)
+        ...(chatOpts?.maxTurns ? { maxTurns: chatOpts.maxTurns } : {}),
         // Capture stderr from SDK subprocess for error diagnostics
         // This helps identify why sessions fail with "process exited with code 1"
         stderr: (data: string) => {
