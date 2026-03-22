@@ -73,7 +73,7 @@ describe('checkObservationGuards', () => {
   it('blocks when token budget exceeded for today', async () => {
     const today = new Intl.DateTimeFormat('en-CA').format(new Date())
     writeAgentState(workspace, 'test-agent', validState({
-      knowledgeTokenUsage: { date: today, tokensUsed: 60_000 },
+      knowledgeTokenUsage: { date: today, tokensUsed: 600_000 },
     }))
     const result = await checkObservationGuards(workspace, 'test-agent')
     expect(result.allowed).toBe(false)

@@ -172,8 +172,8 @@ export const CONSOLIDATION_BATCH_SIZE = 500;
 /** Default max turns per observation session */
 export const DEFAULT_MAX_OBSERVATION_TURNS = 20;
 
-/** Default daily token budget */
-export const DEFAULT_DAILY_TOKEN_BUDGET = 50_000;
+/** Default daily token budget (500k — enough for several observation sessions with tool use) */
+export const DEFAULT_DAILY_TOKEN_BUDGET = 500_000;
 
 /** Default consolidation schedule (daily at 2am) */
 export const DEFAULT_CONSOLIDATION_SCHEDULE = '0 2 * * *';
