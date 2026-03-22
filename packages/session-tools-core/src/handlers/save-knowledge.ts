@@ -84,7 +84,7 @@ export async function handleSaveKnowledge(
       .map(o => o.length > MAX_OBSERVATION_BYTES ? o.slice(0, MAX_OBSERVATION_BYTES) : o);
 
     // Map snake_case from Zod schema to camelCase for context callback
-    const result = ctx.saveKnowledge({
+    const result = await ctx.saveKnowledge({
       entities: args.entities,
       relationships: args.relationships?.map(r => ({
         source: r.source,

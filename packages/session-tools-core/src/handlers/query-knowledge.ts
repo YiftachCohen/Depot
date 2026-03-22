@@ -32,7 +32,7 @@ export async function handleQueryKnowledge(
   }
 
   try {
-    const result = ctx.queryKnowledge({
+    const result = await ctx.queryKnowledge({
       domain: args.domain,
       entityType: args.entity_type,
       tags: args.tags,
