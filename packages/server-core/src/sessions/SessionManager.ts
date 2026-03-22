@@ -69,7 +69,7 @@ import { DepotMcpClient, McpClientPool, McpPoolServer } from '@depot/shared/mcp'
 import { type Session, type SessionEvent, type FileAttachment, type SendMessageOptions, type UnreadSummary, RPC_CHANNELS, generateMessageId } from '@depot/shared/protocol'
 import { messageToStored, storedToMessage, type Message, type StoredAttachment, type ToolDisplayMeta } from '@depot/core/types'
 import { formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrlAsync, getEmojiIcon, resetSummarizationClient, resolveToolIcon, readFileAttachment, selectSpreadMessages, normalizePath } from '@depot/shared/utils'
-import { loadAllSkills, loadSkillBySlug, resolveAgentSources, addMemoryFacts, loadAgentState, MEMORY_CONSOLIDATION_THRESHOLD, type LoadedSkill } from '@depot/shared/skills'
+import { loadAllSkills, loadSkillBySlug, resolveAgentSources, addMemoryFacts, loadAgentState, saveAgentState, initAgentState, MEMORY_CONSOLIDATION_THRESHOLD, type LoadedSkill } from '@depot/shared/skills'
 import { getToolIconsDir, getMiniModel } from '@depot/shared/config'
 import type { SummarizeCallback } from '@depot/shared/sources'
 import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@depot/shared/agent/thinking-levels'
@@ -1443,6 +1443,11 @@ export class SessionManager implements ISessionManager {
     this.eventSink(RPC_CHANNELS.skills.CHANGED, { to: 'workspace', workspaceId }, workspaceId, skills)
   }
 
+  private broadcastAgentStateChanged(workspaceId: string, skillSlug: string): void {
+    if (!this.eventSink) return
+    this.eventSink(RPC_CHANNELS.agentState.CHANGED, { to: 'workspace', workspaceId }, { skillSlug })
+  }
+
   private broadcastDefaultPermissionsChanged(): void {
     if (!this.eventSink) return
     sessionLog.info('Broadcasting default permissions changed')
@@ -2584,6 +2589,7 @@ export class SessionManager implements ISessionManager {
         llmConnection: managed.llmConnection,
         permissionMode: managed.permissionMode,
         previousPermissionMode: managed.previousPermissionMode,
+        skillSlug: managed.skillSlug,
       }
 
       const onSdkSessionIdUpdate = (sdkSessionId: string) => {
@@ -2751,6 +2757,17 @@ export class SessionManager implements ISessionManager {
           message: postInitResult.authWarning,
           level: postInitResult.authWarningLevel || 'error',
         }, managed.workspace.id)
+      }
+
+      // Wire up knowledge change notifications so the dashboard refreshes badges
+      if (managed.skillSlug) {
+        const skillSlugForCallback = managed.skillSlug
+        const workspaceIdForCallback = managed.workspace.id
+        mergeSessionScopedToolCallbacks(managed.id, {
+          onKnowledgeChanged: () => {
+            this.broadcastAgentStateChanged(workspaceIdForCallback, skillSlugForCallback)
+          },
+        })
       }
 
       // Wire up large response handling in the MCP pool (all backends)
@@ -5193,13 +5210,30 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Auto-summarize a completed agent turn into persistent memory.
+   * For knowledge-enabled agents, also extracts structured knowledge.
    * Runs asynchronously after session completion (fire-and-forget).
    */
   private async summarizeAgentSessionMemory(managed: ManagedSession, turnStartTimestamp: number): Promise<void> {
     if (!managed.skillSlug || !managed.agent) return
 
-    // Check if the skill has memory enabled
     const skill = loadSkillBySlug(managed.workspace.rootPath, managed.skillSlug, managed.workingDirectory)
+
+    // Knowledge-enabled agents: update timestamp and extract structured knowledge
+    if (skill?.manifest?.knowledge?.enabled) {
+      // Update lastUserSessionTimestamp for morning briefing
+      try {
+        const state = loadAgentState(managed.workspace.rootPath, managed.skillSlug, skill.path)
+          ?? initAgentState(managed.workspace.rootPath, managed.skillSlug, skill.path)
+        state.lastUserSessionTimestamp = Date.now()
+        saveAgentState(managed.workspace.rootPath, managed.skillSlug, state, skill.path)
+      } catch (err) {
+        sessionLog.warn(`Failed to update lastUserSessionTimestamp: ${err}`)
+      }
+      await this.extractSessionKnowledge(managed, skill, turnStartTimestamp)
+      return // Skip flat fact extraction — knowledge extraction subsumes it
+    }
+
+    // Check if the skill has memory enabled (flat facts for non-knowledge agents)
     if (!skill?.manifest?.memory?.enabled) return
 
     // Collect messages from this turn only (starting at the user message that triggered it)
@@ -5258,6 +5292,152 @@ export class SessionManager implements ISessionManager {
       }
     } catch (err) {
       sessionLog.warn(`Agent memory summarization error: ${err}`)
+    }
+  }
+
+  /**
+   * Extract structured knowledge from a completed session turn.
+   * Replaces flat fact extraction for knowledge-enabled agents.
+   * Uses an LLM call to extract entities, relationships, and patterns.
+   */
+  private async extractSessionKnowledge(
+    managed: ManagedSession,
+    skill: LoadedSkill,
+    turnStartTimestamp: number,
+  ): Promise<void> {
+    if (!managed.skillSlug || !managed.agent) return
+
+    // Collect messages from this turn
+    const recentMessages = managed.messages
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.timestamp >= turnStartTimestamp)
+      .slice(-10)
+
+    if (recentMessages.length < 2) return
+
+    const domains = skill.manifest?.knowledge?.domains ?? []
+    const domainHint = domains.length > 0 ? `Relevant domains: ${domains.join(', ')}. ` : ''
+
+    const conversationSnippet = JSON.stringify(
+      recentMessages.map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string'
+          ? m.content.replace(/\s+/g, ' ').slice(0, 1000)
+          : '(structured content)',
+      })),
+    )
+
+    const prompt = `Extract structured knowledge from this conversation for long-term storage. ${domainHint}Return ONLY a JSON object with these optional fields:
+- "entities": array of {type, name, domain, tags: string[]}
+- "relationships": array of {source, target, relation}
+- "patterns": array of {description, pattern_type: "recurring"|"correlation"|"trend"|"anomaly"}
+- "observations": array of strings (free-form insights)
+
+Only include genuinely useful knowledge — skip greetings, meta-discussion, and debugging details. Include synonym tags for each entity.
+
+Conversation:
+${conversationSnippet}`
+
+    try {
+      const result = await managed.agent.runMiniCompletion(prompt)
+      if (!result) return
+
+      // Parse JSON from response
+      const jsonMatch = result.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return
+
+      const extracted = JSON.parse(jsonMatch[0])
+      if (!extracted || typeof extracted !== 'object') return
+
+      // Enforce size limits (same as save-knowledge handler) to prevent runaway LLM output
+      if (Array.isArray(extracted.entities)) extracted.entities = extracted.entities.slice(0, 100)
+      if (Array.isArray(extracted.relationships)) extracted.relationships = extracted.relationships.slice(0, 200)
+      if (Array.isArray(extracted.patterns)) extracted.patterns = extracted.patterns.slice(0, 50)
+      if (Array.isArray(extracted.observations)) extracted.observations = extracted.observations.slice(0, 50)
+
+      // Schema validation: filter out malformed entries (LLM may return wrong types)
+      const MAX_FIELD_LEN = 2000
+      if (Array.isArray(extracted.entities)) {
+        extracted.entities = extracted.entities.filter((e: any) =>
+          typeof e?.type === 'string' && typeof e?.name === 'string' && typeof e?.domain === 'string' &&
+          e.name.length <= MAX_FIELD_LEN && e.type.length <= MAX_FIELD_LEN
+        )
+      }
+      if (Array.isArray(extracted.relationships)) {
+        extracted.relationships = extracted.relationships.filter((r: any) =>
+          typeof r?.source === 'string' && typeof r?.target === 'string' && typeof r?.relation === 'string' &&
+          r.source.length <= MAX_FIELD_LEN && r.target.length <= MAX_FIELD_LEN
+        )
+      }
+      if (Array.isArray(extracted.patterns)) {
+        extracted.patterns = extracted.patterns.filter((p: any) =>
+          typeof p?.description === 'string' && p.description.length <= MAX_FIELD_LEN
+        )
+      }
+      if (Array.isArray(extracted.observations)) {
+        extracted.observations = extracted.observations.filter((o: any) =>
+          typeof o === 'string' && o.length <= MAX_FIELD_LEN
+        )
+      }
+
+      // Open knowledge store and save
+      const { KnowledgeStoreManager } = await import('@depot/shared/skills/knowledge')
+      const store = await KnowledgeStoreManager.getInstance().open(
+        managed.workspace.rootPath, managed.skillSlug, skill.path,
+      )
+
+      // Strip PII from text fields
+      const { stripPii } = await import('@depot/shared/skills/knowledge')
+      const cleanObs = (extracted.observations as string[] | undefined)?.map(o => stripPii(o))
+
+      // Strip PII from entity names and pattern descriptions
+      if (Array.isArray(extracted.entities)) {
+        for (const e of extracted.entities) {
+          if (typeof e.name === 'string') e.name = stripPii(e.name)
+        }
+      }
+      if (Array.isArray(extracted.patterns)) {
+        for (const p of extracted.patterns) {
+          if (typeof p.description === 'string') p.description = stripPii(p.description)
+        }
+      }
+      if (Array.isArray(extracted.relationships)) {
+        for (const r of extracted.relationships) {
+          if (typeof r.source === 'string') r.source = stripPii(r.source)
+          if (typeof r.target === 'string') r.target = stripPii(r.target)
+          if (typeof r.relation === 'string') r.relation = stripPii(r.relation)
+        }
+      }
+
+      // Map snake_case from LLM prompt to camelCase expected by store
+      const mappedPatterns = Array.isArray(extracted.patterns)
+        ? extracted.patterns.map((p: any) => ({
+            ...p,
+            patternType: p.patternType ?? p.pattern_type,
+          }))
+        : extracted.patterns
+
+      const saved = store.saveKnowledge(
+        {
+          entities: extracted.entities,
+          relationships: extracted.relationships,
+          patterns: mappedPatterns,
+          observations: cleanObs,
+        },
+        managed.id,
+        domains[0] ?? managed.skillSlug,
+      )
+
+      const total = saved.entities + saved.relationships + saved.patterns + saved.observations
+      if (total > 0) {
+        sessionLog.info(
+          `Knowledge extraction: saved ${saved.entities} entities, ${saved.relationships} relationships, ` +
+          `${saved.patterns} patterns, ${saved.observations} observations for ${managed.skillSlug}`,
+        )
+        // Notify UI that knowledge changed so dashboard badges refresh
+        this.broadcastAgentStateChanged(managed.workspace.id, managed.skillSlug!)
+      }
+    } catch (err) {
+      sessionLog.warn(`Knowledge extraction error for ${managed.skillSlug}: ${err}`)
     }
   }
 

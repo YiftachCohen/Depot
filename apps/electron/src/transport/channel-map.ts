@@ -222,6 +222,7 @@ export const CHANNEL_MAP = {
   addAgentMemory: invoke(RPC_CHANNELS.agentState.ADD_MEMORY),
   deleteAgentMemoryFact: invoke(RPC_CHANNELS.agentState.DELETE_FACT),
   clearAgentMemory: invoke(RPC_CHANNELS.agentState.CLEAR_MEMORY),
+  getKnowledgeStats: invoke(RPC_CHANNELS.agentState.GET_KNOWLEDGE_STATS),
   onAgentStateChanged: listener(RPC_CHANNELS.agentState.CHANGED),
 
   // Statuses

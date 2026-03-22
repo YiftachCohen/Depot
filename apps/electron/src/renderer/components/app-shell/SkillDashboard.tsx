@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2, Brain, Copy, MoreHorizontal } from 'lucide-react'
+import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2, Brain, Copy, MoreHorizontal, Database } from 'lucide-react'
 import { toast } from 'sonner'
 import { getCommandIcon, ICON_NAME_MAP, resolveIconComponent } from '@/lib/command-icon'
 import { useEntityIcon } from '@/lib/icon-cache'
@@ -259,6 +259,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false)
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
   const [agentStateMap, setAgentStateMap] = useState<Map<string, import('@depot/shared/skills').AgentState>>(new Map())
+  const [knowledgeStatsMap, setKnowledgeStatsMap] = useState<Map<string, { entityCount: number; relationshipCount: number; patternCount: number }>>(new Map())
 
   // Load templates on mount
   useEffect(() => {
@@ -289,6 +290,23 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       setAgentStateMap(map)
     })
 
+    // Batch-load knowledge stats for knowledge-enabled agents
+    const knowledgeAgents = agents.filter(s => s.manifest?.knowledge?.enabled)
+    if (knowledgeAgents.length > 0) {
+      Promise.all(knowledgeAgents.map(async (s) => {
+        try {
+          const stats = await window.electronAPI.getKnowledgeStats(activeWorkspaceId, s.slug)
+          return [s.slug, stats] as const
+        } catch { return [s.slug, null] as const }
+      })).then((entries) => {
+        const map = new Map<string, { entityCount: number; relationshipCount: number; patternCount: number }>()
+        for (const [slug, stats] of entries) {
+          if (stats && (stats.entityCount > 0 || stats.patternCount > 0)) map.set(slug, stats)
+        }
+        setKnowledgeStatsMap(map)
+      })
+    }
+
     // Subscribe to changes
     const unsubscribe = window.electronAPI.onAgentStateChanged(({ skillSlug }) => {
       window.electronAPI.getAgentState(activeWorkspaceId, skillSlug)
@@ -300,6 +318,19 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             return next
           })
         }).catch(() => {})
+      // Also refresh knowledge stats for this agent
+      const isKnowledgeAgent = agents.find(s => s.slug === skillSlug)?.manifest?.knowledge?.enabled
+      if (isKnowledgeAgent) {
+        window.electronAPI.getKnowledgeStats(activeWorkspaceId, skillSlug)
+          .then((stats) => {
+            setKnowledgeStatsMap((prev) => {
+              const next = new Map(prev)
+              if (stats && (stats.entityCount > 0 || stats.patternCount > 0)) next.set(skillSlug, stats)
+              else next.delete(skillSlug)
+              return next
+            })
+          }).catch(() => {})
+      }
     })
     return unsubscribe
   }, [activeWorkspaceId, skills])
@@ -676,6 +707,12 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                         if (!focusedSkill.manifest?.memory?.enabled) return null
                         return <span className="inline-flex items-center gap-1"><Brain className="h-3 w-3 shrink-0" />{factCount > 0 ? `${factCount} fact${factCount !== 1 ? 's' : ''} in memory` : 'No memory yet'}</span>
                       })()}
+                      {(() => {
+                        const kStats = knowledgeStatsMap.get(focusedSkill.slug)
+                        if (!focusedSkill.manifest?.knowledge?.enabled) return null
+                        if (!kStats || kStats.entityCount === 0) return <span className="inline-flex items-center gap-1"><Database className="h-3 w-3 shrink-0" />No knowledge yet</span>
+                        return <span className="inline-flex items-center gap-1"><Database className="h-3 w-3 shrink-0" />{kStats.entityCount} entit{kStats.entityCount !== 1 ? 'ies' : 'y'}, {kStats.relationshipCount} relationship{kStats.relationshipCount !== 1 ? 's' : ''}</span>
+                      })()}
                       {focusedSkill.manifest.permission_mode && (
                         <span className={cn(
                           'inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-medium',
@@ -1030,6 +1067,11 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                               const factCount = agentStateMap.get(skill.slug)?.memory?.facts?.length ?? 0
                               if (factCount === 0) return null
                               return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Brain className="h-2.5 w-2.5" />{factCount}</span></>
+                            })()}
+                            {(() => {
+                              const kStats = knowledgeStatsMap.get(skill.slug)
+                              if (!kStats) return null
+                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Database className="h-2.5 w-2.5" />{kStats.entityCount}</span></>
                             })()}
                             {(() => {
                               const autoCount = skillAutomationCounts.get(skill.slug) ?? 0

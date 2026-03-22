@@ -319,9 +319,9 @@ export interface SessionToolContext {
   saveKnowledge?(args: {
     entities?: Array<{ type: string; name: string; domain: string; properties?: Record<string, unknown>; tags?: string[] }>;
     relationships?: Array<{ source: string; target: string; sourceDomain?: string; targetDomain?: string; relation: string; properties?: Record<string, unknown> }>;
-    patterns?: Array<{ description: string; relatedEntities?: string[]; patternType?: string }>;
+    patterns?: Array<{ description: string; relatedEntities?: string[]; patternType?: 'recurring' | 'correlation' | 'trend' | 'anomaly' }>;
     observations?: string[];
-  }): { entities: number; relationships: number; patterns: number; observations: number };
+  }): Promise<{ entities: number; relationships: number; patterns: number; observations: number }> | { entities: number; relationships: number; patterns: number; observations: number };
 
   /**
    * Query the agent's knowledge store.
@@ -330,12 +330,12 @@ export interface SessionToolContext {
   queryKnowledge?(args: {
     domain?: string; entityType?: string; tags?: string[];
     query?: string; includeRelationships?: boolean; limit?: number;
-  }): string;
+  }): Promise<string> | string;
 
   /**
    * Reset the agent's knowledge store (all or specific domain).
    */
-  resetKnowledge?(domain?: string): void;
+  resetKnowledge?(domain?: string): Promise<void> | void;
 
   // ============================================================
   // Session Paths (for transform_data / render_template)

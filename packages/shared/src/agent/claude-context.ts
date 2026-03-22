@@ -70,6 +70,8 @@ import { getSessionPlansPath, getSessionPath, getSessionDataPath } from '../sess
 import { updatePreferences as updatePreferencesImpl } from '../config/preferences.ts';
 import { addMemoryFacts } from '../skills/agent-state.ts';
 import { loadSkillBySlug } from '../skills/storage.ts';
+import type { KnowledgeStore } from '../skills/knowledge/store.ts';
+import { KnowledgeStoreManager } from '../skills/knowledge/store.ts';
 
 // Re-export types that may be needed by consumers
 export type { SessionToolContext, SessionToolCallbacks } from '@depot/session-tools-core';
@@ -87,6 +89,8 @@ export interface ClaudeContextOptions {
   skillSlug?: string;
   /** Project root for skill resolution priority (project > workspace > global) */
   projectRoot?: string;
+  /** Called when knowledge is written or reset, so the UI can refresh badges */
+  onKnowledgeChanged?: (skillSlug: string) => void;
 }
 
 /**
@@ -100,7 +104,7 @@ export interface ClaudeContextOptions {
  * - Icon management
  */
 export function createClaudeContext(options: ClaudeContextOptions): SessionToolContext {
-  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug, projectRoot } = options;
+  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug, projectRoot, onKnowledgeChanged } = options;
 
   // File system implementation
   const fs: FileSystemInterface = {
@@ -242,6 +246,109 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     }
   };
 
+  // ── Knowledge Fabric store wiring ──────────────────────────
+  // Resolve the store eagerly so it's ready by the time the agent calls a tool.
+  // The callbacks are synchronous (SessionToolContext contract) so we use a
+  // pre-resolved handle that's cached by KnowledgeStoreManager.
+  let knowledgeStore: KnowledgeStore | null = null;
+  let knowledgeStoreFailed = false;
+  let knowledgeDefaultDomain = '';
+
+  const knowledgeCallbacks: Pick<SessionToolContext, 'saveKnowledge' | 'queryKnowledge' | 'resetKnowledge'> = {};
+
+  debug('claude-context', `Knowledge wiring: skillSlug=${skillSlug ?? 'NONE'} workspacePath=${workspacePath}`);
+  if (skillSlug) {
+    const resolvedSkill = loadSkillBySlug(workspacePath, skillSlug, projectRoot);
+    debug('claude-context', `Resolved skill: slug=${skillSlug} path=${resolvedSkill?.path ?? 'NOT_FOUND'} knowledge=${resolvedSkill?.manifest?.knowledge?.enabled ?? false}`);
+    if (resolvedSkill?.manifest?.knowledge?.enabled) {
+      knowledgeDefaultDomain = resolvedSkill.manifest.knowledge.domains?.[0] ?? skillSlug;
+
+      // Initialize knowledge store asynchronously. The callbacks await the
+      // promise so they work even if the store isn't ready when the context
+      // is first created. WASM init takes <200ms.
+      let storePromise: Promise<KnowledgeStore>;
+      try {
+        storePromise = KnowledgeStoreManager.getInstance().open(workspacePath, skillSlug, resolvedSkill!.path);
+        storePromise
+          .then((store: KnowledgeStore) => { knowledgeStore = store; })
+          .catch((err: unknown) => {
+            knowledgeStoreFailed = true;
+            debug('claude-context', `Knowledge store init failed: ${err}`);
+          });
+      } catch (err) {
+        knowledgeStoreFailed = true;
+        debug('claude-context', `Knowledge store init failed synchronously: ${err}`);
+        storePromise = Promise.reject(err);
+        storePromise.catch(() => {}); // Prevent unhandled rejection — error surfaced via knowledgeStoreFailed flag
+      }
+
+      const getStore = async (): Promise<KnowledgeStore> => {
+        if (knowledgeStoreFailed) throw new Error('Knowledge store failed to initialize. Check agent logs for details.');
+        if (knowledgeStore) return knowledgeStore;
+        // Await the initialization promise — this is the key fix.
+        // The handlers are async so this works naturally.
+        const store = await storePromise;
+        knowledgeStore = store;
+        return store;
+      };
+
+      knowledgeCallbacks.saveKnowledge = async (args) => {
+        const store = await getStore();
+        const result = store.saveKnowledge(args, sessionId, knowledgeDefaultDomain);
+        if (skillSlug && onKnowledgeChanged) onKnowledgeChanged(skillSlug);
+        return result;
+      };
+
+      knowledgeCallbacks.queryKnowledge = async (args) => {
+        const store = await getStore();
+        const entities = store.queryEntities({
+          domain: args.domain,
+          entityType: args.entityType,
+          tags: args.tags,
+          query: args.query,
+          limit: args.limit,
+        });
+
+        if (entities.length === 0) {
+          return 'No matching entities found in knowledge store.';
+        }
+
+        const lines: string[] = [`Found ${entities.length} entities:`];
+        for (const entity of entities) {
+          lines.push(`- [${entity.type}] ${entity.name} (domain: ${entity.domain}, confidence: ${entity.confidence.toFixed(2)})`);
+          if (entity.properties) {
+            lines.push(`  Properties: ${JSON.stringify(entity.properties)}`);
+          }
+          if (args.includeRelationships) {
+            const rels = store.queryRelationshipsForEntity(entity.id);
+            for (const rel of rels) {
+              const otherId = rel.sourceEntityId === entity.id ? rel.targetEntityId : rel.sourceEntityId;
+              const direction = rel.sourceEntityId === entity.id ? '→' : '←';
+              const otherName = entities.find(e => e.id === otherId)?.name ?? otherId;
+              lines.push(`  ${direction} ${rel.relationType} ${otherName} (confidence: ${rel.confidence.toFixed(2)})`);
+            }
+          }
+        }
+
+        const patterns = store.queryPatterns(10);
+        if (patterns.length > 0) {
+          lines.push('', `Patterns (${patterns.length}):`);
+          for (const p of patterns) {
+            lines.push(`- ${p.description} (${p.patternType ?? 'general'}, confidence: ${p.confidence.toFixed(2)}, seen ${p.occurrenceCount}x)`);
+          }
+        }
+
+        return lines.join('\n');
+      };
+
+      knowledgeCallbacks.resetKnowledge = async (domain?: string) => {
+        const store = await getStore();
+        store.reset(domain);
+        if (skillSlug && onKnowledgeChanged) onKnowledgeChanged(skillSlug);
+      };
+    }
+  }
+
   // Build context
   const context: SessionToolContext = {
     sessionId,
@@ -276,6 +383,12 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
           addMemoryFacts(workspacePath, skillSlug, sessionId, sanitizedFacts, resolvedSkill?.path);
         }
       : undefined,
+
+    // Knowledge Fabric callbacks — only wired for knowledge-enabled agents.
+    // The store handle is resolved lazily via pre-warming. By the time the
+    // agent's first tool call arrives (after postInit + first user message
+    // round-trip), the WASM module and DB file have been loaded.
+    ...knowledgeCallbacks,
     submitFeedback: (feedback: DeveloperFeedback) => {
       const feedbackDir = join(CONFIG_DIR, 'feedback');
       mkdirSync(feedbackDir, { recursive: true });

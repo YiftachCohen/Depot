@@ -50,6 +50,7 @@ depot/
       src/agent/         # Agent backends (Claude, Pi)
       src/config/        # Storage, preferences
       src/sessions/      # Session persistence
+      src/skills/knowledge/  # Knowledge Fabric (SQLite store, extraction, context)
     server-core/         # Server RPC handlers and transport
     server/              # Headless server entry point
     ui/                  # Shared React components (@depot/ui)

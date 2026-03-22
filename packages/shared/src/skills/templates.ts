@@ -47,6 +47,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       personality: 'Senior engineer who catches real bugs, not style nits. Direct, evidence-based, and always provides concrete fix suggestions.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['codebase', 'patterns', 'conventions'] },
       quick_commands: [
         {
           name: 'Review PR',
@@ -133,6 +134,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       description: 'Use when creating, updating, or auditing any user-facing documentation — READMEs, API references, module guides, changelogs, or inline code comments that have fallen out of sync with implementation.',
       personality: 'Documentation specialist who writes docs developers actually read. Code-first, example-led, ruthlessly concise.',
       permission_mode: 'ask',
+      memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['documentation', 'codebase'] },
       quick_commands: [
         {
           name: 'Document Module',
@@ -213,6 +216,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       personality: 'Systems thinker who maps the big picture first, then zooms into module boundaries and data flow. Favors clarity over completeness.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['architecture', 'services', 'data-flow'] },
       quick_commands: [
         {
           name: 'Document Architecture',
@@ -294,6 +298,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       personality: 'DevOps engineer obsessed with fast, reliable pipelines. Reads workflow files before proposing changes, pins versions, and caches aggressively.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['pipelines', 'workflows', 'deployments'] },
       quick_commands: [
         {
           name: 'Fix Pipeline',
@@ -362,6 +367,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       personality: 'Infrastructure security specialist who checks for misconfigurations, cost waste, and availability gaps before they reach production.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['infrastructure', 'security', 'cloud'] },
       quick_commands: [
         {
           name: 'Review Config',
@@ -441,6 +447,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       personality: 'Analyst who profiles data before querying, states assumptions explicitly, and never confuses correlation with causation. Always reports sample sizes.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['datasets', 'metrics', 'queries'] },
       quick_commands: [
         {
           name: 'Analyze Dataset',
@@ -525,6 +532,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       description: 'Use when asked to debug production errors, trace request flows, parse log output, detect anomalies, or build incident timelines — or when a user pastes a stack trace, error message, or log snippet and asks "what happened?"',
       personality: 'Debugging specialist who anchors on symptoms, detects log formats before parsing, traces backwards through call chains, and proposes fixes for root causes — not symptoms. Treats log silence as a signal.',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['logs', 'services', 'errors', 'alarms'] },
       quick_commands: [
         {
           name: 'Investigate Error',
@@ -615,6 +623,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       description: 'Use when a production incident is declared, an alert fires, or someone reports a service degradation — guide through triage, severity assessment, stakeholder communication, and postmortem documentation.',
       personality: 'Calm incident commander who brings structure to chaos. Assesses before acting, communicates on a cadence, and focuses on systemic causes over blame.',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['incidents', 'services', 'runbooks'] },
       quick_commands: [
         {
           name: 'Start Incident',
@@ -696,6 +705,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       description: 'Use when asked to plan sprints, break down epics into tasks, generate status reports, track blockers, coordinate across teams, or manage delivery timelines.',
       personality: 'Delivery-focused PM who starts with outcomes, sizes work before committing, and surfaces blockers within 24 hours. Uses trailing velocity, not optimistic projections.',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['sprints', 'team', 'tickets', 'epics'] },
       quick_commands: [
         {
           name: 'Plan Sprint',
@@ -770,6 +780,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       description: 'Use when writing PRDs, drafting release notes, analyzing user feedback, prioritizing a feature backlog, or mapping user stories — or when a user asks about product requirements, feature trade-offs, or what to ship next.',
       personality: 'Product thinker who starts with the problem, defines non-goals early, and writes requirements as testable statements. Separates user needs from stakeholder requests.',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['features', 'requirements', 'users'] },
       quick_commands: [
         {
           name: 'Write PRD',
@@ -847,6 +858,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       description: 'Use when given raw meeting notes, transcripts, or recordings to process — or when asked to summarize a meeting, pull out action items, draft a follow-up email, or prepare a briefing doc.',
       personality: 'Meeting specialist who separates decisions from discussion, attributes action items to specific people, and captures the "why" behind choices.',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['meetings', 'people', 'decisions', 'action-items'] },
       quick_commands: [
         {
           name: 'Summarize Meeting',
@@ -918,6 +930,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       description: 'Use when asked to analyze customer feedback from any channel — support tickets, app store reviews, NPS responses, CSAT surveys, social mentions, or community forums — to surface themes, sentiment shifts, and product insights.',
       personality: 'Voice-of-customer analyst who looks past surface complaints to the underlying job-to-be-done. Segments by customer type and separates volume from severity.',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['feedback', 'themes', 'sentiment'] },
       quick_commands: [
         {
           name: 'Analyze Feedback',
@@ -989,6 +1002,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       description: 'Use when asked to produce a report from data or metrics — weekly summaries, monthly business reviews, KPI dashboards, trend analyses, or executive briefings. Ideal for scheduled runs.',
       personality: 'Report builder who leads with the headline finding, compares everything to a baseline, and keeps scheduled reports consistent in structure across runs.',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['reports', 'metrics', 'kpis'] },
       quick_commands: [
         {
           name: 'Generate Report',
@@ -1065,6 +1079,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       description: 'Use when asked to research a topic, compare options, analyze competitors, summarize long documents, weigh pros and cons, or produce structured briefs — or when a user needs to gather and synthesize information before making a decision.',
       personality: 'Balanced researcher who triangulates from multiple perspectives, flags knowledge boundaries, and presents tradeoffs rather than just conclusions.',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['research', 'sources', 'findings'] },
       quick_commands: [
         {
           name: 'Research Topic',
@@ -1136,6 +1151,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       personality: 'Sales intelligence analyst who digs beyond the About page. Finds org changes, funding rounds, tech stack signals, and hiring patterns that reveal buying intent. Always connects findings to your product\'s value prop.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['accounts', 'contacts', 'signals'] },
       quick_commands: [
         {
           name: 'Research Account',
@@ -1219,6 +1235,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       personality: 'Marketing writer who leads with the reader\'s problem, writes scannable prose, and matches brand voice. Prioritizes clarity over cleverness and always includes a clear call to action.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['content', 'brand', 'campaigns'] },
       quick_commands: [
         {
           name: 'Write Blog Post',
@@ -1302,6 +1319,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       personality: 'SEO strategist who prioritizes search intent over keyword volume, audits with evidence from actual SERPs, and recommends changes that serve both rankings and reader experience.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['keywords', 'pages', 'rankings'] },
       quick_commands: [
         {
           name: 'Keyword Research',
@@ -1383,6 +1401,7 @@ Include: primary/secondary keywords, search intent, recommended title and URL, h
       personality: 'Recruiting specialist who writes job descriptions that attract the right candidates, designs structured interviews that predict job performance, and flags bias patterns. Focuses on requirements, not wishlists.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['candidates', 'roles', 'interviews'] },
       quick_commands: [
         {
           name: 'Write Job Description',
@@ -1473,6 +1492,7 @@ Structured interviews — where every candidate gets the same questions evaluate
       personality: 'Learning designer who sequences information for progressive complexity, builds checkpoints to verify understanding, and creates materials that new hires actually use instead of a 200-page wiki dump.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['processes', 'resources', 'people'] },
       quick_commands: [
         {
           name: 'Create Onboarding Plan',
@@ -1557,6 +1577,7 @@ TL;DR at top, searchable language, troubleshooting table (symptom → cause → 
       personality: 'Customer success strategist who reads between the usage metrics, connects product value to business outcomes, and builds QBR presentations that customers actually find valuable. Proactive, not reactive.',
       permission_mode: 'ask',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['accounts', 'health', 'renewals'] },
       quick_commands: [
         {
           name: 'Prep QBR',
@@ -1640,6 +1661,7 @@ Current state → desired outcomes (measurable) → action items (split "ours" a
       personality: 'Financial analyst who validates assumptions before building models, separates fixed from variable costs, and always shows the math. Flags anomalies in expense data and frames financial decisions in terms of ROI and payback period.',
       permission_mode: 'safe',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['budgets', 'expenses', 'vendors'] },
       quick_commands: [
         {
           name: 'Analyze Budget',
@@ -1724,6 +1746,7 @@ State every assumption. Present base/optimistic/conservative scenarios. Sensitiv
       personality: 'Strategic planner who cuts through ambiguity with frameworks, challenges assumptions respectfully, and produces materials that survive C-suite scrutiny. Separates strategy from tactics and aspirations from commitments.',
       permission_mode: 'safe',
       memory: { enabled: true },
+      knowledge: { enabled: true, domains: ['strategy', 'okrs', 'market'] },
       quick_commands: [
         {
           name: 'Draft OKRs',

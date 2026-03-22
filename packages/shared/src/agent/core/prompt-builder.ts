@@ -112,6 +112,19 @@ export class PromptBuilder {
       parts.push(this.config.agentBriefingContext);
     }
 
+    // When knowledge tools are available, instruct the agent to prefer them
+    if (this.config.knowledgeEnabled) {
+      parts.push(
+        '<agent_knowledge_instructions>\n' +
+        'You have a structured knowledge store. When you learn facts about your domain:\n' +
+        '- Use save_knowledge to store entities (things), relationships (connections between things), and patterns (recurring observations). Include synonym tags for retrieval.\n' +
+        '- Use save_knowledge with the observations field for free-form notes.\n' +
+        '- Do NOT use save_agent_memory — use save_knowledge instead. Your knowledge store is your primary memory.\n' +
+        '- Use query_knowledge to recall what you know before answering domain questions.\n' +
+        '</agent_knowledge_instructions>'
+      );
+    }
+
     // Add working directory context
     const workingDirContext = this.getWorkingDirectoryContext();
     if (workingDirContext) {

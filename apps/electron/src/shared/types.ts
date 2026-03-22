@@ -437,6 +437,7 @@ export interface ElectronAPI {
   addAgentMemory(workspaceId: string, skillSlug: string, facts: string[]): Promise<{ added: number }>
   deleteAgentMemoryFact(workspaceId: string, skillSlug: string, factId: string): Promise<{ deleted: boolean }>
   clearAgentMemory(workspaceId: string, skillSlug: string): Promise<{ cleared: boolean }>
+  getKnowledgeStats(workspaceId: string, skillSlug: string): Promise<{ entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: string }>
   onAgentStateChanged(callback: (data: { skillSlug: string }) => void): () => void
 
   // Statuses (workspace-scoped)

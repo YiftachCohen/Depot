@@ -31,7 +31,7 @@ export async function handleResetKnowledge(
   }
 
   try {
-    ctx.resetKnowledge(args.domain);
+    await ctx.resetKnowledge(args.domain);
 
     if (args.domain) {
       return successResponse(`Knowledge for domain '${args.domain}' has been reset.`);
