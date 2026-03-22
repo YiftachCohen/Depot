@@ -129,6 +129,79 @@ jobs:
           path: artifacts
           merge-multiple: false
 
+      - name: Merge macOS update manifests
+        run: |
+          # Both arm64 and x64 builds produce latest-mac.yml with their own arch files.
+          # Merge them into one manifest so the auto-updater serves both architectures,
+          # then remove the duplicate to prevent 404 when the release action tries to
+          # delete the same asset name twice.
+          ARM64_YML=$(ls artifacts/release-macos-arm64/latest-mac*.yml 2>/dev/null | head -1)
+          X64_YML=$(ls artifacts/release-macos-x64/latest-mac*.yml 2>/dev/null | head -1)
+          if [ -n "$ARM64_YML" ] && [ -n "$X64_YML" ]; then
+            node - "$ARM64_YML" "$X64_YML" <<'NODEJS'
+          const fs = require("fs");
+          const [arm64Path, x64Path] = process.argv.slice(2);
+
+          // electron-builder latest-mac.yml is simple enough to parse line-by-line
+          // but we use a minimal YAML-subset parser for the files array
+          function parseLatestYml(text) {
+            const obj = {};
+            const files = [];
+            let inFiles = false, current = null;
+            for (const line of text.split("\n")) {
+              if (line.startsWith("files:")) { inFiles = true; continue; }
+              if (inFiles) {
+                if (line.match(/^  - /)) {
+                  if (current) files.push(current);
+                  current = {};
+                }
+                const m = line.match(/^  (?:- )?(\w+):\s*(.+)/);
+                if (m && current) current[m[1]] = m[2];
+                if (!line.startsWith("  ") && line.trim() !== "") {
+                  if (current) files.push(current);
+                  inFiles = false; current = null;
+                }
+              }
+              if (!inFiles) {
+                const m = line.match(/^(\w+):\s*(.+)/);
+                if (m) obj[m[1]] = m[2];
+              }
+            }
+            if (current) files.push(current);
+            obj.files = files;
+            return obj;
+          }
+
+          function toYml(obj) {
+            let out = `version: ${obj.version}\n`;
+            out += "files:\n";
+            for (const f of obj.files) {
+              out += `  - url: ${f.url}\n`;
+              out += `    sha512: ${f.sha512}\n`;
+              out += `    size: ${f.size}\n`;
+            }
+            out += `path: ${obj.path}\n`;
+            out += `sha512: ${obj.sha512}\n`;
+            out += `releaseDate: ${obj.releaseDate}\n`;
+            return out;
+          }
+
+          const arm64 = parseLatestYml(fs.readFileSync(arm64Path, "utf8"));
+          const x64 = parseLatestYml(fs.readFileSync(x64Path, "utf8"));
+
+          const seen = new Set(arm64.files.map(f => f.url));
+          for (const f of x64.files) {
+            if (!seen.has(f.url)) arm64.files.push(f);
+          }
+
+          fs.writeFileSync(arm64Path, toYml(arm64));
+          console.log("✅ Merged macOS update manifests");
+          NODEJS
+            rm -f "$X64_YML"
+          else
+            echo "⚠️ Could not find both macOS manifests, skipping merge"
+          fi
+
       - name: Determine release tag
         id: tag
         run: |
