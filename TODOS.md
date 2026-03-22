@@ -78,3 +78,33 @@ Periodic backup of `agent-knowledge.db` to `agent-knowledge.db.bak` before each 
 **Cons:** Doubles disk usage per agent (~10-50MB extra). Backup could also be corrupt if corruption predates the backup. Need to handle the case where backup is also invalid.
 
 **Where to start:** Add `fs.copyFileSync(dbPath, dbPath + '.bak')` at the start of each consolidation run in `knowledge/consolidation.ts`. On `KnowledgeStoreManager.open()`, if the DB fails integrity check (`PRAGMA integrity_check`), check for `.bak` file and offer restore via a notification event.
+
+---
+
+### TODO-KF-006: Adaptive Observation Scheduling
+**Priority:** P3 | **Effort:** M (human) → S (CC+gstack) | **Status:** Deferred
+**Depends on:** Observation history (shipped in skill-scheduling-system)
+**Source:** CEO Review 2026-03-22, TODOS proposal
+
+Adjust observation frequency based on entity churn rate. Agents watching quiet sources scan at the same cadence as high-churn sources — wasteful for quiet ones, too slow for active ones.
+
+**Why:** Saves tokens on stable sources (CloudWatch with no changes), catches changes faster on active ones (Jira during sprint). The observation history data provides the churn signal needed.
+
+**Cons:** Adds scheduling complexity. Needs a heuristic for "what counts as churn" — entity count delta per observation? Risk of over-scanning if churn detection is noisy.
+
+**Where to start:** After each observation, compute entity delta (from observation history `entitiesAdded`). If delta is consistently 0 across 3+ runs, double the interval (up to 24h). If delta is consistently high, halve the interval (down to manifest minimum). Store adjusted interval in agent-state.json.
+
+---
+
+### TODO-KF-007: Knowledge Store Integrity Check on Open
+**Priority:** P2 | **Effort:** S (human) → S (CC+gstack) | **Status:** Deferred
+**Depends on:** Nothing
+**Source:** Eng Review 2026-03-22, TODOS proposal
+
+Run `PRAGMA integrity_check` when opening a knowledge store. If corruption is detected, surface it before the agent starts using bad data.
+
+**Why:** Silent corruption → wrong knowledge → wrong agent answers → eroded user trust. Detecting early prevents compounding errors from bad data propagating through consolidation and context loading.
+
+**Cons:** Adds ~50-100ms to store open time (one-time per session). False positives from PRAGMA are rare but possible. Needs a recovery path (link to TODO-KF-005 backup/recovery).
+
+**Where to start:** In `KnowledgeStoreManager.open()`, after creating the sql.js database instance, run `SELECT * FROM pragma_integrity_check`. If result is not "ok", log a warning and emit a notification event. Don't block — let the agent proceed but flag the issue.
