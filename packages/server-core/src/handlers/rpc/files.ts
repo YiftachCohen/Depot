@@ -51,11 +51,15 @@ export async function convertOfficeToMarkdown(filePath: string): Promise<string>
 
   // For .doc (binary Word), .xlsx, .pptx — use the Python markitdown CLI
   return new Promise<string>((resolve, reject) => {
+    let settled = false
+    const settle = (fn: () => void) => { if (!settled) { settled = true; fn() } }
     const scriptsDir = resolveScriptsDir()
-    const proc = spawn('uv', ['run', 'markitdown_cli.py', filePath], {
+    // Use '--' to prevent filePath from being interpreted as a flag (argument injection)
+    const proc = spawn('uv', ['run', 'markitdown_cli.py', '--', filePath], {
       cwd: scriptsDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 30_000,
+      killSignal: 'SIGKILL',
     })
 
     let stdout = ''
@@ -63,17 +67,19 @@ export async function convertOfficeToMarkdown(filePath: string): Promise<string>
     proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
     proc.on('error', (err) => {
-      reject(new Error(
+      settle(() => reject(new Error(
         `Office conversion failed: ${err.message}. ` +
         `For .doc/.xlsx/.pptx support, ensure Python 3.12+ and uv are installed.`
-      ))
+      )))
     })
     proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`Office conversion failed (exit ${code}): ${stderr.trim()}`))
-      } else {
-        resolve(stdout)
-      }
+      settle(() => {
+        if (code !== 0) {
+          reject(new Error(`Office conversion failed (exit ${code}): ${stderr.trim()}`))
+        } else {
+          resolve(stdout)
+        }
+      })
     })
   })
 }
