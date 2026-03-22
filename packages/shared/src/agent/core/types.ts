@@ -98,6 +98,10 @@ export interface PromptBuilderConfig {
   agentPersonality?: string;
   /** Pre-formatted agent memory context (injected into system prompt) */
   agentMemoryContext?: string;
+  /** Pre-formatted agent knowledge context (injected into system prompt) */
+  agentKnowledgeContext?: string;
+  /** Pre-formatted agent briefing context (injected into system prompt) */
+  agentBriefingContext?: string;
 }
 
 /**

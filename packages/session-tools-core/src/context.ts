@@ -312,6 +312,31 @@ export interface SessionToolContext {
    */
   saveAgentMemory?(facts: string[]): void;
 
+  /**
+   * Save structured knowledge to the agent's knowledge store.
+   * Only available for knowledge-enabled agents (knowledge: { enabled: true }).
+   */
+  saveKnowledge?(args: {
+    entities?: Array<{ type: string; name: string; domain: string; properties?: Record<string, unknown>; tags?: string[] }>;
+    relationships?: Array<{ source: string; target: string; sourceDomain?: string; targetDomain?: string; relation: string; properties?: Record<string, unknown> }>;
+    patterns?: Array<{ description: string; relatedEntities?: string[]; patternType?: string }>;
+    observations?: string[];
+  }): { entities: number; relationships: number; patterns: number; observations: number };
+
+  /**
+   * Query the agent's knowledge store.
+   * Returns formatted text with matching entities and relationships.
+   */
+  queryKnowledge?(args: {
+    domain?: string; entityType?: string; tags?: string[];
+    query?: string; includeRelationships?: boolean; limit?: number;
+  }): string;
+
+  /**
+   * Reset the agent's knowledge store (all or specific domain).
+   */
+  resetKnowledge?(domain?: string): void;
+
   // ============================================================
   // Session Paths (for transform_data / render_template)
   // ============================================================
