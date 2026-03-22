@@ -253,35 +253,50 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
 
   const knowledgeCallbacks: Pick<SessionToolContext, 'saveKnowledge' | 'queryKnowledge' | 'resetKnowledge'> = {};
 
+  debug('claude-context', `Knowledge wiring: skillSlug=${skillSlug ?? 'NONE'} workspacePath=${workspacePath}`);
   if (skillSlug) {
     const resolvedSkill = loadSkillBySlug(workspacePath, skillSlug, projectRoot);
+    debug('claude-context', `Resolved skill: slug=${skillSlug} path=${resolvedSkill?.path ?? 'NOT_FOUND'} knowledge=${resolvedSkill?.manifest?.knowledge?.enabled ?? false}`);
     if (resolvedSkill?.manifest?.knowledge?.enabled) {
       knowledgeDefaultDomain = resolvedSkill.manifest.knowledge.domains?.[0] ?? skillSlug;
 
-      // Pre-warm: open the store asynchronously via dynamic import to avoid
-      // loading sql.js WASM for non-knowledge sessions. By the time the first
-      // tool call arrives (after postInit + user message), this will have resolved.
-      import('../skills/knowledge/store.ts')
-        .then(({ KnowledgeStoreManager }) => KnowledgeStoreManager.getInstance().open(workspacePath, skillSlug, resolvedSkill!.path))
-        .then(store => { knowledgeStore = store; })
-        .catch(err => {
-          knowledgeStoreFailed = true;
-          debug('claude-context', `Knowledge store init failed: ${err}`);
-        });
+      // Initialize knowledge store asynchronously. The callbacks await the
+      // promise so they work even if the store isn't ready when the context
+      // is first created. WASM init takes <200ms.
+      let storePromise: Promise<KnowledgeStore>;
+      try {
+        const { KnowledgeStoreManager } = require('../skills/knowledge/store.ts');
+        storePromise = KnowledgeStoreManager.getInstance().open(workspacePath, skillSlug, resolvedSkill!.path);
+        storePromise
+          .then((store: KnowledgeStore) => { knowledgeStore = store; })
+          .catch((err: unknown) => {
+            knowledgeStoreFailed = true;
+            debug('claude-context', `Knowledge store init failed: ${err}`);
+          });
+      } catch (err) {
+        knowledgeStoreFailed = true;
+        debug('claude-context', `Knowledge store module load failed: ${err}`);
+        storePromise = Promise.reject(err);
+        storePromise.catch(() => {}); // Prevent unhandled rejection — error surfaced via knowledgeStoreFailed flag
+      }
 
-      const requireStore = (): KnowledgeStore => {
+      const getStore = async (): Promise<KnowledgeStore> => {
         if (knowledgeStoreFailed) throw new Error('Knowledge store failed to initialize. Check agent logs for details.');
-        if (!knowledgeStore) throw new Error('Knowledge store is still initializing. Please try again.');
-        return knowledgeStore;
+        if (knowledgeStore) return knowledgeStore;
+        // Await the initialization promise — this is the key fix.
+        // The handlers are async so this works naturally.
+        const store = await storePromise;
+        knowledgeStore = store;
+        return store;
       };
 
-      knowledgeCallbacks.saveKnowledge = (args) => {
-        const store = requireStore();
+      knowledgeCallbacks.saveKnowledge = async (args) => {
+        const store = await getStore();
         return store.saveKnowledge(args, sessionId, knowledgeDefaultDomain);
       };
 
-      knowledgeCallbacks.queryKnowledge = (args) => {
-        const store = requireStore();
+      knowledgeCallbacks.queryKnowledge = async (args) => {
+        const store = await getStore();
         const entities = store.queryEntities({
           domain: args.domain,
           entityType: args.entityType,
@@ -319,8 +334,8 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
         return lines.join('\n');
       };
 
-      knowledgeCallbacks.resetKnowledge = (domain?: string) => {
-        const store = requireStore();
+      knowledgeCallbacks.resetKnowledge = async (domain?: string) => {
+        const store = await getStore();
         store.reset(domain);
       };
     }

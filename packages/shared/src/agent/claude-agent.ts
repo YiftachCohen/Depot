@@ -25,6 +25,7 @@ import type { FileAttachment } from '../utils/files.ts';
 import type { LLMQueryRequest, LLMQueryResult } from './llm-tool.ts';
 import { debug } from '../utils/debug.ts';
 import { guardLargeResult } from '../utils/large-response.ts';
+import { loadSkillBySlug } from '../skills/storage.ts';
 import {
   getSessionPlansDir,
   getLastPlanFilePath,
@@ -405,6 +406,8 @@ export class ClaudeAgent extends BaseAgent {
   private branchFromSdkCwd: string | null = null;
   private branchFromSdkTurnId: string | null = null;
   private isHeadless: boolean = false;
+  /** Cached knowledge skill reference for PostToolUse hook (avoids disk I/O per tool call). undefined = not checked, null = checked and not knowledge-enabled. */
+  private _cachedKnowledgeSkill: import('../skills/types.ts').LoadedSkill | null | undefined = undefined;
   private pendingPermissions: Map<string, PendingPermission> = new Map();
   // Permission whitelists are now managed by this.permissionManager (inherited from BaseAgent)
   // Source state tracking is now managed by this.sourceManager (inherited from BaseAgent)
@@ -1160,10 +1163,39 @@ export class ClaudeAgent extends BaseAgent {
               }
             }],
           }],
-          // NOTE: PostToolUse hook was removed because updatedMCPToolOutput is not a valid SDK output field.
-          // For API tools (api_*), summarization happens in api-tools.ts.
-          // For external MCP servers (stdio/HTTP), we cannot modify their output - they're responsible
-          // for their own size management via pagination or filtering.
+          // PostToolUse: Opportunistic learning for knowledge-enabled agents.
+          // Extracts entities from MCP tool responses in the background.
+          // Does NOT modify the tool output (read-only hook).
+          PostToolUse: [{
+            hooks: [async (input) => {
+              if ((input as any).hook_event_name !== 'PostToolUse') return { continue: true };
+              const typedInput = input as {
+                tool_name?: string;
+                tool_use_id?: string;
+                tool_result?: string;
+              };
+              // Only process MCP tool results (mcp__* prefix)
+              const toolName = typedInput.tool_name ?? '';
+              if (!toolName.startsWith('mcp__')) return { continue: true };
+              // Only for knowledge-enabled agents — use cached skill to avoid disk I/O per tool call
+              const slug = this.config.session?.skillSlug;
+              if (!slug) return { continue: true };
+              if (this._cachedKnowledgeSkill === undefined) {
+                const resolved = loadSkillBySlug(this.config.workspace.rootPath, slug);
+                if (!resolved?.manifest?.knowledge?.enabled) {
+                  this._cachedKnowledgeSkill = null;
+                  return { continue: true };
+                }
+                this._cachedKnowledgeSkill = resolved;
+              }
+              if (this._cachedKnowledgeSkill === null) return { continue: true };
+              // Fire-and-forget: extract entities from tool response in background
+              const toolResult = typedInput.tool_result ?? '';
+              if (toolResult.length < 50) return { continue: true }; // Skip tiny responses
+              this.extractKnowledgeFromToolResponse(slug, this._cachedKnowledgeSkill, toolName, toolResult).catch(() => {});
+              return { continue: true };
+            }],
+          }],
 
           // ═══════════════════════════════════════════════════════════════════════════
           // SUBAGENT HOOKS: Logging only - parent tracking uses SDK's parent_tool_use_id
@@ -2563,6 +2595,53 @@ This is a branched conversation. All prior messages in this conversation are par
   // ============================================================
   // Mini Completion (for title generation and other quick tasks)
   // ============================================================
+
+  /**
+   * Opportunistic learning: extract entities from an MCP tool response.
+   * Runs in the background (fire-and-forget). Uses heuristic extraction first,
+   * only triggers an LLM call for high-signal responses (>5 potential entities).
+   */
+  private async extractKnowledgeFromToolResponse(
+    skillSlug: string,
+    skill: import('../skills/types.ts').LoadedSkill,
+    toolName: string,
+    toolResult: string,
+  ): Promise<void> {
+    try {
+      // Cap tool result size to prevent memory spikes from large MCP responses (e.g., database dumps)
+      const MAX_TOOL_RESULT_SIZE = 100_000; // 100KB
+      const cappedResult = toolResult.length > MAX_TOOL_RESULT_SIZE ? toolResult.slice(0, MAX_TOOL_RESULT_SIZE) : toolResult;
+
+      const { KnowledgeStoreManager, extractEntitiesHeuristic, stripPii } = await import('../skills/knowledge/index.ts');
+      const store = await KnowledgeStoreManager.getInstance().open(
+        this.config.workspace.rootPath, skillSlug, skill.path,
+      );
+
+      const domains = skill.manifest?.knowledge?.domains ?? [];
+      const defaultDomain = domains[0] ?? skillSlug;
+
+      // First pass: heuristic entity extraction (free, no LLM call)
+      const heuristicEntities = extractEntitiesHeuristic(cappedResult, domains.length > 0 ? domains : [defaultDomain]);
+
+      if (heuristicEntities.length > 0) {
+        const cleanResult = stripPii(cappedResult);
+        store.saveKnowledge(
+          {
+            entities: heuristicEntities.map(e => ({
+              ...e,
+              tags: [e.name.toLowerCase(), e.type.toLowerCase()],
+            })),
+            observations: [`[${toolName}] ${cleanResult.slice(0, 500)}`],
+          },
+          this.modeSessionId,
+          defaultDomain,
+        );
+        this.debug(`Opportunistic learning: extracted ${heuristicEntities.length} entities from ${toolName}`);
+      }
+    } catch (err) {
+      this.debug(`Opportunistic learning failed for ${toolName}: ${err}`);
+    }
+  }
 
   /**
    * Run a simple text completion using Claude SDK.

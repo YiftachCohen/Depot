@@ -304,18 +304,20 @@ export abstract class BaseAgent implements AgentBackend {
     let agentMemoryContext: string | undefined;
     let agentKnowledgeContext: string | undefined;
     let agentBriefingContext: string | undefined;
+    let knowledgeEnabled = false;
     if (this.config.session?.skillSlug) {
       const slug = this.config.session.skillSlug;
       const skill = loadSkillBySlug(this.config.workspace.rootPath, slug);
       agentPersonality = skill?.manifest?.personality;
+      knowledgeEnabled = skill?.manifest?.knowledge?.enabled === true;
       const agentState = loadAgentState(this.config.workspace.rootPath, slug, skill?.path);
       agentMemoryContext = formatAgentMemoryForPrompt(agentState, slug) || undefined;
 
       // Inject knowledge context if the store was pre-loaded via initKnowledgeStore()
-      if (this.knowledgeStore && skill?.manifest?.knowledge?.enabled) {
+      if (this.knowledgeStore && knowledgeEnabled) {
         try {
           const { buildKnowledgeContext, buildBriefingContext } = require('../skills/knowledge/context.ts');
-          const domains = skill.manifest.knowledge.domains ?? [];
+          const domains = skill!.manifest!.knowledge!.domains ?? [];
           agentKnowledgeContext = buildKnowledgeContext(this.knowledgeStore, '', slug, domains) || undefined;
           agentBriefingContext = buildBriefingContext(this.knowledgeStore, agentState?.lastUserSessionTimestamp ?? null) || undefined;
         } catch (err) {
@@ -323,6 +325,7 @@ export abstract class BaseAgent implements AgentBackend {
         }
       }
     }
+
     return new PromptBuilder({
       workspace: this.config.workspace,
       session: this.config.session,
@@ -333,6 +336,7 @@ export abstract class BaseAgent implements AgentBackend {
       agentMemoryContext,
       agentKnowledgeContext,
       agentBriefingContext,
+      knowledgeEnabled,
     });
   }
 

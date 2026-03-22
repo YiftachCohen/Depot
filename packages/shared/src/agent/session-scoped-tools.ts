@@ -285,6 +285,7 @@ export function getSessionScopedTools(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let tools: any[] | undefined = sessionToolsCache.get(cacheKey);
   if (!tools) {
+    debug('session-scoped-tools', `Creating tools for session=${sessionId} skillSlug=${skillSlug ?? 'NONE'}`);
     // Create Claude context with full capabilities
     const ctx = createClaudeContext({
       sessionId,

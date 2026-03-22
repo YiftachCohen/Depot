@@ -995,7 +995,20 @@ export class KnowledgeStoreManager {
         // @ts-expect-error sql.js ships no .d.ts; we define SqlJsDatabase inline above
         const sqlJsModule = await import(/* webpackIgnore: true */ 'sql.js');
         const initSqlJs = sqlJsModule.default ?? sqlJsModule;
-        this.sqlJs = await initSqlJs();
+
+        // Locate the WASM binary. sql.js looks for sql-wasm.wasm relative to
+        // the current working directory by default, which fails in Electron
+        // where cwd is the app bundle, not the repo root.
+        let wasmBinary: Buffer | undefined;
+        try {
+          const pkgDir = dirname(require.resolve('sql.js/package.json'));
+          const wasmPath = join(pkgDir, 'dist', 'sql-wasm.wasm');
+          wasmBinary = readFileSync(wasmPath);
+        } catch {
+          // Let sql.js try its default WASM resolution
+        }
+
+        this.sqlJs = await initSqlJs(wasmBinary ? { wasmBinary } : undefined);
         this.startEvictionTimer();
       } catch (err) {
         // Clear the cached promise so subsequent calls can retry
