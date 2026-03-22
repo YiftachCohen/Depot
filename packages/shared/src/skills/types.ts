@@ -6,6 +6,7 @@
  */
 
 import type { AutomationMatcher } from '../automations/types.ts';
+import type { KnowledgeManifestConfig } from './knowledge/types.ts';
 
 /**
  * Skill metadata from SKILL.md YAML frontmatter
@@ -111,6 +112,8 @@ export interface DepotSkillManifest {
 
   // --- v3 fields (all optional, backward compatible) ---
 
+  /** Knowledge Fabric configuration (v3) */
+  knowledge?: KnowledgeManifestConfig;
   /** Automations scoped to this agent — triggers that create sessions with this agent's full context */
   automations?: Record<string, AutomationMatcher[]>;
 }

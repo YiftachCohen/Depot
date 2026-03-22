@@ -10,6 +10,7 @@ import { join } from 'path';
 import yaml from 'js-yaml';
 import { z } from 'zod';
 import type { DepotSkillManifest, InlineSourceConfig, QuickCommand } from './types.ts';
+import type { KnowledgeManifestConfig } from './knowledge/types.ts';
 import type { AutomationMatcher } from '../automations/types.ts';
 import { AutomationMatcherSchema, VALID_EVENTS, DEPRECATED_EVENT_ALIASES } from '../automations/schemas.ts';
 
@@ -255,6 +256,64 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     };
   }
 
+  // knowledge: KnowledgeManifestConfig
+  let knowledge: KnowledgeManifestConfig | undefined;
+  if (data.knowledge !== undefined && typeof data.knowledge === 'object' && data.knowledge !== null && !Array.isArray(data.knowledge)) {
+    const rawKnowledge = data.knowledge as Record<string, unknown>;
+    if (typeof rawKnowledge.enabled === 'boolean') {
+      const knowledgeConfig: KnowledgeManifestConfig = {
+        enabled: rawKnowledge.enabled,
+      };
+
+      // observation_schedule
+      if (typeof rawKnowledge.observation_schedule === 'string' && rawKnowledge.observation_schedule.trim() !== '') {
+        knowledgeConfig.observationSchedule = rawKnowledge.observation_schedule.trim();
+      }
+
+      // consolidation_schedule
+      if (typeof rawKnowledge.consolidation_schedule === 'string' && rawKnowledge.consolidation_schedule.trim() !== '') {
+        knowledgeConfig.consolidationSchedule = rawKnowledge.consolidation_schedule.trim();
+      }
+
+      // observation_prompt
+      if (typeof rawKnowledge.observation_prompt === 'string' && rawKnowledge.observation_prompt.trim() !== '') {
+        knowledgeConfig.observationPrompt = rawKnowledge.observation_prompt.trim();
+      }
+
+      // observation_permission_mode
+      const validObsPermModes = ['safe', 'ask', 'allow-all'];
+      if (typeof rawKnowledge.observation_permission_mode === 'string' && validObsPermModes.includes(rawKnowledge.observation_permission_mode)) {
+        knowledgeConfig.observationPermissionMode = rawKnowledge.observation_permission_mode as 'safe' | 'ask' | 'allow-all';
+      }
+
+      // token_budget
+      if (typeof rawKnowledge.token_budget === 'object' && rawKnowledge.token_budget !== null && !Array.isArray(rawKnowledge.token_budget)) {
+        const rawBudget = rawKnowledge.token_budget as Record<string, unknown>;
+        if (typeof rawBudget.per_day === 'number' && rawBudget.per_day > 0) {
+          knowledgeConfig.tokenBudget = { perDay: rawBudget.per_day };
+        }
+      }
+
+      // max_observation_turns
+      if (typeof rawKnowledge.max_observation_turns === 'number' && rawKnowledge.max_observation_turns > 0) {
+        knowledgeConfig.maxObservationTurns = rawKnowledge.max_observation_turns;
+      }
+
+      // domains
+      if (Array.isArray(rawKnowledge.domains)) {
+        const validDomains = rawKnowledge.domains.filter(
+          (d): d is string => typeof d === 'string' && d.trim() !== '',
+        );
+        if (validDomains.length > 0) {
+          knowledgeConfig.domains = validDomains;
+        }
+      }
+
+      knowledge = knowledgeConfig;
+    }
+    // Silently ignore if enabled is not a boolean (non-breaking)
+  }
+
   // --- v3 optional fields ---
 
   // automations: Record<string, AutomationMatcher[]>
@@ -294,6 +353,7 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     personality,
     permission_mode: permissionMode,
     memory,
+    knowledge,
     automations,
   };
 }

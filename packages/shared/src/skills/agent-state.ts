@@ -39,6 +39,14 @@ export interface AgentMemory {
   consolidatedAt?: number;
 }
 
+/** Token usage tracking for knowledge observation budget */
+export interface KnowledgeTokenUsage {
+  /** Calendar date string (YYYY-MM-DD in local timezone) */
+  date: string;
+  /** Total tokens used on this date */
+  tokensUsed: number;
+}
+
 /** Persistent agent state stored on disk */
 export interface AgentState {
   /** Stable agent ID (survives renames) */
@@ -51,6 +59,19 @@ export interface AgentState {
   sourceSetupStatus: Record<string, 'configured' | 'auth_pending' | 'failed'>;
   /** Cross-session memory */
   memory: AgentMemory;
+
+  // --- Knowledge Fabric fields (v3) ---
+
+  /** When the last user-initiated session ended (epoch ms). Used for morning briefing. */
+  lastUserSessionTimestamp?: number;
+  /** Daily token budget tracking for observation loops */
+  knowledgeTokenUsage?: KnowledgeTokenUsage;
+  /** Whether an observation loop is currently in progress */
+  observationInProgress?: boolean;
+  /** Timestamp when observation_in_progress was set (for stale flag detection) */
+  observationStartedAt?: number;
+  /** Whether the first-knowledge celebration toast has been shown */
+  firstKnowledgeSeen?: boolean;
 }
 
 // ============================================================

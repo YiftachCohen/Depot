@@ -27,6 +27,7 @@ const EXPECTED_CHANNELS: string[] = [
   'agentState:clearMemory',
   'agentState:deleteFact',
   'agentState:get',
+  'agentState:getKnowledgeStats',
   'agentState:getMemory',
   'appearance:getRichToolDescriptions',
   'appearance:setAppIcon',

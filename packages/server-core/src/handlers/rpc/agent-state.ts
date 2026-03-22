@@ -9,6 +9,7 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.agentState.ADD_MEMORY,
   RPC_CHANNELS.agentState.DELETE_FACT,
   RPC_CHANNELS.agentState.CLEAR_MEMORY,
+  RPC_CHANNELS.agentState.GET_KNOWLEDGE_STATS,
 ] as const
 
 export function registerAgentStateHandlers(server: RpcServer, deps: HandlerDeps): void {
@@ -63,6 +64,25 @@ export function registerAgentStateHandlers(server: RpcServer, deps: HandlerDeps)
       pushTyped(server, RPC_CHANNELS.agentState.CHANGED, { to: 'workspace', workspaceId }, { skillSlug })
     }
     return { deleted }
+  })
+
+  // Get knowledge stats for a skill
+  server.handle(RPC_CHANNELS.agentState.GET_KNOWLEDGE_STATS, async (_ctx, workspaceId: string, skillSlug: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) {
+      throw new Error(`Workspace not found: ${workspaceId}`)
+    }
+    try {
+      const { KnowledgeStoreManager } = await import('@depot/shared/skills/knowledge')
+      const { loadSkillBySlug } = await import('@depot/shared/skills')
+      const manager = KnowledgeStoreManager.getInstance()
+      // Resolve the actual skill directory (handles global vs workspace skills)
+      const skill = loadSkillBySlug(workspace.rootPath, skillSlug)
+      const store = await manager.open(workspace.rootPath, skillSlug, skill?.path)
+      return store.getStats()
+    } catch {
+      return { entityCount: 0, relationshipCount: 0, patternCount: 0, lastObservation: null, observationHealth: 'gray' }
+    }
   })
 
   // Clear all memory facts
