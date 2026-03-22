@@ -115,17 +115,41 @@ In QA mode, flag any code that doesn't match DESIGN.md.
 - Project type: desktop app (Electron)
 - Post-deploy health check: `gh release view --json tagName,isDraft,assets`
 
+### Automated semver release tagging
+When `/land-and-deploy` or `/ship` runs, the deploy flow **automatically handles version bumping and tagging** after merge:
+
+1. **Ask bump type**: Prompt the user to choose `patch` / `minor` / `major` (default: `patch`)
+2. **After merge to main**: Switch to main, pull latest
+3. **Bump version**: Update `version` in root `package.json` using the chosen bump type
+4. **Commit**: `git commit -am "chore: bump version to v{new_version}"`
+5. **Tag**: `git tag v{new_version}`
+6. **Push**: `git push origin main && git push origin v{new_version}`
+7. This triggers `release.yml` which builds all platforms and creates the GitHub Release
+
+Version bump command (run from repo root after merge):
+```bash
+# Read current version, compute new version, update package.json, commit, tag, push
+CURRENT=$(node -p "require('./package.json').version")
+# For patch: NEW=$(node -p "const [a,b,c]=('$CURRENT').split('.').map(Number); a+'.'+b+'.'+(c+1)")
+# For minor: NEW=$(node -p "const [a,b,c]=('$CURRENT').split('.').map(Number); a+'.'+(b+1)+'.0'")
+# For major: NEW=$(node -p "const [a,b,c]=('$CURRENT').split('.').map(Number); (a+1)+'.0.0'")
+node -e "const p=require('./package.json'); p.version='$NEW'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n')"
+git add package.json && git commit -m "chore: bump version to v$NEW"
+git tag "v$NEW" && git push origin main && git push origin "v$NEW"
+```
+
 ### Custom deploy hooks
 - Pre-merge: `bun run validate:dev` (typecheck + shared tests + doc tools)
-- Deploy trigger: push a `v*` git tag (e.g., `git tag v1.2.0 && git push origin v1.2.0`)
+- Post-merge: automated semver bump + tag + push (see above)
+- Deploy trigger: pushing the `v*` git tag (automated by the semver flow)
 - Deploy status: `gh run list --workflow=release.yml --limit 1`
 - Health check: `gh release view --json tagName,isDraft,assets` (verify release exists with all platform artifacts)
 
-### Release checklist
-1. Bump VERSION in `package.json` (currently `1.1.2`)
-2. Update CHANGELOG if needed
-3. Merge PR to main
-4. Tag: `git tag v{version} && git push origin v{version}`
+### Release checklist (automated by /land-and-deploy)
+1. Pre-merge validation: `bun run validate:dev`
+2. Squash-merge PR to main
+3. Ask user for bump type (patch/minor/major, default: patch)
+4. Bump `version` in `package.json`, commit, tag `v{version}`, push
 5. `release.yml` builds macOS (arm64 + x64), Linux, Windows and creates a GitHub Release
 6. Electron auto-update picks up the new release
 
