@@ -155,13 +155,12 @@ export class KnowledgeStore {
     const currentVersion = this.getSchemaVersion();
     if (currentVersion < SCHEMA_VERSION) {
       this.db.exec(SCHEMA_SQL);
-      if (currentVersion === 0) {
-        this.db.run(
-          'INSERT OR REPLACE INTO schema_version VALUES (?, ?)',
-          [SCHEMA_VERSION, Date.now()],
-        );
-      }
       // Future migrations would go here: if (currentVersion < 2) { ... }
+      // Always persist the schema version after any migration
+      this.db.run(
+        'INSERT OR REPLACE INTO schema_version VALUES (?, ?)',
+        [SCHEMA_VERSION, Date.now()],
+      );
     }
   }
 
@@ -580,7 +579,8 @@ export class KnowledgeStore {
     }
 
     sql += ' ORDER BY e.confidence DESC, e.last_seen DESC';
-    sql += ` LIMIT ${opts.limit ?? 100}`;
+    const safeLimit = Math.max(1, Math.min(Math.floor(opts.limit ?? 100), 10000));
+    sql += ` LIMIT ${safeLimit}`;
 
     const result = this.db.exec(sql, params);
     if (!result.length || !result[0]!.values.length) return [];
@@ -662,7 +662,8 @@ export class KnowledgeStore {
     if (conditions.length > 0) {
       sql += ` WHERE ${conditions.join(' AND ')}`;
     }
-    sql += ` ORDER BY timestamp DESC LIMIT ${opts?.limit ?? 50}`;
+    const safeObsLimit = Math.max(1, Math.min(Math.floor(opts?.limit ?? 50), 10000));
+    sql += ` ORDER BY timestamp DESC LIMIT ${safeObsLimit}`;
 
     const result = this.db.exec(sql, params);
     if (!result.length || !result[0]!.values.length) return [];
@@ -726,8 +727,21 @@ export class KnowledgeStore {
         // Domain-scoped reset
         this.db.run('DELETE FROM knowledge_index WHERE entity_id IN (SELECT id FROM entities WHERE domain = ?)', [domain]);
         this.db.run('DELETE FROM relationships WHERE source_entity_id IN (SELECT id FROM entities WHERE domain = ?) OR target_entity_id IN (SELECT id FROM entities WHERE domain = ?)', [domain, domain]);
-        // Clear pattern entity references to avoid dangling IDs (patterns persist, just lose links)
-        this.db.run("UPDATE patterns SET entity_ids = '[]' WHERE entity_ids IS NOT NULL");
+        // Collect IDs of entities being deleted, then scrub only those from patterns
+        const deletedIds = this.db.exec('SELECT id FROM entities WHERE domain = ?', [domain]);
+        const idSet = new Set(deletedIds.length > 0 ? deletedIds[0]!.values.map((r: SqlJsRow) => r[0] as string) : []);
+        if (idSet.size > 0) {
+          // For each pattern with entity_ids, remove references to deleted entities
+          const patterns = this.db.exec("SELECT id, entity_ids FROM patterns WHERE entity_ids IS NOT NULL AND entity_ids != '[]'");
+          if (patterns.length > 0) {
+            for (const row of patterns[0]!.values) {
+              const patternId = row[0] as string;
+              const entityIds: string[] = safeJsonParseArray(row[1] as string);
+              const filtered = entityIds.filter(id => !idSet.has(id));
+              this.db.run('UPDATE patterns SET entity_ids = ? WHERE id = ?', [JSON.stringify(filtered), patternId]);
+            }
+          }
+        }
         this.db.run('DELETE FROM entities WHERE domain = ?', [domain]);
       } else {
         // Full reset
@@ -871,11 +885,10 @@ export class KnowledgeStore {
   /** Merge duplicate entities with same (name, domain, type) */
   deduplicateEntities(): number {
     this.touch();
-    // Order by confidence DESC, last_seen DESC within each group so the
-    // first ID in GROUP_CONCAT is the best keeper (highest confidence, most recent).
+    // Find groups with duplicates
     const dupes = this.db.exec(
       `SELECT name, domain, type, GROUP_CONCAT(id) as ids, COUNT(*) as cnt
-       FROM (SELECT * FROM entities WHERE archived = 0 ORDER BY confidence DESC, last_seen DESC)
+       FROM entities WHERE archived = 0
        GROUP BY name, domain, type HAVING cnt > 1`,
     );
     if (!dupes.length || !dupes[0]!.values.length) return 0;
@@ -887,9 +900,16 @@ export class KnowledgeStore {
         const ids = (row[3] as string).split(',');
         if (ids.length < 2) continue;
 
-        // Keep the one with highest confidence / most recent last_seen
-        const keeper = ids[0]!;
-        const toMerge = ids.slice(1);
+        // Explicitly select the best keeper (GROUP_CONCAT order is not guaranteed)
+        const keeperResult = this.db.exec(
+          `SELECT id FROM entities WHERE id IN (${ids.map(() => '?').join(',')})
+           ORDER BY confidence DESC, last_seen DESC LIMIT 1`,
+          ids,
+        );
+        const keeper = keeperResult.length > 0 && keeperResult[0]!.values.length > 0
+          ? keeperResult[0]!.values[0]![0] as string
+          : ids[0]!;
+        const toMerge = ids.filter(id => id !== keeper);
 
         for (const dupeId of toMerge) {
           // Re-point relationships
