@@ -160,5 +160,6 @@ export interface ISessionManager {
     llmConnection?: string,
     model?: string,
     automationName?: string,
+    skillSlug?: string,
   ): Promise<{ sessionId: string }>
 }
