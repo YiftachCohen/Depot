@@ -268,6 +268,32 @@ export abstract class BaseAgent implements AgentBackend {
     this.automationSystem = config.automationSystem;
   }
 
+  /** Cached knowledge store handle, set by initKnowledgeStore() during postInit(). */
+  private knowledgeStore: import('../skills/knowledge/store.ts').KnowledgeStore | null = null;
+
+  /**
+   * Pre-load the knowledge store for this agent's skill.
+   * Called from subclass postInit() so the store is ready before the first turn.
+   * After this resolves, createPromptBuilder() will inject knowledge context.
+   */
+  async initKnowledgeStore(): Promise<void> {
+    const slug = this.config.session?.skillSlug;
+    if (!slug) return;
+    const skill = loadSkillBySlug(this.config.workspace.rootPath, slug);
+    if (!skill?.manifest?.knowledge?.enabled) return;
+
+    try {
+      const { KnowledgeStoreManager } = await import('../skills/knowledge/store.ts');
+      this.knowledgeStore = await KnowledgeStoreManager.getInstance().open(
+        this.config.workspace.rootPath, slug, skill.path,
+      );
+      // Rebuild the prompt builder now that knowledge is available
+      this.promptBuilder = this.createPromptBuilder();
+    } catch (err) {
+      this.debug(`Knowledge store init failed: ${err}`);
+    }
+  }
+
   /**
    * Build a fresh PromptBuilder with current personality and memory state.
    * Called once in the constructor and again at the start of each turn so that
@@ -276,10 +302,6 @@ export abstract class BaseAgent implements AgentBackend {
   private createPromptBuilder(): PromptBuilder {
     let agentPersonality: string | undefined;
     let agentMemoryContext: string | undefined;
-    // TODO: Pre-load knowledge store during session creation (async), then pass
-    // agentKnowledgeContext and agentBriefingContext to PromptBuilder.
-    // Requires making session init await KnowledgeStoreManager.open() before
-    // the first turn, so the context is available synchronously here.
     let agentKnowledgeContext: string | undefined;
     let agentBriefingContext: string | undefined;
     if (this.config.session?.skillSlug) {
@@ -288,6 +310,18 @@ export abstract class BaseAgent implements AgentBackend {
       agentPersonality = skill?.manifest?.personality;
       const agentState = loadAgentState(this.config.workspace.rootPath, slug, skill?.path);
       agentMemoryContext = formatAgentMemoryForPrompt(agentState, slug) || undefined;
+
+      // Inject knowledge context if the store was pre-loaded via initKnowledgeStore()
+      if (this.knowledgeStore && skill?.manifest?.knowledge?.enabled) {
+        try {
+          const { buildKnowledgeContext, buildBriefingContext } = require('../skills/knowledge/context.ts');
+          const domains = skill.manifest.knowledge.domains ?? [];
+          agentKnowledgeContext = buildKnowledgeContext(this.knowledgeStore, '', slug, domains) || undefined;
+          agentBriefingContext = buildBriefingContext(this.knowledgeStore, agentState?.lastUserSessionTimestamp ?? null) || undefined;
+        } catch (err) {
+          this.debug(`Knowledge context load failed: ${err}`);
+        }
+      }
     }
     return new PromptBuilder({
       workspace: this.config.workspace,

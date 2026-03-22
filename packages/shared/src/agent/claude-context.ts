@@ -70,6 +70,7 @@ import { getSessionPlansPath, getSessionPath, getSessionDataPath } from '../sess
 import { updatePreferences as updatePreferencesImpl } from '../config/preferences.ts';
 import { addMemoryFacts } from '../skills/agent-state.ts';
 import { loadSkillBySlug } from '../skills/storage.ts';
+import type { KnowledgeStore } from '../skills/knowledge/store.ts';
 
 // Re-export types that may be needed by consumers
 export type { SessionToolContext, SessionToolCallbacks } from '@depot/session-tools-core';
@@ -242,6 +243,89 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     }
   };
 
+  // ── Knowledge Fabric store wiring ──────────────────────────
+  // Resolve the store eagerly so it's ready by the time the agent calls a tool.
+  // The callbacks are synchronous (SessionToolContext contract) so we use a
+  // pre-resolved handle that's cached by KnowledgeStoreManager.
+  let knowledgeStore: KnowledgeStore | null = null;
+  let knowledgeStoreFailed = false;
+  let knowledgeDefaultDomain = '';
+
+  const knowledgeCallbacks: Pick<SessionToolContext, 'saveKnowledge' | 'queryKnowledge' | 'resetKnowledge'> = {};
+
+  if (skillSlug) {
+    const resolvedSkill = loadSkillBySlug(workspacePath, skillSlug, projectRoot);
+    if (resolvedSkill?.manifest?.knowledge?.enabled) {
+      knowledgeDefaultDomain = resolvedSkill.manifest.knowledge.domains?.[0] ?? skillSlug;
+
+      // Pre-warm: open the store asynchronously via dynamic import to avoid
+      // loading sql.js WASM for non-knowledge sessions. By the time the first
+      // tool call arrives (after postInit + user message), this will have resolved.
+      import('../skills/knowledge/store.ts')
+        .then(({ KnowledgeStoreManager }) => KnowledgeStoreManager.getInstance().open(workspacePath, skillSlug, resolvedSkill!.path))
+        .then(store => { knowledgeStore = store; })
+        .catch(err => {
+          knowledgeStoreFailed = true;
+          debug('claude-context', `Knowledge store init failed: ${err}`);
+        });
+
+      const requireStore = (): KnowledgeStore => {
+        if (knowledgeStoreFailed) throw new Error('Knowledge store failed to initialize. Check agent logs for details.');
+        if (!knowledgeStore) throw new Error('Knowledge store is still initializing. Please try again.');
+        return knowledgeStore;
+      };
+
+      knowledgeCallbacks.saveKnowledge = (args) => {
+        const store = requireStore();
+        return store.saveKnowledge(args, sessionId, knowledgeDefaultDomain);
+      };
+
+      knowledgeCallbacks.queryKnowledge = (args) => {
+        const store = requireStore();
+        const entities = store.queryEntities({
+          domain: args.domain,
+          entityType: args.entityType,
+          tags: args.tags,
+          query: args.query,
+          limit: args.limit,
+        });
+
+        if (entities.length === 0) {
+          return 'No matching entities found in knowledge store.';
+        }
+
+        const lines: string[] = [`Found ${entities.length} entities:`];
+        for (const entity of entities) {
+          lines.push(`- [${entity.type}] ${entity.name} (domain: ${entity.domain}, confidence: ${entity.confidence.toFixed(2)})`);
+          if (entity.properties) {
+            lines.push(`  Properties: ${JSON.stringify(entity.properties)}`);
+          }
+          if (args.includeRelationships) {
+            const rels = store.queryRelationshipsForEntity(entity.id);
+            for (const rel of rels) {
+              lines.push(`  → ${rel.relationType} (confidence: ${rel.confidence.toFixed(2)})`);
+            }
+          }
+        }
+
+        const patterns = store.queryPatterns(10);
+        if (patterns.length > 0) {
+          lines.push('', `Patterns (${patterns.length}):`);
+          for (const p of patterns) {
+            lines.push(`- ${p.description} (${p.patternType ?? 'general'}, confidence: ${p.confidence.toFixed(2)}, seen ${p.occurrenceCount}x)`);
+          }
+        }
+
+        return lines.join('\n');
+      };
+
+      knowledgeCallbacks.resetKnowledge = (domain?: string) => {
+        const store = requireStore();
+        store.reset(domain);
+      };
+    }
+  }
+
   // Build context
   const context: SessionToolContext = {
     sessionId,
@@ -276,6 +360,12 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
           addMemoryFacts(workspacePath, skillSlug, sessionId, sanitizedFacts, resolvedSkill?.path);
         }
       : undefined,
+
+    // Knowledge Fabric callbacks — only wired for knowledge-enabled agents.
+    // The store handle is resolved lazily via pre-warming. By the time the
+    // agent's first tool call arrives (after postInit + first user message
+    // round-trip), the WASM module and DB file have been loaded.
+    ...knowledgeCallbacks,
     submitFeedback: (feedback: DeveloperFeedback) => {
       const feedbackDir = join(CONFIG_DIR, 'feedback');
       mkdirSync(feedbackDir, { recursive: true });

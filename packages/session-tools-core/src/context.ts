@@ -319,7 +319,7 @@ export interface SessionToolContext {
   saveKnowledge?(args: {
     entities?: Array<{ type: string; name: string; domain: string; properties?: Record<string, unknown>; tags?: string[] }>;
     relationships?: Array<{ source: string; target: string; sourceDomain?: string; targetDomain?: string; relation: string; properties?: Record<string, unknown> }>;
-    patterns?: Array<{ description: string; relatedEntities?: string[]; patternType?: string }>;
+    patterns?: Array<{ description: string; relatedEntities?: string[]; patternType?: 'recurring' | 'correlation' | 'trend' | 'anomaly' }>;
     observations?: string[];
   }): { entities: number; relationships: number; patterns: number; observations: number };
 

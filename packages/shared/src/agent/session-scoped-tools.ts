@@ -21,6 +21,7 @@ import { debug } from '../utils/debug.ts';
 import { DOC_REFS } from '../docs/index.ts';
 import { createClaudeContext } from './claude-context.ts';
 import { basename } from 'node:path';
+import { loadSkillBySlug } from '../skills/storage.ts';
 
 // Import from session-tools-core: registry + schemas + base descriptions
 import {
@@ -316,9 +317,16 @@ export function getSessionScopedTools(
     // Ensure backend-mode tool wiring is in sync with core metadata.
     assertClaudeBackendSessionToolParity();
 
+    // Check if this skill has knowledge enabled
+    let includeKnowledgeTools = false;
+    if (skillSlug) {
+      const skill = loadSkillBySlug(workspaceRootPath, skillSlug);
+      includeKnowledgeTools = skill?.manifest?.knowledge?.enabled === true;
+    }
+
     // Create tools from the canonical registry — all tools with handlers.
     // Tool visibility is centrally filtered in session-tools-core to avoid backend drift.
-    tools = getSessionToolDefs({ includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback })
+    tools = getSessionToolDefs({ includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback, includeKnowledgeTools })
       .filter(def => def.handler !== null) // Skip backend-specific tools (call_llm)
       .map(def => registryTool(def.name, def.inputSchema.shape));
 

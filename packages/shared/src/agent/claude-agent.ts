@@ -616,6 +616,10 @@ export class ClaudeAgent extends BaseAgent {
       process.env[key] = value;
     }
 
+    // Pre-load knowledge store for knowledge-enabled agents.
+    // This runs after auth is set up but before the first chat() call.
+    await this.initKnowledgeStore();
+
     return { authInjected: true };
   }
 
