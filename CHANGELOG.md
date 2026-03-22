@@ -19,6 +19,15 @@ All notable changes to Depot are documented in this file.
 - **Scrollable memory panel** — Agent memory list is now scrollable with text wrapping for long entries.
 - **Consolidation scheduling** — Scheduled knowledge consolidation runs independently on its own cron schedule.
 
+### Security
+
+- **CVE remediation: 34 → 1 vulnerability.** Added 16 `overrides` in `package.json` to force-resolve transitive dependency CVEs (minimatch, undici, basic-ftp, underscore, axios, hono, tar, and more). Only remaining vuln is `@github/copilot` (awaiting upstream fix).
+- **Removed Sentry entirely** — No external crash telemetry for enterprise deployments. Crash data stays on-device via `electron-log`. Removed from 11 files (main process, renderer, preload, build scripts, tests).
+- **Replaced `markitdown-js` with `mammoth` + `turndown`** — Eliminated 4 CVEs and ~20 transitive dependencies (xmldom, xlsx, @azure/identity, axios, exiftool, ffmpeg, tesseract). DOCX conversion uses pure-JS mammoth+turndown; XLSX/PPTX falls back to the bundled Python CLI.
+- **Supply chain hardening** — Pinned wildcard dependency (`beautiful-mermaid@*` → `^1.1.3`), created `.npmrc` with `audit=true`, pinned beta dependencies to exact versions.
+
+- Unit tests for office file conversion pipeline (`files-office-convert.isolated.ts`).
+
 ## [1.1.2] - 2026-03-22
 
 ### Added

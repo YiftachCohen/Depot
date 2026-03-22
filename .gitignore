@@ -1,8 +1,8 @@
 # dependencies (bun install)
 node_modules
 
-# Python
-__pycache__
+# Python bytecode
+__pycache__/
 
 # output
 out

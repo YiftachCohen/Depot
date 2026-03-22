@@ -312,8 +312,8 @@ async function buildPiAgentServer(): Promise<{ success: boolean; error?: string 
 
 // Verify a JavaScript file exists and has content.
 // Note: We don't use `node --check` because it evaluates module-level code,
-// which fails for Electron-specific packages like @sentry/electron that
-// require Electron's runtime. esbuild's successful build already guarantees
+// which fails for Electron-specific packages that require Electron's
+// runtime. esbuild's successful build already guarantees
 // valid JavaScript syntax.
 async function verifyJsFile(filePath: string): Promise<{ valid: boolean; error?: string }> {
   if (!existsSync(filePath)) {
