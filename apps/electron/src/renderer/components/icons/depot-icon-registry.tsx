@@ -2,7 +2,7 @@
  * Depot Icon Registry
  *
  * All available app icon variations as inline SVG components.
- * The selected icon is stored in localStorage and rendered by CraftAgentsSymbol.
+ * The selected icon is stored in localStorage and rendered by DepotSymbol.
  */
 
 import type { ReactNode } from 'react'
@@ -105,7 +105,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="gd-g" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#FBBF24"/><stop offset="50%" stopColor="#6366f1"/><stop offset="100%" stopColor="#D97706"/>
+            <stop offset="0%" stopColor="#FBBF24"/><stop offset="50%" stopColor="#B45309"/><stop offset="100%" stopColor="#D97706"/>
           </linearGradient>
         </defs>
         <path d={D_PATH} fill="url(#gd-g)" fillRule="evenodd"/>
@@ -115,7 +115,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       <svg width="64" height="64" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="gd-p" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#FBBF24"/><stop offset="50%" stopColor="#6366f1"/><stop offset="100%" stopColor="#D97706"/>
+            <stop offset="0%" stopColor="#FBBF24"/><stop offset="50%" stopColor="#B45309"/><stop offset="100%" stopColor="#D97706"/>
           </linearGradient>
         </defs>
         <path d={D512} fill="url(#gd-p)" fillRule="evenodd"/>
@@ -124,7 +124,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
       <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#1A1816"/>
-      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FBBF24"/><stop offset="50%" stop-color="#6366f1"/><stop offset="100%" stop-color="#D97706"/></linearGradient></defs>
+      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FBBF24"/><stop offset="50%" stop-color="#B45309"/><stop offset="100%" stop-color="#D97706"/></linearGradient></defs>
       <path d="${D512}" fill="url(#g)" fill-rule="evenodd"/>
       </g>
     </svg>`,
@@ -136,14 +136,14 @@ export const DEPOT_ICONS: DepotIconDef[] = [
     name: 'Split Arc',
     symbol: (className) => (
       <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="4" y="3" width="4.5" height="18" rx="1.2" fill="#6366f1"/>
+        <rect x="4" y="3" width="4.5" height="18" rx="1.2" fill="#B45309"/>
         <path d="M10,3 L13,3 C18,3 21.5,7 21.5,12 C21.5,17 18,21 13,21 L10,21 L10,17.5 L12.8,17.5 C16,17.5 18,15.5 18,12 C18,8.5 16,6.5 12.8,6.5 L10,6.5 Z" fill="#D97706"/>
         <circle cx="10" cy="12" r="1.2" fill="#FBBF24"/>
       </svg>
     ),
     preview: () => (
       <svg width="64" height="64" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-        <rect x="128" y="100" width="60" height="312" rx="14" fill="#6366f1"/>
+        <rect x="128" y="100" width="60" height="312" rx="14" fill="#B45309"/>
         <path d="M210,100 L270,100 C355,100 405,165 405,256 C405,347 355,412 270,412 L210,412 L210,340 L265,340 C315,340 340,310 340,256 C340,202 315,172 265,172 L210,172 Z" fill="#D97706"/>
         <circle cx="210" cy="256" r="10" fill="#FBBF24"/>
       </svg>
@@ -151,7 +151,7 @@ export const DEPOT_ICONS: DepotIconDef[] = [
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
       <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#1A1816"/>
-      <rect x="128" y="100" width="60" height="312" rx="14" fill="#6366f1"/>
+      <rect x="128" y="100" width="60" height="312" rx="14" fill="#B45309"/>
       <path d="M210,100 L270,100 C355,100 405,165 405,256 C405,347 355,412 270,412 L210,412 L210,340 L265,340 C315,340 340,310 340,256 C340,202 315,172 265,172 L210,172 Z" fill="#D97706"/>
       <circle cx="210" cy="256" r="10" fill="#FBBF24"/>
       </g>
@@ -167,17 +167,17 @@ export const DEPOT_ICONS: DepotIconDef[] = [
         <rect x="4" y="3" width="3" height="3" fill="#F59E0B"/>
         <rect x="7" y="3" width="3" height="3" fill="#F59E0B"/>
         <rect x="10" y="3" width="3" height="3" fill="#F59E0B"/>
-        <rect x="13" y="3" width="3" height="3" fill="#6366f1"/>
+        <rect x="13" y="3" width="3" height="3" fill="#B45309"/>
         <rect x="4" y="6" width="3" height="3" fill="#F59E0B"/>
-        <rect x="16" y="6" width="3" height="3" fill="#6366f1"/>
-        <rect x="4" y="9" width="3" height="3" fill="#6366f1"/>
-        <rect x="19" y="9" width="3" height="3" fill="#4f46e5"/>
-        <rect x="4" y="12" width="3" height="3" fill="#6366f1"/>
+        <rect x="16" y="6" width="3" height="3" fill="#B45309"/>
+        <rect x="4" y="9" width="3" height="3" fill="#B45309"/>
+        <rect x="19" y="9" width="3" height="3" fill="#92400E"/>
+        <rect x="4" y="12" width="3" height="3" fill="#B45309"/>
         <rect x="19" y="12" width="3" height="3" fill="#D97706"/>
-        <rect x="4" y="15" width="3" height="3" fill="#4f46e5"/>
-        <rect x="16" y="15" width="3" height="3" fill="#3b82f6"/>
-        <rect x="4" y="18" width="3" height="3" fill="#3b82f6"/>
-        <rect x="7" y="18" width="3" height="3" fill="#3b82f6"/>
+        <rect x="4" y="15" width="3" height="3" fill="#92400E"/>
+        <rect x="16" y="15" width="3" height="3" fill="#D97706"/>
+        <rect x="4" y="18" width="3" height="3" fill="#D97706"/>
+        <rect x="7" y="18" width="3" height="3" fill="#D97706"/>
         <rect x="10" y="18" width="3" height="3" fill="#D97706"/>
         <rect x="13" y="18" width="3" height="3" fill="#D97706"/>
       </svg>
@@ -187,19 +187,19 @@ export const DEPOT_ICONS: DepotIconDef[] = [
         <rect x="128" y="96" width="48" height="48" fill="#F59E0B"/>
         <rect x="176" y="96" width="48" height="48" fill="#F59E0B"/>
         <rect x="224" y="96" width="48" height="48" fill="#F59E0B"/>
-        <rect x="272" y="96" width="48" height="48" fill="#6366f1"/>
+        <rect x="272" y="96" width="48" height="48" fill="#B45309"/>
         <rect x="128" y="144" width="48" height="48" fill="#F59E0B"/>
-        <rect x="320" y="144" width="48" height="48" fill="#6366f1"/>
-        <rect x="128" y="192" width="48" height="48" fill="#6366f1"/>
-        <rect x="368" y="192" width="48" height="48" fill="#4f46e5"/>
-        <rect x="128" y="240" width="48" height="48" fill="#6366f1"/>
+        <rect x="320" y="144" width="48" height="48" fill="#B45309"/>
+        <rect x="128" y="192" width="48" height="48" fill="#B45309"/>
+        <rect x="368" y="192" width="48" height="48" fill="#92400E"/>
+        <rect x="128" y="240" width="48" height="48" fill="#B45309"/>
         <rect x="368" y="240" width="48" height="48" fill="#D97706"/>
-        <rect x="128" y="288" width="48" height="48" fill="#4f46e5"/>
+        <rect x="128" y="288" width="48" height="48" fill="#92400E"/>
         <rect x="368" y="288" width="48" height="48" fill="#D97706"/>
-        <rect x="128" y="336" width="48" height="48" fill="#4f46e5"/>
-        <rect x="320" y="336" width="48" height="48" fill="#3b82f6"/>
-        <rect x="128" y="384" width="48" height="48" fill="#3b82f6"/>
-        <rect x="176" y="384" width="48" height="48" fill="#3b82f6"/>
+        <rect x="128" y="336" width="48" height="48" fill="#92400E"/>
+        <rect x="320" y="336" width="48" height="48" fill="#D97706"/>
+        <rect x="128" y="384" width="48" height="48" fill="#D97706"/>
+        <rect x="176" y="384" width="48" height="48" fill="#D97706"/>
         <rect x="224" y="384" width="48" height="48" fill="#D97706"/>
         <rect x="272" y="384" width="48" height="48" fill="#D97706"/>
       </svg>
@@ -210,19 +210,19 @@ export const DEPOT_ICONS: DepotIconDef[] = [
       <rect x="128" y="96" width="48" height="48" fill="#F59E0B"/>
       <rect x="176" y="96" width="48" height="48" fill="#F59E0B"/>
       <rect x="224" y="96" width="48" height="48" fill="#F59E0B"/>
-      <rect x="272" y="96" width="48" height="48" fill="#6366f1"/>
+      <rect x="272" y="96" width="48" height="48" fill="#B45309"/>
       <rect x="128" y="144" width="48" height="48" fill="#F59E0B"/>
-      <rect x="320" y="144" width="48" height="48" fill="#6366f1"/>
-      <rect x="128" y="192" width="48" height="48" fill="#6366f1"/>
-      <rect x="368" y="192" width="48" height="48" fill="#4f46e5"/>
-      <rect x="128" y="240" width="48" height="48" fill="#6366f1"/>
+      <rect x="320" y="144" width="48" height="48" fill="#B45309"/>
+      <rect x="128" y="192" width="48" height="48" fill="#B45309"/>
+      <rect x="368" y="192" width="48" height="48" fill="#92400E"/>
+      <rect x="128" y="240" width="48" height="48" fill="#B45309"/>
       <rect x="368" y="240" width="48" height="48" fill="#D97706"/>
-      <rect x="128" y="288" width="48" height="48" fill="#4f46e5"/>
+      <rect x="128" y="288" width="48" height="48" fill="#92400E"/>
       <rect x="368" y="288" width="48" height="48" fill="#D97706"/>
-      <rect x="128" y="336" width="48" height="48" fill="#4f46e5"/>
-      <rect x="320" y="336" width="48" height="48" fill="#3b82f6"/>
-      <rect x="128" y="384" width="48" height="48" fill="#3b82f6"/>
-      <rect x="176" y="384" width="48" height="48" fill="#3b82f6"/>
+      <rect x="128" y="336" width="48" height="48" fill="#92400E"/>
+      <rect x="320" y="336" width="48" height="48" fill="#D97706"/>
+      <rect x="128" y="384" width="48" height="48" fill="#D97706"/>
+      <rect x="176" y="384" width="48" height="48" fill="#D97706"/>
       <rect x="224" y="384" width="48" height="48" fill="#D97706"/>
       <rect x="272" y="384" width="48" height="48" fill="#D97706"/>
       </g>
@@ -235,8 +235,8 @@ export const DEPOT_ICONS: DepotIconDef[] = [
     name: 'Tile Cascade',
     symbol: (className) => (
       <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="2" y="2" width="11" height="8" rx="1.8" fill="#4f46e5" opacity="0.5"/>
-        <rect x="5" y="5.5" width="11" height="8" rx="1.8" fill="#6366f1" opacity="0.65"/>
+        <rect x="2" y="2" width="11" height="8" rx="1.8" fill="#92400E" opacity="0.5"/>
+        <rect x="5" y="5.5" width="11" height="8" rx="1.8" fill="#B45309" opacity="0.65"/>
         <rect x="8" y="9" width="11" height="8" rx="1.8" fill="#F59E0B" opacity="0.8"/>
         <rect x="11" y="12.5" width="11" height="8" rx="1.8" fill="#D97706"/>
         <circle cx="16.5" cy="16.5" r="1.8" fill="#fff" opacity="0.9"/>
@@ -245,8 +245,8 @@ export const DEPOT_ICONS: DepotIconDef[] = [
     ),
     preview: () => (
       <svg width="64" height="64" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-        <rect x="90" y="90" width="200" height="140" rx="24" fill="#4f46e5" opacity="0.5"/>
-        <rect x="140" y="150" width="200" height="140" rx="24" fill="#6366f1" opacity="0.65"/>
+        <rect x="90" y="90" width="200" height="140" rx="24" fill="#92400E" opacity="0.5"/>
+        <rect x="140" y="150" width="200" height="140" rx="24" fill="#B45309" opacity="0.65"/>
         <rect x="190" y="210" width="200" height="140" rx="24" fill="#F59E0B" opacity="0.8"/>
         <rect x="240" y="270" width="200" height="140" rx="24" fill="#D97706"/>
         <circle cx="340" cy="340" r="20" fill="#fff" opacity="0.9"/>
@@ -256,8 +256,8 @@ export const DEPOT_ICONS: DepotIconDef[] = [
     svgString512: `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
       <g transform="translate(30.72, 30.72) scale(0.88)">
       <rect width="512" height="512" rx="112" fill="#1A1816"/>
-      <rect x="90" y="90" width="200" height="140" rx="24" fill="#4f46e5" opacity="0.5"/>
-      <rect x="140" y="150" width="200" height="140" rx="24" fill="#6366f1" opacity="0.65"/>
+      <rect x="90" y="90" width="200" height="140" rx="24" fill="#92400E" opacity="0.5"/>
+      <rect x="140" y="150" width="200" height="140" rx="24" fill="#B45309" opacity="0.65"/>
       <rect x="190" y="210" width="200" height="140" rx="24" fill="#F59E0B" opacity="0.8"/>
       <rect x="240" y="270" width="200" height="140" rx="24" fill="#D97706"/>
       <circle cx="340" cy="340" r="20" fill="#fff" opacity="0.9"/>

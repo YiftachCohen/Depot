@@ -118,7 +118,7 @@ function AutomationItem({
             </MicroBadge>
           )}
           {automation.source === 'skill' && (
-            <MicroBadge colorClass="bg-purple-500/10 text-purple-600 dark:text-purple-400">
+            <MicroBadge colorClass="bg-amber-500/10 text-amber-600 dark:text-amber-400">
               {automation.skillSlug || 'Agent'}
             </MicroBadge>
           )}
