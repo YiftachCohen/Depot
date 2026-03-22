@@ -111,6 +111,18 @@ function broadcastDownloadProgress(progress: number): void {
 
 // ─── Configure electron-updater ───────────────────────────────────────────────
 
+// Log the update config path for debugging — helps diagnose "app-update.yml not found" issues
+try {
+  const configPath = path.join(app.getAppPath(), 'app-update.yml')
+  const configExists = fs.existsSync(configPath)
+  mainLog.info(`[auto-update] Config path: ${configPath} (exists: ${configExists})`)
+  if (!configExists) {
+    mainLog.error('[auto-update] app-update.yml is missing — auto-update will not work')
+  }
+} catch (err) {
+  mainLog.warn('[auto-update] Failed to check config path:', err)
+}
+
 // Auto-download updates in the background after detection
 autoUpdater.autoDownload = true
 
@@ -210,12 +222,28 @@ autoUpdater.on('update-downloaded', async (info) => {
 })
 
 autoUpdater.on('error', (error) => {
+  // Log full error with stack trace for debugging
   mainLog.error('[auto-update] Error:', error.message)
+  if (error.stack) {
+    mainLog.error('[auto-update] Stack:', error.stack)
+  }
+
+  // Provide user-friendly error messages for common failures
+  let userMessage = error.message
+  if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
+    userMessage = 'Could not reach the update server. Check your internet connection.'
+  } else if (error.message.includes('404') || error.message.includes('Not Found')) {
+    userMessage = 'No releases found. The update server may be misconfigured.'
+  } else if (error.message.includes('403') || error.message.includes('rate limit')) {
+    userMessage = 'Update check rate-limited. Try again in a few minutes.'
+  } else if (error.message.includes('app-update.yml')) {
+    userMessage = 'Update configuration missing. The app may need to be reinstalled.'
+  }
 
   updateInfo = {
     ...updateInfo,
     downloadState: 'error',
-    error: error.message,
+    error: userMessage,
   }
   broadcastUpdateInfo()
 })

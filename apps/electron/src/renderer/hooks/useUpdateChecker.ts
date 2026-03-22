@@ -124,7 +124,12 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
       const info = await window.electronAPI.checkForUpdates()
       setUpdateInfo(info)
 
-      if (!info.available) {
+      if (info.downloadState === 'error') {
+        toast.error('Failed to check for updates', {
+          description: info.error || 'Unknown error',
+          duration: 5000,
+        })
+      } else if (!info.available) {
         toast.success('You\'re up to date', {
           description: `Version ${info.currentVersion} is the latest.`,
           duration: 3000,
@@ -133,6 +138,11 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
         // If already ready, show toast (clear any previous dismissal since user explicitly checked)
         shownToastVersionRef.current = null // Reset so toast can show again
         showUpdateToast(info.latestVersion, installUpdate)
+      } else if (info.downloadState === 'downloading' && info.latestVersion) {
+        toast.info(`Downloading v${info.latestVersion}...`, {
+          description: `${info.downloadProgress}% complete`,
+          duration: 3000,
+        })
       }
     } catch (error) {
       console.error('[useUpdateChecker] Check failed:', error)

@@ -71,7 +71,25 @@ export async function rebuildMenu(): Promise<void> {
     : {
         label: 'Check for Updates…',
         click: async () => {
-          await checkForUpdates({ autoDownload: true })
+          const { dialog } = await import('electron')
+          const result = await checkForUpdates({ autoDownload: true })
+          if (result.downloadState === 'error') {
+            dialog.showMessageBox({
+              type: 'error',
+              title: 'Update Check Failed',
+              message: 'Could not check for updates.',
+              detail: result.error || 'An unknown error occurred. Check your network connection and try again.',
+            })
+          } else if (!result.available) {
+            dialog.showMessageBox({
+              type: 'info',
+              title: 'No Updates Available',
+              message: `You're up to date.`,
+              detail: `Version ${result.currentVersion} is the latest version.`,
+            })
+          }
+          // If update is available, the update-available/update-downloaded events
+          // will trigger menu rebuild and renderer notification automatically.
         }
       }
 
