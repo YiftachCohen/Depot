@@ -14,6 +14,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@depot/ui'
+import { useNavigation } from '@/contexts/NavigationContext'
 import type { KnowledgeEntity, KnowledgeRelationship, KnowledgePattern } from '@depot/shared/skills/knowledge'
 import type { ObservationRun } from '@depot/shared/skills'
 
@@ -75,6 +77,7 @@ function SkeletonRows({ count }: { count: number }) {
 }
 
 export function KnowledgeBrowserPanel({ workspaceId, skillSlug, onBack }: KnowledgeBrowserPanelProps) {
+  const { navigateToSession } = useNavigation()
   const [entities, setEntities] = useState<EntityWithRelationships[]>([])
   const [patterns, setPatterns] = useState<KnowledgePattern[]>([])
   const [loading, setLoading] = useState(true)
@@ -137,14 +140,17 @@ export function KnowledgeBrowserPanel({ workspaceId, skillSlug, onBack }: Knowle
   const handleRunObservation = useCallback(async () => {
     setRunningObservation(true)
     try {
-      await window.electronAPI.triggerObservation(workspaceId, skillSlug)
+      const result = await window.electronAPI.triggerObservation(workspaceId, skillSlug)
       toast.success('Observation started')
+      if (result?.sessionId) {
+        navigateToSession(result.sessionId)
+      }
     } catch (e) {
       toast.error(`Observation failed: ${e instanceof Error ? e.message : 'Unknown error'}`)
     } finally {
       setRunningObservation(false)
     }
-  }, [workspaceId, skillSlug])
+  }, [workspaceId, skillSlug, navigateToSession])
 
   const handleTogglePause = useCallback(async () => {
     try {
@@ -186,36 +192,49 @@ export function KnowledgeBrowserPanel({ workspaceId, skillSlug, onBack }: Knowle
           {entityCount > 0 && <span className="text-foreground/30 normal-case tracking-normal font-normal">({entityCount})</span>}
         </h3>
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={handleRunObservation}
-            disabled={runningObservation}
-            className="text-foreground/30 hover:text-foreground/60 disabled:opacity-40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded p-0.5"
-            aria-label="Run observation"
-            title="Run Observation"
-          >
-            {runningObservation ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-          </button>
-          <button
-            type="button"
-            onClick={handleRunConsolidation}
-            disabled={runningConsolidation}
-            className="text-foreground/30 hover:text-foreground/60 disabled:opacity-40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded p-0.5"
-            aria-label="Run consolidation"
-            title="Run Consolidation"
-          >
-            {runningConsolidation ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <button
                 type="button"
-                className="text-foreground/30 hover:text-foreground/60 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded p-0.5"
-                aria-label="More knowledge actions"
+                onClick={handleRunObservation}
+                disabled={runningObservation}
+                className="cursor-pointer text-foreground/30 hover:text-foreground/60 disabled:opacity-40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded p-0.5"
+                aria-label="Run observation"
               >
-                <MoreVertical className="h-3.5 w-3.5" />
+                {runningObservation ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
               </button>
-            </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="top">Run Observation</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleRunConsolidation}
+                disabled={runningConsolidation}
+                className="cursor-pointer text-foreground/30 hover:text-foreground/60 disabled:opacity-40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded p-0.5"
+                aria-label="Run consolidation"
+              >
+                {runningConsolidation ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Run Consolidation</TooltipContent>
+          </Tooltip>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="cursor-pointer text-foreground/30 hover:text-foreground/60 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded p-0.5"
+                    aria-label="More knowledge actions"
+                  >
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top">More Actions</TooltipContent>
+            </Tooltip>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem
                 onClick={handleTogglePause}
