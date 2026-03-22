@@ -88,7 +88,7 @@ Skills use a `depot.yaml` manifest with metadata, sources, and quick commands wi
 Jotai atoms in `apps/electron/src/renderer/atoms/` for sessions, skills, sources, browser pane, panel stack, overlays, and automations.
 
 ### Agent System
-`BaseAgent` in `packages/shared/src/agent/base-agent.ts` is the abstract base. `ClaudeAgent` (Anthropic), `PiAgent` (Pi AI) are concrete implementations. Agent tools are defined in `packages/session-tools-core/src/tool-defs.ts`. On session creation, `base-agent.ts` loads personality and memory from the skill manifest/state and passes them to `PromptBuilder`.
+`BaseAgent` in `packages/shared/src/agent/base-agent.ts` is the abstract base. `ClaudeAgent` (Anthropic), `PiAgent` (Pi AI) are concrete implementations. Agent tools are defined in `packages/session-tools-core/src/tool-defs.ts`. On session creation, `base-agent.ts` loads personality and memory from the skill manifest/state and passes them to `PromptBuilder`. For knowledge-enabled agents, `initKnowledgeStore()` pre-loads the SQLite store during `postInit()`, and `claude-context.ts` wires `saveKnowledge`/`queryKnowledge`/`resetKnowledge` callbacks into the session tool context. Session-end extraction (`SessionManager.extractSessionKnowledge()`) auto-extracts entities/relationships/patterns from conversations. PostToolUse hooks provide opportunistic heuristic entity extraction from MCP tool responses.
 
 ## Key Conventions
 
@@ -116,7 +116,7 @@ Jotai atoms in `apps/electron/src/renderer/atoms/` for sessions, skills, sources
 - Health check: `gh release view --json tagName,isDraft,assets` (verify release exists with all platform artifacts)
 
 ### Release checklist
-1. Bump VERSION in `package.json` (currently `1.1.1`)
+1. Bump VERSION in `package.json` (currently `1.1.2`)
 2. Update CHANGELOG if needed
 3. Merge PR to main
 4. Tag: `git tag v{version} && git push origin v{version}`
