@@ -95,6 +95,11 @@ export interface SessionScopedToolCallbacks {
    * with the session's bound browser instance.
    */
   browserPaneFns?: BrowserPaneFns;
+
+  /**
+   * Called when knowledge is written or reset, so the UI can refresh badges.
+   */
+  onKnowledgeChanged?: (skillSlug: string) => void;
 }
 
 // Registry of callbacks keyed by sessionId
@@ -278,6 +283,7 @@ export function getSessionScopedTools(
   workspaceRootPath: string,
   workspaceId?: string,
   skillSlug?: string,
+  projectRoot?: string,
 ): ReturnType<typeof createSdkMcpServer> {
   const cacheKey = `${sessionId}::${workspaceRootPath}`;
 
@@ -301,6 +307,11 @@ export function getSessionScopedTools(
         callbacks?.onAuthRequest?.(request as AuthRequest);
       },
       skillSlug,
+      projectRoot,
+      onKnowledgeChanged: (slug: string) => {
+        const callbacks = getSessionScopedToolCallbacks(sessionId);
+        callbacks?.onKnowledgeChanged?.(slug);
+      },
     });
 
     // Helper to create a tool from the canonical registry.
@@ -321,7 +332,7 @@ export function getSessionScopedTools(
     // Check if this skill has knowledge enabled
     let includeKnowledgeTools = false;
     if (skillSlug) {
-      const skill = loadSkillBySlug(workspaceRootPath, skillSlug);
+      const skill = loadSkillBySlug(workspaceRootPath, skillSlug, projectRoot);
       includeKnowledgeTools = skill?.manifest?.knowledge?.enabled === true;
     }
 

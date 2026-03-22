@@ -1443,6 +1443,11 @@ export class SessionManager implements ISessionManager {
     this.eventSink(RPC_CHANNELS.skills.CHANGED, { to: 'workspace', workspaceId }, workspaceId, skills)
   }
 
+  private broadcastAgentStateChanged(workspaceId: string, skillSlug: string): void {
+    if (!this.eventSink) return
+    this.eventSink(RPC_CHANNELS.agentState.CHANGED, { to: 'workspace', workspaceId }, { skillSlug })
+  }
+
   private broadcastDefaultPermissionsChanged(): void {
     if (!this.eventSink) return
     sessionLog.info('Broadcasting default permissions changed')
@@ -2752,6 +2757,17 @@ export class SessionManager implements ISessionManager {
           message: postInitResult.authWarning,
           level: postInitResult.authWarningLevel || 'error',
         }, managed.workspace.id)
+      }
+
+      // Wire up knowledge change notifications so the dashboard refreshes badges
+      if (managed.skillSlug) {
+        const skillSlugForCallback = managed.skillSlug
+        const workspaceIdForCallback = managed.workspace.id
+        mergeSessionScopedToolCallbacks(managed.id, {
+          onKnowledgeChanged: () => {
+            this.broadcastAgentStateChanged(workspaceIdForCallback, skillSlugForCallback)
+          },
+        })
       }
 
       // Wire up large response handling in the MCP pool (all backends)
@@ -5338,6 +5354,31 @@ ${conversationSnippet}`
       if (Array.isArray(extracted.patterns)) extracted.patterns = extracted.patterns.slice(0, 50)
       if (Array.isArray(extracted.observations)) extracted.observations = extracted.observations.slice(0, 50)
 
+      // Schema validation: filter out malformed entries (LLM may return wrong types)
+      const MAX_FIELD_LEN = 2000
+      if (Array.isArray(extracted.entities)) {
+        extracted.entities = extracted.entities.filter((e: any) =>
+          typeof e?.type === 'string' && typeof e?.name === 'string' && typeof e?.domain === 'string' &&
+          e.name.length <= MAX_FIELD_LEN && e.type.length <= MAX_FIELD_LEN
+        )
+      }
+      if (Array.isArray(extracted.relationships)) {
+        extracted.relationships = extracted.relationships.filter((r: any) =>
+          typeof r?.source === 'string' && typeof r?.target === 'string' && typeof r?.relation === 'string' &&
+          r.source.length <= MAX_FIELD_LEN && r.target.length <= MAX_FIELD_LEN
+        )
+      }
+      if (Array.isArray(extracted.patterns)) {
+        extracted.patterns = extracted.patterns.filter((p: any) =>
+          typeof p?.description === 'string' && p.description.length <= MAX_FIELD_LEN
+        )
+      }
+      if (Array.isArray(extracted.observations)) {
+        extracted.observations = extracted.observations.filter((o: any) =>
+          typeof o === 'string' && o.length <= MAX_FIELD_LEN
+        )
+      }
+
       // Open knowledge store and save
       const { KnowledgeStoreManager } = await import('@depot/shared/skills/knowledge')
       const store = await KnowledgeStoreManager.getInstance().open(
@@ -5392,6 +5433,8 @@ ${conversationSnippet}`
           `Knowledge extraction: saved ${saved.entities} entities, ${saved.relationships} relationships, ` +
           `${saved.patterns} patterns, ${saved.observations} observations for ${managed.skillSlug}`,
         )
+        // Notify UI that knowledge changed so dashboard badges refresh
+        this.broadcastAgentStateChanged(managed.workspace.id, managed.skillSlug!)
       }
     } catch (err) {
       sessionLog.warn(`Knowledge extraction error for ${managed.skillSlug}: ${err}`)

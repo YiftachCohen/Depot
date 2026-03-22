@@ -89,6 +89,8 @@ export interface ClaudeContextOptions {
   skillSlug?: string;
   /** Project root for skill resolution priority (project > workspace > global) */
   projectRoot?: string;
+  /** Called when knowledge is written or reset, so the UI can refresh badges */
+  onKnowledgeChanged?: (skillSlug: string) => void;
 }
 
 /**
@@ -102,7 +104,7 @@ export interface ClaudeContextOptions {
  * - Icon management
  */
 export function createClaudeContext(options: ClaudeContextOptions): SessionToolContext {
-  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug, projectRoot } = options;
+  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug, projectRoot, onKnowledgeChanged } = options;
 
   // File system implementation
   const fs: FileSystemInterface = {
@@ -292,7 +294,9 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
 
       knowledgeCallbacks.saveKnowledge = async (args) => {
         const store = await getStore();
-        return store.saveKnowledge(args, sessionId, knowledgeDefaultDomain);
+        const result = store.saveKnowledge(args, sessionId, knowledgeDefaultDomain);
+        if (skillSlug && onKnowledgeChanged) onKnowledgeChanged(skillSlug);
+        return result;
       };
 
       knowledgeCallbacks.queryKnowledge = async (args) => {
@@ -340,6 +344,7 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
       knowledgeCallbacks.resetKnowledge = async (domain?: string) => {
         const store = await getStore();
         store.reset(domain);
+        if (skillSlug && onKnowledgeChanged) onKnowledgeChanged(skillSlug);
       };
     }
   }

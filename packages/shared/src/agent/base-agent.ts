@@ -280,7 +280,8 @@ export abstract class BaseAgent implements AgentBackend {
   async initKnowledgeStore(): Promise<void> {
     const slug = this.config.session?.skillSlug;
     if (!slug) return;
-    const skill = loadSkillBySlug(this.config.workspace.rootPath, slug);
+    const projectRoot = this.config.session?.workingDirectory;
+    const skill = loadSkillBySlug(this.config.workspace.rootPath, slug, projectRoot);
     if (!skill?.manifest?.knowledge?.enabled) return;
 
     try {
@@ -308,9 +309,11 @@ export abstract class BaseAgent implements AgentBackend {
     let knowledgeEnabled = false;
     if (this.config.session?.skillSlug) {
       const slug = this.config.session.skillSlug;
-      const skill = loadSkillBySlug(this.config.workspace.rootPath, slug);
+      const projectRoot = this.config.session?.workingDirectory;
+      const skill = loadSkillBySlug(this.config.workspace.rootPath, slug, projectRoot);
       agentPersonality = skill?.manifest?.personality;
-      knowledgeEnabled = skill?.manifest?.knowledge?.enabled === true;
+      // Only enable knowledge instructions if the store was actually loaded
+      knowledgeEnabled = !!(this.knowledgeStore && skill?.manifest?.knowledge?.enabled);
       const agentState = loadAgentState(this.config.workspace.rootPath, slug, skill?.path);
       agentMemoryContext = formatAgentMemoryForPrompt(agentState, slug) || undefined;
 
@@ -361,6 +364,13 @@ export abstract class BaseAgent implements AgentBackend {
       onSourcesListChange: (sources) => {
         this.debug(`Sources list changed: ${sources.length} sources`);
         this.onSourcesListChange?.(sources);
+      },
+      onSkillChange: (slug, _skill) => {
+        // Reset cached knowledge skill reference so PostToolUse hook re-evaluates
+        if (slug === this.config.session?.skillSlug) {
+          (this as any)._cachedKnowledgeSkill = undefined;
+          this.debug(`Skill manifest changed for ${slug} — reset cached knowledge skill`);
+        }
       },
       onValidationError: (file, errors) => {
         this.debug(`Config validation error: ${file}`);

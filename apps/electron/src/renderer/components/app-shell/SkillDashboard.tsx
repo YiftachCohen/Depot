@@ -301,7 +301,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       })).then((entries) => {
         const map = new Map<string, { entityCount: number; relationshipCount: number; patternCount: number }>()
         for (const [slug, stats] of entries) {
-          if (stats && stats.entityCount > 0) map.set(slug, stats)
+          if (stats && (stats.entityCount > 0 || stats.patternCount > 0)) map.set(slug, stats)
         }
         setKnowledgeStatsMap(map)
       })
@@ -325,7 +325,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           .then((stats) => {
             setKnowledgeStatsMap((prev) => {
               const next = new Map(prev)
-              if (stats && stats.entityCount > 0) next.set(skillSlug, stats)
+              if (stats && (stats.entityCount > 0 || stats.patternCount > 0)) next.set(skillSlug, stats)
               else next.delete(skillSlug)
               return next
             })

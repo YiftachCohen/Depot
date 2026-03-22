@@ -790,7 +790,7 @@ export class ClaudeAgent extends BaseAgent {
       // Build full MCP servers set first, then filter for mini agents
       const fullMcpServers: Options['mcpServers'] = {
         // Session-scoped tools (SubmitPlan, source_test, update_user_preferences, transform_data, etc.)
-        session: getSessionScopedTools(sessionId, this.workspaceRootPath, undefined, this.config.session?.skillSlug),
+        session: getSessionScopedTools(sessionId, this.workspaceRootPath, undefined, this.config.session?.skillSlug, this.config.session?.workingDirectory),
         // Depot Agents documentation - always available for searching setup guides
         // This is a public Mintlify MCP server, no auth needed
         'craft-agents-docs': {
@@ -1181,7 +1181,7 @@ export class ClaudeAgent extends BaseAgent {
               const slug = this.config.session?.skillSlug;
               if (!slug) return { continue: true };
               if (this._cachedKnowledgeSkill === undefined) {
-                const resolved = loadSkillBySlug(this.config.workspace.rootPath, slug);
+                const resolved = loadSkillBySlug(this.config.workspace.rootPath, slug, this.config.session?.workingDirectory);
                 if (!resolved?.manifest?.knowledge?.enabled) {
                   this._cachedKnowledgeSkill = null;
                   return { continue: true };
@@ -2612,7 +2612,7 @@ This is a branched conversation. All prior messages in this conversation are par
       const MAX_TOOL_RESULT_SIZE = 100_000; // 100KB
       const cappedResult = toolResult.length > MAX_TOOL_RESULT_SIZE ? toolResult.slice(0, MAX_TOOL_RESULT_SIZE) : toolResult;
 
-      const { KnowledgeStoreManager, extractEntitiesHeuristic, stripPii } = await import('../skills/knowledge/index.ts');
+      const { KnowledgeStoreManager, extractEntitiesHeuristic } = await import('../skills/knowledge/index.ts');
       const store = await KnowledgeStoreManager.getInstance().open(
         this.config.workspace.rootPath, skillSlug, skill.path,
       );
@@ -2624,14 +2624,14 @@ This is a branched conversation. All prior messages in this conversation are par
       const heuristicEntities = extractEntitiesHeuristic(cappedResult, domains.length > 0 ? domains : [defaultDomain]);
 
       if (heuristicEntities.length > 0) {
-        const cleanResult = stripPii(cappedResult);
+        // Only store extracted entities — do NOT persist raw tool output as observations.
+        // Tool responses may contain secrets, tokens, or customer data that PII stripping won't catch.
         store.saveKnowledge(
           {
             entities: heuristicEntities.map(e => ({
               ...e,
               tags: [e.name.toLowerCase(), e.type.toLowerCase()],
             })),
-            observations: [`[${toolName}] ${cleanResult.slice(0, 500)}`],
           },
           this.modeSessionId,
           defaultDomain,
