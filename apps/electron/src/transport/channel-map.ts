@@ -224,6 +224,12 @@ export const CHANNEL_MAP = {
   clearAgentMemory: invoke(RPC_CHANNELS.agentState.CLEAR_MEMORY),
   getKnowledgeStats: invoke(RPC_CHANNELS.agentState.GET_KNOWLEDGE_STATS),
   onAgentStateChanged: listener(RPC_CHANNELS.agentState.CHANGED),
+  queryKnowledgeEntities: invoke(RPC_CHANNELS.agentState.QUERY_KNOWLEDGE_ENTITIES),
+  queryKnowledgePatterns: invoke(RPC_CHANNELS.agentState.QUERY_KNOWLEDGE_PATTERNS),
+  triggerConsolidation: invoke(RPC_CHANNELS.agentState.TRIGGER_CONSOLIDATION),
+  triggerObservation: invoke(RPC_CHANNELS.agentState.TRIGGER_OBSERVATION),
+  setObservationPaused: invoke(RPC_CHANNELS.agentState.SET_OBSERVATION_PAUSED),
+  getObservationHistory: invoke(RPC_CHANNELS.agentState.GET_OBSERVATION_HISTORY),
 
   // Statuses
   listStatuses: invoke(RPC_CHANNELS.statuses.LIST),
