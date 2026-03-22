@@ -1174,7 +1174,16 @@ ${formattedMessages}
 
     // Prepend read directive to the message so the model reads SKILL.md first.
     const directive = this.formatSkillDirective(unreadSkillPaths);
-    const messageParts = [branchSeedContext, projectContext, directive, cleanMessage].filter(Boolean);
+
+    // When the user typed only skill mentions (no other text) and all skills are already
+    // read, the 'files listed above' fallback is stale — no directive will be prepended.
+    const effectiveCleanMessage =
+      cleanMessage === 'Follow the skill instructions from the files listed above.' &&
+      unreadSkillPaths.size === 0
+        ? 'Continue following the skill instructions you have already read.'
+        : cleanMessage;
+
+    const messageParts = [branchSeedContext, projectContext, directive, effectiveCleanMessage].filter(Boolean);
     const effectiveMessage = messageParts.join('\n\n');
 
     yield* this.chatImpl(effectiveMessage, attachments, options);
