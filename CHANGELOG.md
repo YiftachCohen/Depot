@@ -2,7 +2,7 @@
 
 All notable changes to Depot are documented in this file.
 
-## [Unreleased]
+## [1.2.4] - 2026-03-23
 
 ### Fixed
 
