@@ -155,7 +155,7 @@ jobs:
                   if (current) files.push(current);
                   current = {};
                 }
-                const m = line.match(/^  (?:- )?(\w+):\s*(.+)/);
+                const m = line.match(/^ {2,4}(?:- )?(\w+):\s*(.+)/);
                 if (m && current) current[m[1]] = m[2];
                 if (!line.startsWith("  ") && line.trim() !== "") {
                   if (current) files.push(current);
