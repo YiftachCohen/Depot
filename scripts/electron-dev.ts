@@ -4,7 +4,7 @@
  */
 
 import { spawn, type Subprocess } from "bun";
-import { existsSync, rmSync, cpSync, readFileSync, statSync, mkdirSync } from "fs";
+import { existsSync, rmSync, cpSync, copyFileSync, readFileSync, statSync, mkdirSync } from "fs";
 import { join, basename } from "path";
 import * as esbuild from "esbuild";
 import { downloadUv, type Platform, type Arch } from "./build/common";
@@ -204,6 +204,16 @@ function copyResources(): void {
   if (existsSync(srcDir)) {
     cpSync(srcDir, destDir, { recursive: true, force: true });
     console.log("📦 Copied resources to dist");
+  }
+
+  // Copy sql-wasm.wasm for Knowledge Store
+  const sqlWasmSrc = join(ROOT_DIR, 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
+  const sqlWasmDest = join(DIST_DIR, 'sql-wasm.wasm');
+  if (existsSync(sqlWasmSrc)) {
+    copyFileSync(sqlWasmSrc, sqlWasmDest);
+    console.log('📦 Copied sql-wasm.wasm to dist');
+  } else {
+    console.warn('⚠ sql-wasm.wasm not found at', sqlWasmSrc, '— Knowledge Store may fail');
   }
 }
 

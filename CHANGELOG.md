@@ -2,6 +2,16 @@
 
 All notable changes to Depot are documented in this file.
 
+## [1.2.6] - 2026-03-23
+
+### Fixed
+
+- **Knowledge store fails to initialize in packaged Electron builds** — Knowledge-enabled skills errored with "Knowledge store failed to initialize" because the `sql-wasm.wasm` binary was never copied to the Electron dist bundle. In packaged builds, `node_modules` is excluded and sql.js couldn't find its WASM file. Now copied during both production and dev builds.
+
+### Changed
+
+- **Dev mode uses Depot icon instead of default Electron icon** — macOS dev builds now replace the generic Electron icon with the Depot app icon for easier identification in the Dock.
+
 ## [1.2.5] - 2026-03-23
 
 ### Fixed
