@@ -206,7 +206,7 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
 
   const validateMcpConnection = async (config: HttpMcpConfig): Promise<McpValidationResult> => {
     try {
-      // Resolve credentials from the default LLM connection
+      // Resolve Claude credentials for SDK-based validation
       const defaultSlug = getDefaultLlmConnection();
       const connection = defaultSlug ? getLlmConnection(defaultSlug) : null;
       const credManager = getCredentialManager();
@@ -223,24 +223,51 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
         }
       }
 
-      if (!apiKey && !oauthToken) {
-        return { success: false, error: 'No Claude API key or OAuth token configured' };
+      // If Claude credentials available, use SDK-based validation (more thorough)
+      if (apiKey || oauthToken) {
+        const result = await validateMcpConnectionImpl({
+          mcpUrl: config.url,
+          mcpAccessToken: config.accessToken,
+          claudeApiKey: apiKey || undefined,
+          claudeOAuthToken: oauthToken || undefined,
+        });
+        return {
+          success: result.success,
+          error: result.error,
+          needsAuth: result.errorType === 'needs-auth',
+          toolCount: result.tools?.length,
+          toolNames: result.tools,
+          serverName: result.serverInfo?.name,
+          serverVersion: result.serverInfo?.version,
+        };
       }
 
-      const result = await validateMcpConnectionImpl({
-        mcpUrl: config.url,
-        claudeApiKey: apiKey || undefined,
-        claudeOAuthToken: oauthToken || undefined,
+      // Fallback: direct MCP client connection test (no Claude credentials needed)
+      const { DepotMcpClient } = await import('../mcp/client.js');
+      const mcpClient = new DepotMcpClient({
+        transport: 'http',
+        url: config.url,
+        headers: config.accessToken
+          ? { Authorization: `Bearer ${config.accessToken}` }
+          : undefined,
       });
-      return {
-        success: result.success,
-        error: result.error,
-        needsAuth: result.errorType === 'needs-auth',
-        toolCount: result.tools?.length,
-        toolNames: result.tools,
-        serverName: result.serverInfo?.name,
-        serverVersion: result.serverInfo?.version,
-      };
+      try {
+        const tools = await mcpClient.listTools();
+        await mcpClient.close();
+        return {
+          success: true,
+          toolCount: tools.length,
+          toolNames: tools.map(t => t.name),
+        };
+      } catch (err) {
+        await mcpClient.close().catch(() => {});
+        const errorMsg = err instanceof Error ? err.message : 'Connection failed';
+        return {
+          success: false,
+          error: errorMsg,
+          needsAuth: /\b401\b/.test(errorMsg) || /\b403\b/.test(errorMsg),
+        };
+      }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Validation failed' };
     }
