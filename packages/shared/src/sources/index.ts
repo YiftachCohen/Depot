@@ -25,6 +25,7 @@ export type {
 export {
   API_OAUTH_PROVIDERS,
   isApiOAuthProvider,
+  isOAuthSource,
 } from './types.ts';
 
 // Storage functions
