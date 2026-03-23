@@ -58,7 +58,7 @@ import {
   type SessionHeader,
   pickSessionFields,
 } from '@depot/shared/sessions'
-import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, isSourceUsable, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter } from '@depot/shared/sources'
+import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, isSourceUsable, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter, getTokenForBuild } from '@depot/shared/sources'
 import { ConfigWatcher, type ConfigWatcherCallbacks } from '@depot/shared/config'
 import { getValidClaudeOAuthToken } from '@depot/shared/auth'
 import { resolveAuthEnvVars } from '@depot/shared/config'
@@ -342,10 +342,6 @@ async function saveClaudeTurnAnchor(
  * Build MCP and API servers from sources using the new unified modules.
  * Handles credential loading and server building in one step.
  * When auth errors occur, updates source configs to reflect actual state.
- *
- * @param sources - Sources to build servers for
- * @param sessionPath - Optional path to session folder for saving large API responses
- * @param tokenRefreshManager - Optional TokenRefreshManager for OAuth token refresh
  */
 async function buildServersFromSources(
   sources: LoadedSource[],
@@ -357,11 +353,12 @@ async function buildServersFromSources(
   const credManager = getSourceCredentialManager()
   const serverBuilder = getSourceServerBuilder()
 
-  // Load credentials for all sources
+  // Load credentials for all sources.
+  // OAuth sources use ensureFreshToken() to handle refresh and avoid false expiry rejections.
   const sourcesWithCreds: SourceWithCredential[] = await Promise.all(
     sources.map(async (source) => ({
       source,
-      token: await credManager.getToken(source),
+      token: await getTokenForBuild(source, credManager, tokenRefreshManager),
       credential: await credManager.getApiCredential(source),
     }))
   )
