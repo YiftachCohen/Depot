@@ -8,8 +8,15 @@
  */
 
 import { describe, test, expect } from 'bun:test';
-import { SourceServerBuilder } from '../server-builder.ts';
+import { SourceServerBuilder, type McpServerConfig } from '../server-builder.ts';
 import type { LoadedSource, FolderSourceConfig } from '../types.ts';
+
+/** Narrow McpServerConfig to HTTP/SSE variant for type-safe URL access */
+function asHttpConfig(config: McpServerConfig | null): { type: 'http' | 'sse'; url: string; headers?: Record<string, string> } {
+  expect(config).not.toBeNull();
+  expect(config!.type === 'http' || config!.type === 'sse').toBe(true);
+  return config as { type: 'http' | 'sse'; url: string; headers?: Record<string, string> };
+}
 
 function createMcpSource(overrides: Partial<FolderSourceConfig> = {}): LoadedSource {
   return {
@@ -41,10 +48,8 @@ describe('SourceServerBuilder.buildMcpServer — URL handling', () => {
       mcp: { url: 'https://todoist-mcp.example.com/v1', authType: 'none' },
     });
 
-    const config = builder.buildMcpServer(source, null);
-
-    expect(config).not.toBeNull();
-    expect(config!.url).toBe('https://todoist-mcp.example.com/v1');
+    const config = asHttpConfig(builder.buildMcpServer(source, null));
+    expect(config.url).toBe('https://todoist-mcp.example.com/v1');
   });
 
   test('strips trailing slashes from URL', () => {
@@ -52,10 +57,8 @@ describe('SourceServerBuilder.buildMcpServer — URL handling', () => {
       mcp: { url: 'https://mcp.example.com/', authType: 'none' },
     });
 
-    const config = builder.buildMcpServer(source, null);
-
-    expect(config).not.toBeNull();
-    expect(config!.url).toBe('https://mcp.example.com');
+    const config = asHttpConfig(builder.buildMcpServer(source, null));
+    expect(config.url).toBe('https://mcp.example.com');
   });
 
   test('preserves URL that already ends with /mcp', () => {
@@ -63,10 +66,8 @@ describe('SourceServerBuilder.buildMcpServer — URL handling', () => {
       mcp: { url: 'https://mcp.example.com/mcp', authType: 'none' },
     });
 
-    const config = builder.buildMcpServer(source, null);
-
-    expect(config).not.toBeNull();
-    expect(config!.url).toBe('https://mcp.example.com/mcp');
+    const config = asHttpConfig(builder.buildMcpServer(source, null));
+    expect(config.url).toBe('https://mcp.example.com/mcp');
   });
 
   test('detects SSE type from URL containing /sse', () => {
@@ -74,11 +75,9 @@ describe('SourceServerBuilder.buildMcpServer — URL handling', () => {
       mcp: { url: 'https://mcp.example.com/sse', authType: 'none' },
     });
 
-    const config = builder.buildMcpServer(source, null);
-
-    expect(config).not.toBeNull();
-    expect(config!.type).toBe('sse');
-    expect(config!.url).toBe('https://mcp.example.com/sse');
+    const config = asHttpConfig(builder.buildMcpServer(source, null));
+    expect(config.type).toBe('sse');
+    expect(config.url).toBe('https://mcp.example.com/sse');
   });
 
   test('defaults to http type for non-SSE URLs', () => {
@@ -86,10 +85,8 @@ describe('SourceServerBuilder.buildMcpServer — URL handling', () => {
       mcp: { url: 'https://mcp.example.com/v1', authType: 'none' },
     });
 
-    const config = builder.buildMcpServer(source, null);
-
-    expect(config).not.toBeNull();
-    expect(config!.type).toBe('http');
+    const config = asHttpConfig(builder.buildMcpServer(source, null));
+    expect(config.type).toBe('http');
   });
 
   test('adds Authorization header when token is provided', () => {
@@ -97,9 +94,7 @@ describe('SourceServerBuilder.buildMcpServer — URL handling', () => {
       mcp: { url: 'https://mcp.example.com', authType: 'oauth' },
     });
 
-    const config = builder.buildMcpServer(source, 'my-token') as { headers?: Record<string, string> };
-
-    expect(config).not.toBeNull();
+    const config = asHttpConfig(builder.buildMcpServer(source, 'my-token'));
     expect(config.headers).toEqual({ Authorization: 'Bearer my-token' });
   });
 
@@ -119,9 +114,7 @@ describe('SourceServerBuilder.buildMcpServer — URL handling', () => {
       mcp: { url: 'https://mcp.example.com', authType: 'none' },
     });
 
-    const config = builder.buildMcpServer(source, null) as { headers?: Record<string, string> };
-
-    expect(config).not.toBeNull();
+    const config = asHttpConfig(builder.buildMcpServer(source, null));
     expect(config.headers).toBeUndefined();
   });
 
