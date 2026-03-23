@@ -167,6 +167,27 @@ async function killProcessOnPort(port: string): Promise<void> {
   }
 }
 
+// Replace Electron's default icon with Depot's icon in dev mode (macOS only)
+function replaceDevIcon(): void {
+  if (process.platform !== 'darwin') return;
+
+  const electronIconPath = join(ROOT_DIR, 'node_modules/electron/dist/Electron.app/Contents/Resources/electron.icns');
+  const depotIconPath = join(ELECTRON_DIR, 'resources/icon.icns');
+
+  if (!existsSync(depotIconPath)) {
+    console.warn('⚠️  Dev icon not replaced: resources/icon.icns not found');
+    return;
+  }
+  if (!existsSync(electronIconPath)) return;
+
+  try {
+    cpSync(depotIconPath, electronIconPath);
+    console.log('🎨 Replaced dev Electron icon with Depot icon');
+  } catch (err) {
+    console.warn(`⚠️  Could not replace dev Electron icon: ${(err as Error).message}`);
+  }
+}
+
 // Clean Vite cache directory
 function cleanViteCache(): void {
   const viteCacheDir = join(ELECTRON_DIR, "node_modules/.vite");
@@ -366,6 +387,7 @@ async function main(): Promise<void> {
   detectInstance();
   loadEnvFile();
   cleanViteCache();
+  replaceDevIcon();
 
   // Ensure dist directory exists
   if (!existsSync(DIST_DIR)) {
