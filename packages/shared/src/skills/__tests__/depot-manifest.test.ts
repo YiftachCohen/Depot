@@ -795,4 +795,17 @@ quick_commands:
     expect(manifest.quick_commands[1]!.model).toBe('claude-opus-4-6');
     expect(manifest.quick_commands[2]!.model).toBeUndefined();
   });
+
+  it('should throw validation error for non-string model in quick command', () => {
+    const yaml = `
+name: Bad Model
+icon: cpu
+description: Non-string model
+quick_commands:
+  - name: Broken
+    prompt: "This has a bad model"
+    model: 123
+`;
+    expect(() => parseDepotManifest(yaml)).toThrow('quick_commands[0].model must be a string, got number');
+  });
 });

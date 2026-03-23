@@ -186,11 +186,14 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
   for (let i = 0; i < parsedCommands.length; i++) {
     const cmd = parsedCommands[i]!;
     errors.push(...validateQuickCommandVariables(cmd, i));
-    // Sanitize model: coerce non-string/empty values to undefined, trim whitespace
+    // Validate and sanitize model field
     if (cmd.model !== undefined) {
-      cmd.model = typeof cmd.model === 'string' && cmd.model.trim() !== ''
-        ? cmd.model.trim()
-        : undefined;
+      if (typeof cmd.model !== 'string') {
+        errors.push(`quick_commands[${i}].model must be a string, got ${typeof cmd.model}`);
+        cmd.model = undefined;
+      } else {
+        cmd.model = cmd.model.trim() !== '' ? cmd.model.trim() : undefined;
+      }
     }
   }
 
