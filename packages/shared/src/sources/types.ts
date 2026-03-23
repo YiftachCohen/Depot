@@ -301,13 +301,15 @@ export interface LocalSourceConfig {
 
 /**
  * Source connection status
- * - 'connected': Source is connected and working
+ * - 'connected': Source is connected and working (tools discovered)
+ * - 'connecting': Authentication succeeded, MCP connection in progress
+ * - 'error': MCP connection or tool discovery failed
  * - 'needs_auth': Source requires authentication
  * - 'failed': Connection failed with error
  * - 'untested': Connection has not been tested
  * - 'local_disabled': Stdio source is disabled (local MCP servers off)
  */
-export type SourceConnectionStatus = 'connected' | 'needs_auth' | 'failed' | 'untested' | 'local_disabled';
+export type SourceConnectionStatus = 'connected' | 'connecting' | 'error' | 'needs_auth' | 'failed' | 'untested' | 'local_disabled';
 
 // ============================================================================
 // Source Brand
@@ -363,7 +365,9 @@ export interface FolderSourceConfig {
   // Status tracking
   isAuthenticated?: boolean;
   connectionStatus?: SourceConnectionStatus;
-  connectionError?: string; // Error message if status is 'failed'
+  connectionError?: string; // Error message if status is 'failed' or 'error'
+  /** Number of tools discovered from this source (set after successful MCP connection) */
+  toolCount?: number;
   lastTestedAt?: number;
 
   // Metadata (optional - manually created configs may not have them)

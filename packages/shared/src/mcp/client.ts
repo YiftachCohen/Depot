@@ -151,7 +151,7 @@ export class DepotMcpClient {
         try {
           await this.client.listTools();
         } catch (sseError) {
-          await this.client.close();
+          await this.client.close().catch(() => {});
           throw new Error(
             `MCP connection failed (tried HTTP + SSE): ${sseError instanceof Error ? sseError.message : String(sseError)}`
           );

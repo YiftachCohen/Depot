@@ -43,6 +43,18 @@ const STATUS_CONFIG: Record<SourceConnectionStatus, {
     label: 'Connected',
     description: 'Source is connected and working',
   },
+  connecting: {
+    color: 'bg-warning',
+    pulseColor: 'bg-warning/80',
+    label: 'Connecting',
+    description: 'Authentication succeeded, connecting to MCP server...',
+  },
+  error: {
+    color: 'bg-destructive',
+    pulseColor: 'bg-destructive/80',
+    label: 'Connection Error',
+    description: 'MCP server connection or tool discovery failed',
+  },
   needs_auth: {
     color: 'bg-info',
     pulseColor: 'bg-info/80',
