@@ -2,6 +2,13 @@
 
 All notable changes to Depot are documented in this file.
 
+## [1.2.3] - 2026-03-23
+
+### Fixed
+
+- **Auto-update broken on macOS** — The release workflow's YAML merge script used a regex that failed to capture `sha512` and `size` fields from `latest-mac.yml`, writing `undefined` instead of real values. This caused electron-updater to fail silently on update checks. Fixed the regex to handle 4-space indented YAML properties.
+- **No feedback on "Check for Updates" click** — Added fallback toast/dialog for update states that weren't previously handled, so users always see feedback when clicking the button (settings page and macOS menu).
+
 ## [1.2.1] - 2026-03-22
 
 ### Added
