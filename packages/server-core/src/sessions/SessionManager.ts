@@ -1831,7 +1831,7 @@ export class SessionManager implements ISessionManager {
     // Persist session with updated auth message and enabled sources
     this.persistSession(managed)
 
-    // Update bridge-mcp-server config/credentials for backends that need it
+    // Sync MCP pool to discover tools immediately after auth (not deferred to sendMessage)
     if (result.success && result.sourceSlug && managed.agent) {
       const workspaceRootPath = managed.workspace.rootPath
       const sessionPath = getSessionStoragePath(workspaceRootPath, managed.id)
@@ -1840,9 +1840,11 @@ export class SessionManager implements ISessionManager {
       const enabledSources = allSources.filter(s =>
         enabledSlugs.includes(s.config.slug) && isSourceUsable(s)
       )
-      const { mcpServers } = await buildServersFromSources(
+      const { mcpServers, apiServers } = await buildServersFromSources(
         enabledSources, sessionPath, managed.tokenRefreshManager
       )
+      const intendedSlugs = enabledSources.map(s => s.config.slug)
+      await managed.agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
       await applyBridgeUpdates(managed.agent, sessionPath, enabledSources, mcpServers, managed.id, workspaceRootPath, 'source auth', managed.poolServer?.url)
     }
 
