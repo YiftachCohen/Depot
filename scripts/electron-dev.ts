@@ -174,9 +174,17 @@ function replaceDevIcon(): void {
   const electronIconPath = join(ROOT_DIR, 'node_modules/electron/dist/Electron.app/Contents/Resources/electron.icns');
   const depotIconPath = join(ELECTRON_DIR, 'resources/icon.icns');
 
-  if (existsSync(electronIconPath) && existsSync(depotIconPath)) {
+  if (!existsSync(depotIconPath)) {
+    console.warn('⚠️  Dev icon not replaced: resources/icon.icns not found');
+    return;
+  }
+  if (!existsSync(electronIconPath)) return;
+
+  try {
     cpSync(depotIconPath, electronIconPath);
     console.log('🎨 Replaced dev Electron icon with Depot icon');
+  } catch (err) {
+    console.warn(`⚠️  Could not replace dev Electron icon: ${(err as Error).message}`);
   }
 }
 
