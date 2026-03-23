@@ -31,3 +31,16 @@ try {
   // Only warn - PowerShell validation is optional on non-Windows platforms
   console.log('⚠ powershell-parser.ps1 copy skipped (not critical on non-Windows)');
 }
+
+// Copy sql-wasm.wasm binary for sql.js (Knowledge Store)
+// In packaged builds, require.resolve('sql.js/package.json') fails because
+// node_modules is excluded. sql.js falls back to loading sql-wasm.wasm from
+// the same directory as the running script (dist/), so we place it there.
+const sqlWasmSrc = join('..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
+const sqlWasmDest = join('dist', 'sql-wasm.wasm');
+try {
+  copyFileSync(sqlWasmSrc, sqlWasmDest);
+  console.log('✓ Copied sql-wasm.wasm → dist/');
+} catch (err) {
+  console.warn('⚠ sql-wasm.wasm copy failed:', (err as Error).message);
+}
