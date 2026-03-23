@@ -212,6 +212,8 @@ function copyResources(): void {
   if (existsSync(sqlWasmSrc)) {
     copyFileSync(sqlWasmSrc, sqlWasmDest);
     console.log('📦 Copied sql-wasm.wasm to dist');
+  } else {
+    console.warn('⚠ sql-wasm.wasm not found at', sqlWasmSrc, '— Knowledge Store may fail');
   }
 }
 
