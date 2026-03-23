@@ -2,6 +2,14 @@
 
 All notable changes to Depot are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **MCP sources fail in agents but work in sources tab** — Two bugs caused MCP sources (like Todoist) to show as connected in the sources panel but fail with re-authentication errors when used through agents:
+  1. URL normalization appended `/mcp` to server URLs, breaking servers that don't follow that path convention. The agent now uses the raw URL that was validated during connection testing.
+  2. Expired OAuth tokens were rejected during agent startup even when the MCP server still accepted them. OAuth sources now use the token refresh manager which returns non-refreshable tokens as-is instead of rejecting them based on client-side expiry.
+
 ## [1.2.3] - 2026-03-23
 
 ### Fixed
