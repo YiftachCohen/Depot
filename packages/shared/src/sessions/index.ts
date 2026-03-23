@@ -87,6 +87,7 @@ export {
   readSessionJsonl,
   writeSessionJsonl,
   createSessionHeader,
+  updateSessionHeaderOnly,
 } from './jsonl.ts';
 
 // Field utilities

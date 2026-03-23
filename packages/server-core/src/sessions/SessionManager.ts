@@ -49,8 +49,11 @@ import {
   getPendingPlanExecution as getStoredPendingPlanExecution,
   getSessionAttachmentsPath,
   getSessionPath as getSessionStoragePath,
+  getSessionFilePath,
+  readSessionHeader,
   sessionPersistenceQueue,
   getHeaderMetadataSignature,
+  updateSessionHeaderOnly,
   type StoredSession,
   type StoredMessage,
   type SessionMetadata,
@@ -1673,9 +1676,33 @@ export class SessionManager implements ISessionManager {
         m.role !== 'status'
       )
 
-      // If messages haven't been loaded yet (e.g., branched session not yet opened),
-      // skip persistence to avoid overwriting JSONL messages with empty array
+      // If messages haven't been loaded yet (e.g., session not yet opened),
+      // persist only the header to avoid overwriting JSONL messages with empty array.
+      // This ensures metadata changes (archive, flag, status, rename) are persisted
+      // even for sessions that haven't been opened in this app session.
       if (!managed.messagesLoaded) {
+        try {
+          const filePath = getSessionFilePath(managed.workspace.rootPath, managed.id)
+          if (existsSync(filePath)) {
+            // Read existing header as base — preserves all fields that aren't loaded
+            // into memory at startup (enabledSourceSlugs, pendingPlanExecution,
+            // branchFrom*, triggeredBy, messageCount, preview, etc.)
+            const existingHeader = readSessionHeader(filePath)
+            if (existingHeader) {
+              // Overlay only the metadata fields that are in-memory on the managed session.
+              // pickSessionFields returns only non-undefined fields from the managed session.
+              const managedFields = pickSessionFields(managed)
+              const header = {
+                ...existingHeader,
+                ...managedFields,
+                lastUsedAt: Date.now(),
+              } as SessionHeader
+              updateSessionHeaderOnly(filePath, header)
+            }
+          }
+        } catch (error) {
+          sessionLog.error(`Failed header-only persist for session ${managed.id}:`, error)
+        }
         return
       }
 
