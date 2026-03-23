@@ -649,7 +649,10 @@ export abstract class BaseAgent implements AgentBackend {
     // Both MCP sources and API sources are routed through the pool.
     if (this.config.mcpPool) {
       try {
-        await this.config.mcpPool.sync(mcpServers, apiServers as Record<string, ApiServerConfig>);
+        const failures = await this.config.mcpPool.sync(mcpServers, apiServers as Record<string, ApiServerConfig>);
+        if (failures.length > 0) {
+          console.warn(`[MCP] Failed to connect ${failures.length} source(s): ${failures.join(', ')}`);
+        }
       } catch (err) {
         this.debug(`Failed to sync MCP pool: ${err instanceof Error ? err.message : String(err)}`);
       }

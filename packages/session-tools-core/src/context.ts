@@ -373,6 +373,8 @@ export interface StdioMcpConfig {
 export interface HttpMcpConfig {
   url: string;
   authType?: string;
+  /** MCP source's own access token (bearer or OAuth) for authenticated connections */
+  accessToken?: string;
 }
 
 /**

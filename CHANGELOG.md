@@ -2,6 +2,16 @@
 
 All notable changes to Depot are documented in this file.
 
+## [1.2.5] - 2026-03-23
+
+### Fixed
+
+- **Remote MCP source tools not registered despite successful auth** — Bearer-auth HTTP MCP sources (e.g., Todoist) showed as connected and authenticated but registered zero tools. Root causes:
+  1. The `source_test` connection validator never passed the MCP source's bearer token to the server — it checked for Claude API credentials instead, producing the misleading error "No Claude API key or OAuth token configured."
+  2. After credential save, the MCP client pool wasn't synced until the next message, so tools weren't discovered immediately.
+  3. No SSE transport fallback for MCP servers using the older protocol — connections failed silently.
+  4. MCP pool connection failures were logged at debug level, invisible to users.
+
 ## [1.2.4] - 2026-03-23
 
 ### Fixed
