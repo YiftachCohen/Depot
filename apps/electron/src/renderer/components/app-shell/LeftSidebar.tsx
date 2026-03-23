@@ -189,7 +189,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
     <div className={cn("flex flex-col select-none", !isNested && "py-1")}>
       <NavWrapper
         className={cn(
-          "grid gap-1",
+          "grid gap-1 min-w-0",
           isNested ? "pl-6 pr-0 relative" : "px-2"
         )}
         role="navigation"
@@ -232,7 +232,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
           // ContextMenuTrigger with asChild sets data-state="open" on the button
           // so only the clicked item highlights, not the entire section.
           const content = (
-            <div className="group/section">
+            <div className="group/section min-w-0">
               {link.contextMenu ? (
                 <ContextMenu modal={true}>
                   <ContextMenuTrigger asChild>
@@ -388,7 +388,7 @@ function SortableStatusList({ items, onReorder, getItemProps, focusedItemId, tra
           onReorder={handleReorder}
           className="grid gap-1"
           renderItem={(item) => (
-            <div className="group/section">
+            <div className="group/section min-w-0">
               {item.contextMenu ? (
                 <ContextMenu modal={true}>
                   <ContextMenuTrigger asChild>
