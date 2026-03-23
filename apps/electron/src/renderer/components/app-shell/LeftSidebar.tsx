@@ -285,7 +285,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
 
           // For nested items, wrap in motion.div for stagger animation
           return isNested ? (
-            <motion.div key={link.id} variants={itemVariants}>
+            <motion.div key={link.id} variants={itemVariants} className="min-w-0">
               {content}
             </motion.div>
           ) : (
