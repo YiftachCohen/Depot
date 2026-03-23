@@ -141,7 +141,13 @@ export class DepotMcpClient {
           { requestInit: { headers: httpConfig.headers } }
         );
 
-        await this.client.connect(this.transport);
+        try {
+          await this.client.connect(this.transport);
+        } catch (sseConnectError) {
+          throw new Error(
+            `MCP connection failed (tried HTTP + SSE): ${sseConnectError instanceof Error ? sseConnectError.message : String(sseConnectError)}`
+          );
+        }
         try {
           await this.client.listTools();
         } catch (sseError) {

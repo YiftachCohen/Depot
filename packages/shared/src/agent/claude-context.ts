@@ -253,7 +253,7 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
       });
       try {
         const tools = await mcpClient.listTools();
-        await mcpClient.close();
+        await mcpClient.close().catch(() => {});
         return {
           success: true,
           toolCount: tools.length,
