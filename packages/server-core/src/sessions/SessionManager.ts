@@ -58,7 +58,7 @@ import {
   type SessionHeader,
   pickSessionFields,
 } from '@depot/shared/sessions'
-import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, isSourceUsable, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, SourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, isOAuthSource, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter } from '@depot/shared/sources'
+import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, isSourceUsable, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter, getTokenForBuild } from '@depot/shared/sources'
 import { ConfigWatcher, type ConfigWatcherCallbacks } from '@depot/shared/config'
 import { getValidClaudeOAuthToken } from '@depot/shared/auth'
 import { resolveAuthEnvVars } from '@depot/shared/config'
@@ -336,29 +336,6 @@ async function saveClaudeTurnAnchor(
   const filePath = getClaudeTurnAnchorsPath(sessionPath)
   await mkdir(join(sessionPath, 'meta'), { recursive: true })
   await writeFile(filePath, JSON.stringify(index), 'utf-8')
-}
-
-/**
- * Get a token for building server configs.
- *
- * For OAuth sources with a TokenRefreshManager, uses ensureFreshToken() which:
- * - Returns non-refreshable tokens as-is (no expiry check — avoids rejecting
- *   tokens that the server still accepts but our client-side expiresAt considers expired)
- * - Refreshes expired tokens that have a refresh token
- * - Applies rate limiting to prevent hammering
- *
- * For non-OAuth sources, falls back to getToken() which checks expiry.
- */
-async function getTokenForBuild(
-  source: LoadedSource,
-  credManager: SourceCredentialManager,
-  tokenRefreshManager?: TokenRefreshManager
-): Promise<string | null> {
-  if (tokenRefreshManager && isOAuthSource(source)) {
-    const result = await tokenRefreshManager.ensureFreshToken(source)
-    return result.success ? (result.token ?? null) : null
-  }
-  return credManager.getToken(source)
 }
 
 /**

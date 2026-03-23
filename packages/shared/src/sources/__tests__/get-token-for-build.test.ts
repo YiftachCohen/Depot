@@ -1,39 +1,21 @@
 /**
- * Tests for the getTokenForBuild pattern used in SessionManager.buildServersFromSources().
+ * Tests for getTokenForBuild — the real implementation from token-build.ts.
  *
  * Verifies that OAuth sources use ensureFreshToken() (which returns non-refreshable
  * tokens as-is without expiry check), while non-OAuth sources use getToken()
  * (which does check expiry).
- *
- * This test recreates the getTokenForBuild logic locally to test it in isolation
- * without pulling in the full SessionManager dependency tree.
  */
 
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import { isOAuthSource, type LoadedSource, type FolderSourceConfig } from '../types.ts';
-import { TokenRefreshManager, type TokenRefreshResult } from '../token-refresh-manager.ts';
+import { describe, test, expect, mock } from 'bun:test';
+import { type LoadedSource, type FolderSourceConfig } from '../types.ts';
+import { TokenRefreshManager } from '../token-refresh-manager.ts';
 import type { SourceCredentialManager } from '../credential-manager.ts';
+import { getTokenForBuild } from '../token-build.ts';
 
 // Mock storage module to prevent disk I/O
 mock.module('../storage.ts', () => ({
   markSourceAuthenticated: mock(() => true),
 }));
-
-/**
- * Replicate the getTokenForBuild logic from SessionManager.
- * This is the exact same pattern — extracted here for isolated testing.
- */
-async function getTokenForBuild(
-  source: LoadedSource,
-  credManager: SourceCredentialManager,
-  tokenRefreshManager?: TokenRefreshManager
-): Promise<string | null> {
-  if (tokenRefreshManager && isOAuthSource(source)) {
-    const result = await tokenRefreshManager.ensureFreshToken(source);
-    return result.success ? (result.token ?? null) : null;
-  }
-  return credManager.getToken(source);
-}
 
 function createSource(overrides: Partial<FolderSourceConfig>): LoadedSource {
   return {
