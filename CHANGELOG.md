@@ -2,6 +2,17 @@
 
 All notable changes to Depot are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **Remote MCP tools still not discoverable after v1.2.5 fix** — Despite the bearer auth fix in v1.2.5, ToolSearch still returned zero tools because:
+  1. `markSourceAuthenticated()` set `connectionStatus: 'connected'` before any MCP handshake — the agent saw "Active" but had no tools. Now sets `'connecting'` and only transitions to `'connected'` after pool sync confirms tools are available.
+  2. When `buildMcpServer` returned null for a freshly-authenticated source, `markSourceNeedsReauth()` destructively reset `isAuthenticated=false`, creating an infinite re-auth loop. Freshly-authenticated sources now skip this destructive cycle.
+  3. Pool sync failures were invisible to the agent — no `<source_issue>` block was generated for `'error'` or `'connecting'` statuses. Both now surface diagnostic information.
+  4. Connection status was never reconciled after pool sync — added `reconcileSourceConnectionStatus()` at all 6 `setSourceServers` call sites to reflect actual MCP connection state.
+  5. Local/stdio sources were incorrectly marked as `'error'` when local MCP was disabled. Now excluded from remote connection reconciliation.
+
 ## [1.2.6] - 2026-03-23
 
 ### Fixed
