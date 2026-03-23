@@ -1,6 +1,6 @@
 {
   "name": "@depot/server",
-  "version": "1.2.1",
+  "version": "1.2.6",
   "description": "Standalone headless Depot server (Bun runtime)",
   "type": "module",
   "main": "src/index.ts",

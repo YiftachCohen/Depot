@@ -87,9 +87,16 @@ export async function rebuildMenu(): Promise<void> {
               message: `You're up to date.`,
               detail: `Version ${result.currentVersion} is the latest version.`,
             })
+          } else if (result.available && result.latestVersion) {
+            dialog.showMessageBox({
+              type: 'info',
+              title: 'Update Found',
+              message: `Version ${result.latestVersion} is available.`,
+              detail: result.downloadState === 'ready'
+                ? 'The update is ready to install. Use "Install Update" from the menu.'
+                : 'Downloading in the background. You\'ll be notified when it\'s ready.',
+            })
           }
-          // If update is available, the update-available/update-downloaded events
-          // will trigger menu rebuild and renderer notification automatically.
         }
       }
 

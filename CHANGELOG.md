@@ -2,6 +2,41 @@
 
 All notable changes to Depot are documented in this file.
 
+## [1.2.6] - 2026-03-23
+
+### Fixed
+
+- **Knowledge store fails to initialize in packaged Electron builds** — Knowledge-enabled skills errored with "Knowledge store failed to initialize" because the `sql-wasm.wasm` binary was never copied to the Electron dist bundle. In packaged builds, `node_modules` is excluded and sql.js couldn't find its WASM file. Now copied during both production and dev builds.
+
+### Changed
+
+- **Dev mode uses Depot icon instead of default Electron icon** — macOS dev builds now replace the generic Electron icon with the Depot app icon for easier identification in the Dock.
+
+## [1.2.5] - 2026-03-23
+
+### Fixed
+
+- **Remote MCP source tools not registered despite successful auth** — Bearer-auth HTTP MCP sources (e.g., Todoist) showed as connected and authenticated but registered zero tools. Root causes:
+  1. The `source_test` connection validator never passed the MCP source's bearer token to the server — it checked for Claude API credentials instead, producing the misleading error "No Claude API key or OAuth token configured."
+  2. After credential save, the MCP client pool wasn't synced until the next message, so tools weren't discovered immediately.
+  3. No SSE transport fallback for MCP servers using the older protocol — connections failed silently.
+  4. MCP pool connection failures were logged at debug level, invisible to users.
+
+## [1.2.4] - 2026-03-23
+
+### Fixed
+
+- **MCP sources fail in agents but work in sources tab** — Two bugs caused MCP sources (like Todoist) to show as connected in the sources panel but fail with re-authentication errors when used through agents:
+  1. URL normalization appended `/mcp` to server URLs, breaking servers that don't follow that path convention. The agent now uses the raw URL that was validated during connection testing.
+  2. Expired OAuth tokens were rejected during agent startup even when the MCP server still accepted them. OAuth sources now use the token refresh manager which returns non-refreshable tokens as-is instead of rejecting them based on client-side expiry.
+
+## [1.2.3] - 2026-03-23
+
+### Fixed
+
+- **Auto-update broken on macOS** — The release workflow's YAML merge script used a regex that failed to capture `sha512` and `size` fields from `latest-mac.yml`, writing `undefined` instead of real values. This caused electron-updater to fail silently on update checks. Fixed the regex to handle 4-space indented YAML properties.
+- **No feedback on "Check for Updates" click** — Added fallback toast/dialog for update states that weren't previously handled, so users always see feedback when clicking the button (settings page and macOS menu).
+
 ## [1.2.1] - 2026-03-22
 
 ### Added

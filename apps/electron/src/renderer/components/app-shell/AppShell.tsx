@@ -793,6 +793,8 @@ function AppShellContent({
       return next
     })
   }, [])
+  // Track which agents have their full session list expanded in sidebar (show all sessions, not just 5)
+  const [expandedAgentSessions, setExpandedAgentSessions] = React.useState<Set<string>>(new Set())
   // Sources state (workspace-scoped)
   const [sources, setSources] = React.useState<LoadedSource[]>([])
   // Sync sources to atom for NavigationContext auto-selection
@@ -2371,7 +2373,7 @@ function AppShellContent({
                 </div>
                 {/* Primary Nav (scrollable): Agents, All Chats */}
                 {/* pb-4 provides clearance so the last item scrolls above the mask-fade-bottom gradient */}
-                <div className="flex-1 overflow-y-auto min-h-0 mask-fade-bottom pb-4">
+                <div className="flex-1 overflow-y-auto overflow-x-clip min-h-0 mask-fade-bottom pb-4">
                 <LeftSidebar
                   isCollapsed={false}
                   getItemProps={getSidebarItemProps}
@@ -2399,7 +2401,8 @@ function AppShellContent({
                         const allAgentSessions = activeSessionMetas
                           .filter(m => m.skillSlug === skill.slug)
                           .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0))
-                        const agentSessions = allAgentSessions.slice(0, 5)
+                        const isShowingAllSessions = expandedAgentSessions.has(skill.slug)
+                        const agentSessions = isShowingAllSessions ? allAgentSessions : allAgentSessions.slice(0, 5)
                         // Resolve agent icon: emoji > manifest lucide name > keyword inference > Zap
                         const hasEmoji = !!(skill.metadata.icon && isEmoji(skill.metadata.icon))
                         const agentIcon: any = hasEmoji
@@ -2411,7 +2414,7 @@ function AppShellContent({
                           icon: agentIcon,
                           iconColor: getAccentColor(skill.slug),
                           iconColorable: !hasEmoji,
-                          label: agentSessions.length > 0 ? String(agentSessions.length) : undefined,
+                          label: allAgentSessions.length > 0 ? String(allAgentSessions.length) : undefined,
                           variant: (isAgentPageOnly ? "default" : "ghost") as "default" | "ghost",
                           compact: true,
                           onClick: () => navigate(routes.view.skills(skill.slug)),
@@ -2437,16 +2440,24 @@ function AppShellContent({
                                 label: 'Archive',
                               },
                             }}),
-                            // "Show all" link when agent has more than 5 sessions
-                            ...(allAgentSessions.length > 5 ? [{
+                            // "Show all" / "Show less" toggle when agent has more than 5 sessions
+                            ...((allAgentSessions.length > 5) ? [{
                               id: `nav:skill-show-all:${skill.slug}`,
-                              title: `Show all ${allAgentSessions.length}`,
+                              title: isShowingAllSessions ? 'Show less' : `Show all ${allAgentSessions.length}`,
                               icon: MoreHorizontal,
                               iconColor: 'color-mix(in oklch, var(--foreground) 30%, transparent)',
                               variant: 'ghost' as "default" | "ghost",
                               compact: true,
                               muted: true,
-                              onClick: () => navigate(routes.view.skills(skill.slug)),
+                              onClick: () => setExpandedAgentSessions(prev => {
+                                const next = new Set(prev)
+                                if (isShowingAllSessions) {
+                                  next.delete(skill.slug)
+                                } else {
+                                  next.add(skill.slug)
+                                }
+                                return next
+                              }),
                             }] : []),
                           ] as any[],
                         }

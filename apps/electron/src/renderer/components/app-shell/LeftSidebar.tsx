@@ -189,7 +189,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
     <div className={cn("flex flex-col select-none", !isNested && "py-1")}>
       <NavWrapper
         className={cn(
-          "grid gap-1",
+          "grid gap-1 min-w-0",
           isNested ? "pl-6 pr-0 relative" : "px-2"
         )}
         role="navigation"
@@ -232,7 +232,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
           // ContextMenuTrigger with asChild sets data-state="open" on the button
           // so only the clicked item highlights, not the entire section.
           const content = (
-            <div className="group/section">
+            <div className="group/section min-w-0">
               {link.contextMenu ? (
                 <ContextMenu modal={true}>
                   <ContextMenuTrigger asChild>
@@ -285,7 +285,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
 
           // For nested items, wrap in motion.div for stagger animation
           return isNested ? (
-            <motion.div key={link.id} variants={itemVariants}>
+            <motion.div key={link.id} variants={itemVariants} className="min-w-0">
               {content}
             </motion.div>
           ) : (
@@ -388,7 +388,7 @@ function SortableStatusList({ items, onReorder, getItemProps, focusedItemId, tra
           onReorder={handleReorder}
           className="grid gap-1"
           renderItem={(item) => (
-            <div className="group/section">
+            <div className="group/section min-w-0">
               {item.contextMenu ? (
                 <ContextMenu modal={true}>
                   <ContextMenuTrigger asChild>
@@ -494,7 +494,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
         onClick={isOverlay ? undefined : link.onClick}
         data-tutorial={link.dataTutorial}
         className={cn(
-          "group flex w-full gap-2.5 rounded-[6px] text-[13px] select-none outline-none",
+          "group flex w-full min-w-0 gap-2.5 rounded-[6px] text-[13px] select-none outline-none",
           link.subtitle ? "items-start" : "items-center",
           "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
           // Compact mode: reduced vertical padding; subtitle items get more room
@@ -549,7 +549,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
             <span className="text-[10px] leading-tight text-foreground/30 truncate">{link.subtitle}</span>
           </span>
         ) : (
-          link.title
+          <span className="min-w-0 truncate">{link.title}</span>
         )}
         {/* After-title element: type indicator icon, right-aligned before count badge, revealed on hover */}
         {link.afterTitle && (

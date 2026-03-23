@@ -688,9 +688,27 @@ async function testMcpConnection(
     if (ctx.validateMcpConnection) {
       lines.push(`ℹ Testing MCP server: ${source.mcp.url}`);
       try {
+        // Load bearer token for authenticated sources
+        let accessToken: string | undefined;
+        if (source.isAuthenticated && ctx.credentialManager && source.mcp.authType && source.mcp.authType !== 'none') {
+          const workspaceId = basename(ctx.workspacePath) || '';
+          const loadedSource = {
+            config: source,
+            folderPath: getSourcePath(ctx.workspacePath, source.slug),
+            workspaceRootPath: ctx.workspacePath,
+            workspaceId,
+          };
+          try {
+            accessToken = (await ctx.credentialManager.getToken(loadedSource)) ?? undefined;
+          } catch {
+            // Token retrieval failed — proceed without it
+          }
+        }
+
         const result = await ctx.validateMcpConnection({
           url: source.mcp.url,
           authType: source.mcp.authType,
+          accessToken,
         });
         if (result.success) {
           success = true;

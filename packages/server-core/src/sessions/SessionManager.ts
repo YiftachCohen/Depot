@@ -49,8 +49,11 @@ import {
   getPendingPlanExecution as getStoredPendingPlanExecution,
   getSessionAttachmentsPath,
   getSessionPath as getSessionStoragePath,
+  getSessionFilePath,
+  readSessionHeader,
   sessionPersistenceQueue,
   getHeaderMetadataSignature,
+  updateSessionHeaderOnly,
   type StoredSession,
   type StoredMessage,
   type SessionMetadata,
@@ -58,7 +61,7 @@ import {
   type SessionHeader,
   pickSessionFields,
 } from '@depot/shared/sessions'
-import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, isSourceUsable, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter } from '@depot/shared/sources'
+import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, isSourceUsable, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter, getTokenForBuild } from '@depot/shared/sources'
 import { ConfigWatcher, type ConfigWatcherCallbacks } from '@depot/shared/config'
 import { getValidClaudeOAuthToken } from '@depot/shared/auth'
 import { resolveAuthEnvVars } from '@depot/shared/config'
@@ -342,10 +345,6 @@ async function saveClaudeTurnAnchor(
  * Build MCP and API servers from sources using the new unified modules.
  * Handles credential loading and server building in one step.
  * When auth errors occur, updates source configs to reflect actual state.
- *
- * @param sources - Sources to build servers for
- * @param sessionPath - Optional path to session folder for saving large API responses
- * @param tokenRefreshManager - Optional TokenRefreshManager for OAuth token refresh
  */
 async function buildServersFromSources(
   sources: LoadedSource[],
@@ -357,11 +356,12 @@ async function buildServersFromSources(
   const credManager = getSourceCredentialManager()
   const serverBuilder = getSourceServerBuilder()
 
-  // Load credentials for all sources
+  // Load credentials for all sources.
+  // OAuth sources use ensureFreshToken() to handle refresh and avoid false expiry rejections.
   const sourcesWithCreds: SourceWithCredential[] = await Promise.all(
     sources.map(async (source) => ({
       source,
-      token: await credManager.getToken(source),
+      token: await getTokenForBuild(source, credManager, tokenRefreshManager),
       credential: await credManager.getApiCredential(source),
     }))
   )
@@ -1676,9 +1676,33 @@ export class SessionManager implements ISessionManager {
         m.role !== 'status'
       )
 
-      // If messages haven't been loaded yet (e.g., branched session not yet opened),
-      // skip persistence to avoid overwriting JSONL messages with empty array
+      // If messages haven't been loaded yet (e.g., session not yet opened),
+      // persist only the header to avoid overwriting JSONL messages with empty array.
+      // This ensures metadata changes (archive, flag, status, rename) are persisted
+      // even for sessions that haven't been opened in this app session.
       if (!managed.messagesLoaded) {
+        try {
+          const filePath = getSessionFilePath(managed.workspace.rootPath, managed.id)
+          if (existsSync(filePath)) {
+            // Read existing header as base — preserves all fields that aren't loaded
+            // into memory at startup (enabledSourceSlugs, pendingPlanExecution,
+            // branchFrom*, triggeredBy, messageCount, preview, etc.)
+            const existingHeader = readSessionHeader(filePath)
+            if (existingHeader) {
+              // Overlay only the metadata fields that are in-memory on the managed session.
+              // pickSessionFields returns only non-undefined fields from the managed session.
+              const managedFields = pickSessionFields(managed)
+              const header = {
+                ...existingHeader,
+                ...managedFields,
+                lastUsedAt: Date.now(),
+              } as SessionHeader
+              updateSessionHeaderOnly(filePath, header)
+            }
+          }
+        } catch (error) {
+          sessionLog.error(`Failed header-only persist for session ${managed.id}:`, error)
+        }
         return
       }
 
@@ -1807,7 +1831,7 @@ export class SessionManager implements ISessionManager {
     // Persist session with updated auth message and enabled sources
     this.persistSession(managed)
 
-    // Update bridge-mcp-server config/credentials for backends that need it
+    // Sync MCP pool to discover tools immediately after auth (not deferred to sendMessage)
     if (result.success && result.sourceSlug && managed.agent) {
       const workspaceRootPath = managed.workspace.rootPath
       const sessionPath = getSessionStoragePath(workspaceRootPath, managed.id)
@@ -1816,9 +1840,11 @@ export class SessionManager implements ISessionManager {
       const enabledSources = allSources.filter(s =>
         enabledSlugs.includes(s.config.slug) && isSourceUsable(s)
       )
-      const { mcpServers } = await buildServersFromSources(
+      const { mcpServers, apiServers } = await buildServersFromSources(
         enabledSources, sessionPath, managed.tokenRefreshManager
       )
+      const intendedSlugs = enabledSources.map(s => s.config.slug)
+      await managed.agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
       await applyBridgeUpdates(managed.agent, sessionPath, enabledSources, mcpServers, managed.id, workspaceRootPath, 'source auth', managed.poolServer?.url)
     }
 
