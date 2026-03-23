@@ -549,7 +549,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
             <span className="text-[10px] leading-tight text-foreground/30 truncate">{link.subtitle}</span>
           </span>
         ) : (
-          <span className="truncate">{link.title}</span>
+          <span className="min-w-0 truncate">{link.title}</span>
         )}
         {/* After-title element: type indicator icon, right-aligned before count badge, revealed on hover */}
         {link.afterTitle && (
