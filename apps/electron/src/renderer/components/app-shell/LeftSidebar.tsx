@@ -494,7 +494,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
         onClick={isOverlay ? undefined : link.onClick}
         data-tutorial={link.dataTutorial}
         className={cn(
-          "group flex w-full gap-2.5 rounded-[6px] text-[13px] select-none outline-none",
+          "group flex w-full min-w-0 gap-2.5 rounded-[6px] text-[13px] select-none outline-none",
           link.subtitle ? "items-start" : "items-center",
           "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
           // Compact mode: reduced vertical padding; subtitle items get more room
@@ -549,7 +549,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
             <span className="text-[10px] leading-tight text-foreground/30 truncate">{link.subtitle}</span>
           </span>
         ) : (
-          link.title
+          <span className="truncate">{link.title}</span>
         )}
         {/* After-title element: type indicator icon, right-aligned before count badge, revealed on hover */}
         {link.afterTitle && (
