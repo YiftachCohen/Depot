@@ -1,12 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs'
+import { createRequire } from 'module'
 import { dirname, join } from 'path'
-import { nativeImage } from 'electron'
 import { CONFIG_DIR } from '@depot/shared/config/paths'
 
 const PNG_DATA_URL_PREFIX = 'data:image/png;base64,'
 const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+const require = createRequire(import.meta.url)
 
 export const MAX_DOCK_ICON_BYTES = 4 * 1024 * 1024
+export type PngDecoder = (buffer: Buffer) => boolean
 
 export function getDockIconFilePath(configDir = CONFIG_DIR): string {
   return join(configDir, 'dock-icon.png')
@@ -21,11 +23,16 @@ export function isValidPngBuffer(buffer: Buffer): boolean {
 }
 
 function isDecodablePngBuffer(buffer: Buffer): boolean {
-  const image = nativeImage.createFromBuffer(buffer)
-  return !image.isEmpty()
+  try {
+    const { nativeImage } = require('electron') as typeof import('electron')
+    const image = nativeImage.createFromBuffer(buffer)
+    return !image.isEmpty()
+  } catch {
+    return false
+  }
 }
 
-export function decodeValidatedDockIconDataUrl(dataUrl: string): Buffer {
+export function decodeValidatedDockIconDataUrl(dataUrl: string, decoder: PngDecoder = isDecodablePngBuffer): Buffer {
   if (!dataUrl.startsWith(PNG_DATA_URL_PREFIX)) {
     throw new Error('Dock icon must be a PNG data URL')
   }
@@ -48,15 +55,19 @@ export function decodeValidatedDockIconDataUrl(dataUrl: string): Buffer {
     throw new Error('Dock icon data is not a valid PNG')
   }
 
-  if (!isDecodablePngBuffer(buffer)) {
+  if (!decoder(buffer)) {
     throw new Error('Dock icon PNG could not be decoded')
   }
 
   return buffer
 }
 
-export function persistDockIconDataUrl(dataUrl: string, dockIconPath = getDockIconFilePath()): string {
-  const buffer = decodeValidatedDockIconDataUrl(dataUrl)
+export function persistDockIconDataUrl(
+  dataUrl: string,
+  dockIconPath = getDockIconFilePath(),
+  decoder: PngDecoder = isDecodablePngBuffer,
+): string {
+  const buffer = decodeValidatedDockIconDataUrl(dataUrl, decoder)
   mkdirSync(dirname(dockIconPath), { recursive: true })
   atomicWriteBufferSync(dockIconPath, buffer)
   return dockIconPath
@@ -72,14 +83,17 @@ export function persistIconPreference(iconId: string, preferencePath = getIconPr
   atomicWriteBufferSync(preferencePath, Buffer.from(JSON.stringify({ iconId: trimmedIconId }, null, 2)))
 }
 
-export function hasValidPersistedDockIcon(dockIconPath = getDockIconFilePath()): boolean {
+export function hasValidPersistedDockIcon(
+  dockIconPath = getDockIconFilePath(),
+  decoder: PngDecoder = isDecodablePngBuffer,
+): boolean {
   if (!existsSync(dockIconPath)) {
     return false
   }
 
   try {
     const buffer = readFileSync(dockIconPath)
-    return isValidPngBuffer(buffer) && isDecodablePngBuffer(buffer)
+    return isValidPngBuffer(buffer) && decoder(buffer)
   } catch {
     return false
   }
@@ -88,8 +102,9 @@ export function hasValidPersistedDockIcon(dockIconPath = getDockIconFilePath()):
 export function resolveStartupDockIconPath(
   bundledIconPaths: string[],
   dockIconPath = getDockIconFilePath(),
+  decoder: PngDecoder = isDecodablePngBuffer,
 ): string | null {
-  if (hasValidPersistedDockIcon(dockIconPath)) {
+  if (hasValidPersistedDockIcon(dockIconPath, decoder)) {
     return dockIconPath
   }
 
