@@ -4,6 +4,8 @@ All notable changes to Depot are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-03-24
+
 ### Changed
 
 - **Dashboard refactored into modular components** — Extracted the monolithic SkillDashboard (1050+ lines) into focused components: TeamHealthBar, AgentGrid, AgentCard, ActivityFeed, and AgentDetailView. Improves maintainability and enables independent iteration on each section.
