@@ -91,6 +91,8 @@ export interface ClaudeContextOptions {
   projectRoot?: string;
   /** Called when knowledge is written or reset, so the UI can refresh badges */
   onKnowledgeChanged?: (skillSlug: string) => void;
+  /** AutomationSystem instance for automation management tools */
+  automationSystem?: import('../automations/automation-system.ts').AutomationSystem;
 }
 
 /**
@@ -104,7 +106,7 @@ export interface ClaudeContextOptions {
  * - Icon management
  */
 export function createClaudeContext(options: ClaudeContextOptions): SessionToolContext {
-  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug, projectRoot, onKnowledgeChanged } = options;
+  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, skillSlug, projectRoot, onKnowledgeChanged, automationSystem } = options;
 
   // File system implementation
   const fs: FileSystemInterface = {
@@ -416,6 +418,56 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     // agent's first tool call arrives (after postInit + first user message
     // round-trip), the WASM module and DB file have been loaded.
     ...knowledgeCallbacks,
+
+    // Automation management callbacks — only wired for skill-bound sessions with an AutomationSystem.
+    ...(skillSlug && automationSystem ? {
+      listAgentAutomations: () => {
+        const automations = automationSystem.getAutomationsForSkill(skillSlug);
+        // Enrich with lastExecutedAt from history
+        return automations.map(a => ({
+          ...a,
+          lastExecutedAt: automationSystem.getAutomationHistory(a.id, 1)[0]?.ts,
+        }));
+      },
+      setAutomationEnabled: async (id: string, enabled: boolean): Promise<{ ok: boolean; error?: string }> => {
+        try {
+          // Check if this is a skill-sourced automation
+          const allAutomations = automationSystem.getAutomationsForSkill(skillSlug);
+          const automation = allAutomations.find(a => a.id === id);
+          if (!automation) {
+            return { ok: false, error: `Automation "${id}" not found for this agent.` };
+          }
+          if (automation.source === 'skill') {
+            // Use override mechanism for skill automations
+            automationSystem.setSkillAutomationOverride(id, enabled);
+          } else {
+            // For workspace automations, update the enabled field directly on the matcher
+            const result = automationSystem.updateWorkspaceAutomation(id, { enabled });
+            if (!result.ok) {
+              return result;
+            }
+          }
+          return { ok: true };
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+        }
+      },
+      editAutomation: async (id: string, updates: { name?: string; cron?: string; prompt?: string; enabled?: boolean }): Promise<{ ok: boolean; error?: string }> => {
+        // Check if this is a skill-sourced automation (read-only)
+        const allAutomations = automationSystem.getAutomationsForSkill(skillSlug);
+        const automation = allAutomations.find(a => a.id === id);
+        if (!automation) {
+          return { ok: false, error: `Automation "${id}" not found for this agent.` };
+        }
+        if (automation.source === 'skill') {
+          return { ok: false, error: `Automation "${automation.name}" is defined in the skill manifest and cannot be edited. Edit the depot.yaml file to modify it.` };
+        }
+        return automationSystem.updateWorkspaceAutomation(id, updates);
+      },
+      getAutomationHistory: async (id: string, limit?: number) => {
+        return automationSystem.getAutomationHistory(id, limit);
+      },
+    } : {}),
     submitFeedback: (feedback: DeveloperFeedback) => {
       const feedbackDir = join(CONFIG_DIR, 'feedback');
       mkdirSync(feedbackDir, { recursive: true });

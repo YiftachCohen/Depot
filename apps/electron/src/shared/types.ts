@@ -588,8 +588,10 @@ export interface ElectronAPI {
 
   // Automation state management
   setAutomationEnabled(workspaceId: string, eventName: string, matcherIndex: number, enabled: boolean): Promise<void>
+  setSkillAutomationOverride(workspaceId: string, automationId: string, enabled: boolean): Promise<void>
   duplicateAutomation(workspaceId: string, eventName: string, matcherIndex: number): Promise<void>
   deleteAutomation(workspaceId: string, eventName: string, matcherIndex: number): Promise<void>
+  deleteAutomationFromManifest(skillDir: string, eventName: string, matcherIndex: number): Promise<void>
   getAutomationHistory(workspaceId: string, automationId: string, limit?: number): Promise<Array<{ id: string; ts: number; ok: boolean; sessionId?: string; prompt?: string; error?: string; webhook?: { method: string; url: string; statusCode: number; durationMs: number; attempts?: number; error?: string; responseBody?: string } }>>
   getAutomationLastExecuted(workspaceId: string): Promise<Record<string, number>>
   replayAutomation(workspaceId: string, automationId: string, eventName: string): Promise<{ results: Array<{ type: string; url: string; statusCode: number; success: boolean; error?: string; duration: number }> }>

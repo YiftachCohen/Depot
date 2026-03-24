@@ -264,7 +264,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const skills = useAtomValue(skillsAtom)
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
   const allAutomations = useAtomValue(automationsAtom)
-  const { activeWorkspaceId, onCreateSession, onSendMessage, onEnabledSkillSlugsChange, onTestAutomation, getAutomationHistory } = useAppShellContext()
+  const { activeWorkspaceId, onCreateSession, onSendMessage, onEnabledSkillSlugsChange, onTestAutomation, onToggleAutomation, onDeleteAutomation, getAutomationHistory } = useAppShellContext()
   const [searchQuery, setSearchQuery] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [enabledSlugs, setEnabledSlugs] = useState<string[] | undefined>(undefined)
@@ -927,6 +927,8 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                 skillPath={focusedSkill.path}
                 automations={allAutomations}
                 onTest={onTestAutomation}
+                onToggle={onToggleAutomation}
+                onDelete={onDeleteAutomation}
                 getHistory={getAutomationHistory}
               />
             </motion.div>
@@ -1311,6 +1313,8 @@ interface AgentAutomationsSectionProps {
   skillPath: string
   automations: AutomationListItem[]
   onTest?: (automationId: string) => void
+  onToggle?: (automationId: string) => void
+  onDelete?: (automationId: string) => void
   getHistory?: (automationId: string) => Promise<ExecutionEntry[]>
 }
 
@@ -1319,6 +1323,8 @@ function AgentAutomationsSection({
   skillPath,
   automations,
   onTest,
+  onToggle,
+  onDelete,
   getHistory,
 }: AgentAutomationsSectionProps) {
   const [historyMap, setHistoryMap] = useState<Record<string, ExecutionEntry[]>>({})
@@ -1441,33 +1447,25 @@ function AgentAutomationsSection({
                   aria-label={`View ${auto.name} automation`}
                   className="w-full flex items-center gap-2 text-[12px] text-left rounded-md -mx-1 px-1 py-1 hover:bg-foreground/[0.03] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
                 >
-                  <Zap className={cn('h-3 w-3 shrink-0', auto.enabled ? 'text-amber-500' : 'text-foreground/20')} />
-
-                  <span className={cn('min-w-0 truncate font-medium', !auto.enabled && 'text-foreground/40 line-through')}>
+                  <span className={cn('min-w-0 truncate font-medium', !auto.enabled && 'text-foreground/40')}>
                     {auto.name}
                   </span>
 
-                  {isWorkspace && (
-                    <span className="shrink-0 text-[9px] text-stone-400 bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded-full leading-none">
-                      workspace
+                  {/* Status tag */}
+                  {!auto.enabled ? (
+                    <span className="shrink-0 text-[9px] text-stone-500 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded-full leading-none">
+                      disabled
                     </span>
-                  )}
-
-                  {/* Status dot */}
-                  <span className={cn(
-                    'shrink-0 inline-block h-1.5 w-1.5 rounded-full',
-                    auto.enabled ? 'bg-green-600' : 'bg-stone-400',
-                  )} />
+                  ) : isRunning ? (
+                    <span className="shrink-0 text-[9px] text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full leading-none">
+                      running
+                    </span>
+                  ) : null}
 
                   {/* Last run */}
                   {auto.lastExecutedAt && (
                     <span className="shrink-0 text-[10px] text-foreground/30">
                       {formatShortRelativeTime(auto.lastExecutedAt)}
-                      {entries[0] && (
-                        <span className={cn('ml-0.5', STATUS_ICON[entries[0].status]?.cls)}>
-                          {entries[0].status === 'success' ? '✓' : entries[0].status === 'error' ? '✗' : '⚠'}
-                        </span>
-                      )}
                     </span>
                   )}
 
@@ -1478,30 +1476,60 @@ function AgentAutomationsSection({
                     </span>
                   )}
 
-                  {/* Spacer to push run button right */}
+                  {/* Spacer to push action buttons right */}
                   <span className="flex-1" />
 
-                  {/* Run button — stops propagation to avoid card click */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRun(auto.id, auto.name)
-                    }}
-                    disabled={isRunning}
-                    aria-label={`Run ${auto.name}`}
-                    className={cn(
-                      'shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity',
-                      'p-0.5 rounded hover:bg-foreground/[0.08]',
-                      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50',
-                      'disabled:opacity-50',
+                  {/* Action buttons — appear on hover */}
+                  <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    {/* Run */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRun(auto.id, auto.name)
+                      }}
+                      disabled={isRunning}
+                      aria-label={`Run ${auto.name}`}
+                      className="p-0.5 rounded hover:bg-foreground/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50 disabled:opacity-50"
+                    >
+                      {isRunning
+                        ? <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
+                        : <Play className="h-3 w-3 text-foreground/40" />
+                      }
+                    </button>
+
+                    {/* Toggle enabled/disabled */}
+                    {onToggle && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onToggle(auto.id)
+                        }}
+                        aria-label={auto.enabled ? `Disable ${auto.name}` : `Enable ${auto.name}`}
+                        title={auto.enabled ? 'Disable' : 'Enable'}
+                        className="p-0.5 rounded hover:bg-foreground/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
+                      >
+                        <Zap className={cn('h-3 w-3', auto.enabled ? 'text-amber-500' : 'text-foreground/25')} />
+                      </button>
                     )}
-                  >
-                    {isRunning
-                      ? <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
-                      : <Play className="h-3 w-3 text-foreground/40" />
-                    }
-                  </button>
+
+                    {/* Delete */}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDelete(auto.id)
+                        }}
+                        aria-label={`Delete ${auto.name}`}
+                        title="Delete"
+                        className="p-0.5 rounded hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/50"
+                      >
+                        <Trash2 className="h-3 w-3 text-foreground/30 hover:text-destructive" />
+                      </button>
+                    )}
+                  </span>
                 </div>
 
                 {/* Inline execution history */}
