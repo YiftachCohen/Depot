@@ -10,7 +10,12 @@ import { join, parse as parsePath, normalize, isAbsolute, sep } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 import { realpath } from 'fs/promises'
 import { homedir, tmpdir } from 'os'
-import { BrowserView, BrowserWindow, app, ipcMain, nativeTheme, session, shell, type Session as ElectronSession } from 'electron'
+import * as electron from 'electron'
+import type {
+  BrowserView as ElectronBrowserView,
+  BrowserWindow as ElectronBrowserWindow,
+  Session as ElectronSession,
+} from 'electron'
 import { mainLog } from './logger'
 import type { WindowManager } from './window-manager'
 import { BrowserCDP, type AccessibilitySnapshot, type ElementGeometry } from './browser-cdp'
@@ -25,6 +30,10 @@ import type { IBrowserPaneManager } from '@depot/server-core/handlers'
 import { getPrimaryDeepLinkPrefix, isSupportedDeepLinkUrl } from './deep-link-scheme'
 
 export type { BrowserInstanceInfo }
+
+const { app, ipcMain, nativeTheme, session, shell } = electron
+const BrowserWindow = electron.BrowserWindow
+const BrowserView = electron.BrowserView
 
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 const TOOLBAR_LOAD_MAX_RETRIES = 4
@@ -133,10 +142,10 @@ interface AgentControlLockState {
 
 interface BrowserInstance {
   id: string
-  window: BrowserWindow
-  toolbarView: BrowserView
-  pageView: BrowserView
-  nativeOverlayView: BrowserView
+  window: ElectronBrowserWindow
+  toolbarView: ElectronBrowserView
+  pageView: ElectronBrowserView
+  nativeOverlayView: ElectronBrowserView
   cdp: BrowserCDP
   currentUrl: string
   title: string
@@ -320,7 +329,7 @@ export class BrowserPaneManager implements IBrowserPaneManager {
   private partitionObserversInitialized = false
   private inFlightRequestsByWebContentsId = new Map<number, number>()
   private lastNetworkActivityByWebContentsId = new Map<number, number>()
-  private popupWindowsByParentInstanceId = new Map<string, Set<BrowserWindow>>()
+  private popupWindowsByParentInstanceId = new Map<string, Set<ElectronBrowserWindow>>()
   private popupParentByWebContentsId = new Map<number, string>()
   private windowManager: WindowManager | null = null
   private sessionPathResolver: ((sessionId: string) => string | null) | null = null
@@ -648,7 +657,7 @@ export class BrowserPaneManager implements IBrowserPaneManager {
     return this.instances.size
   }
 
-  getBrowserWindows(): BrowserWindow[] {
+  getBrowserWindows(): ElectronBrowserWindow[] {
     return Array.from(this.instances.values())
       .map((instance) => instance.window)
       .filter((win) => !win.isDestroyed())
@@ -1978,11 +1987,11 @@ export class BrowserPaneManager implements IBrowserPaneManager {
     })()`).catch(() => {})
   }
 
-  private getWindowResizable(window: BrowserWindow): boolean {
+  private getWindowResizable(window: ElectronBrowserWindow): boolean {
     return typeof window.isResizable === 'function' ? window.isResizable() : true
   }
 
-  private setWindowResizable(window: BrowserWindow, value: boolean): void {
+  private setWindowResizable(window: ElectronBrowserWindow, value: boolean): void {
     if (typeof window.setResizable === 'function') {
       window.setResizable(value)
     }
@@ -2562,7 +2571,7 @@ export class BrowserPaneManager implements IBrowserPaneManager {
     return undefined
   }
 
-  private registerPopupWindow(parentInstance: BrowserInstance, popupWindow: BrowserWindow, sourceUrl?: string): void {
+  private registerPopupWindow(parentInstance: BrowserInstance, popupWindow: ElectronBrowserWindow, sourceUrl?: string): void {
     const popupWcId = popupWindow.webContents.id
     const existingParent = this.popupParentByWebContentsId.get(popupWcId)
     if (existingParent && existingParent !== parentInstance.id) {
@@ -2571,7 +2580,7 @@ export class BrowserPaneManager implements IBrowserPaneManager {
 
     let popups = this.popupWindowsByParentInstanceId.get(parentInstance.id)
     if (!popups) {
-      popups = new Set<BrowserWindow>()
+      popups = new Set<ElectronBrowserWindow>()
       this.popupWindowsByParentInstanceId.set(parentInstance.id, popups)
     }
 
@@ -2581,20 +2590,20 @@ export class BrowserPaneManager implements IBrowserPaneManager {
     const initialUrl = sourceUrl || popupWindow.webContents.getURL?.() || 'about:blank'
     mainLog.info(`[browser-pane] popup created parent=${parentInstance.id} popupWebContentsId=${popupWcId} url=${initialUrl}`)
 
-    popupWindow.webContents.on('did-navigate', (_event, urlFromEvent) => {
+    popupWindow.webContents.on('did-navigate', (_event: unknown, urlFromEvent: string) => {
       const popupUrl = typeof popupWindow.webContents.getURL === 'function'
         ? popupWindow.webContents.getURL()
         : (urlFromEvent || initialUrl)
       mainLog.info(`[browser-pane] popup did-navigate parent=${parentInstance.id} popupWebContentsId=${popupWcId} url=${popupUrl}`)
     })
 
-    popupWindow.webContents.on('did-redirect-navigation', (_event, popupUrl, isInPlace, isMainFrame) => {
+    popupWindow.webContents.on('did-redirect-navigation', (_event: unknown, popupUrl: string, isInPlace: boolean, isMainFrame: boolean) => {
       mainLog.info(
         `[browser-pane] popup redirect parent=${parentInstance.id} popupWebContentsId=${popupWcId} url=${popupUrl} inPlace=${isInPlace} mainFrame=${isMainFrame}`,
       )
     })
 
-    popupWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    popupWindow.webContents.on('did-fail-load', (_event: unknown, errorCode: number, errorDescription: string, validatedURL: string, isMainFrame: boolean) => {
       if (!isMainFrame) return
       mainLog.warn(
         `[browser-pane] popup did-fail-load parent=${parentInstance.id} popupWebContentsId=${popupWcId} code=${errorCode} url=${validatedURL} error=${errorDescription}`,
@@ -2606,7 +2615,7 @@ export class BrowserPaneManager implements IBrowserPaneManager {
     })
   }
 
-  private unregisterPopupWindow(popupWindow: BrowserWindow, reason: 'closed' | 'parent_destroy' | 'reparented'): void {
+  private unregisterPopupWindow(popupWindow: ElectronBrowserWindow, reason: 'closed' | 'parent_destroy' | 'reparented'): void {
     const popupWcId = popupWindow.webContents.id
     const parentId = this.popupParentByWebContentsId.get(popupWcId)
     if (!parentId) return
