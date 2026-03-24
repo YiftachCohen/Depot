@@ -75,6 +75,8 @@ export interface QuickCommand {
   icon?: string;
   /** Optional CSS color for the button (e.g. "#10b981") */
   color?: string;
+  /** Model override — switches model for this command only, then restores after the turn */
+  model?: string;
 }
 
 /**
@@ -107,6 +109,10 @@ export interface DepotSkillManifest {
   personality?: string;
   /** Default permission mode for sessions with this agent */
   permission_mode?: 'safe' | 'ask' | 'allow-all';
+  /** Default model ID for sessions with this agent (e.g. 'claude-sonnet-4-6') */
+  model?: string;
+  /** Default LLM connection slug for sessions with this agent */
+  llm_connection?: string;
   /** Cross-session memory configuration */
   memory?: { enabled?: boolean };
 
