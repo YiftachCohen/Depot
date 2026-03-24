@@ -188,7 +188,6 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const [agentStateMap, setAgentStateMap] = useState<Map<string, import('@depot/shared/skills').AgentState>>(new Map())
   const [knowledgeStatsMap, setKnowledgeStatsMap] = useState<Map<string, { entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: 'green' | 'yellow' | 'red' | 'gray' }>>(new Map())
   const [observationsToday, setObservationsToday] = useState<number | null>(null)
-  const [selectedAgentSlug, setSelectedAgentSlug] = useState<string | null>(null)
 
   // Load templates on mount
   useEffect(() => {
@@ -391,25 +390,9 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     return [...filteredAgents].sort((a, b) => {
       const aTime = skillStats.get(a.slug)?.lastUsedAt ?? 0
       const bTime = skillStats.get(b.slug)?.lastUsedAt ?? 0
-      return bTime - aTime
+      return bTime - aTime || a.slug.localeCompare(b.slug)
     })
   }, [filteredAgents, skillStats])
-
-  // Auto-select first agent if none selected or selection is no longer valid
-  useEffect(() => {
-    if (sortedAgents.length > 0 && (!selectedAgentSlug || !sortedAgents.some(s => s.slug === selectedAgentSlug))) {
-      setSelectedAgentSlug(sortedAgents[0].slug)
-    }
-  }, [sortedAgents, selectedAgentSlug])
-
-  // Sessions scoped to selected agent
-  const selectedAgentSessions = useMemo(() => {
-    if (!selectedAgentSlug) return []
-    return Array.from(sessionMetaMap.values())
-      .filter(m => m.skillSlug === selectedAgentSlug)
-      .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0))
-      .slice(0, 10)
-  }, [sessionMetaMap, selectedAgentSlug])
 
   const recentGlobalSessions = useMemo(() =>
     Array.from(sessionMetaMap.values()).filter((m) => m.skillSlug)
