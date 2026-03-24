@@ -37,7 +37,7 @@ import { TopBar } from "./TopBar"
 import { SquarePenRounded } from "../icons/SquarePenRounded"
 import { McpIcon } from "../icons/McpIcon"
 import { resolveIconComponent } from "@/lib/command-icon"
-import { getAccentColor, formatRelativeTime } from "./SkillDashboard"
+import { getAccentColor, formatRelativeTime, getActivityStatus } from "./SkillDashboard"
 import { isEmoji } from "@depot/shared/utils/icon-constants"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/platform"
@@ -615,6 +615,7 @@ function AppShellContent({
     if (!sessionFilter) return null
     switch (sessionFilter.kind) {
       case 'allSessions': return 'allSessions'
+      case 'quickChats': return 'quickChats'
       case 'flagged': return 'flagged'
       case 'archived': return 'archived'
       case 'state': return `state:${sessionFilter.stateId}`
@@ -1362,6 +1363,11 @@ function AppShellContent({
     return workspaceSessionMetas.filter(s => !s.isArchived)
   }, [workspaceSessionMetas])
 
+  // Quick chats: active sessions not tied to any agent (skillSlug is null/undefined)
+  const quickChatCount = useMemo(() => {
+    return activeSessionMetas.filter(s => !s.skillSlug).length
+  }, [activeSessionMetas])
+
   const refreshWorkspaceUnreadMap = useCallback(async () => {
     try {
       const summary = await window.electronAPI.getUnreadSummary()
@@ -1488,6 +1494,10 @@ function AppShellContent({
       case 'allSessions':
         // "All Sessions" - shows active (non-archived) sessions
         result = activeSessionMetas
+        break
+      case 'quickChats':
+        // "Quick Chats" - shows active sessions that aren't tied to an agent
+        result = activeSessionMetas.filter(s => !s.skillSlug)
         break
       case 'flagged':
         result = activeSessionMetas.filter(s => s.isFlagged)
@@ -1655,8 +1665,10 @@ function AppShellContent({
 
   // Session list title derived from the current filter
   const sessionListTitle = React.useMemo(() => {
-    if (!sessionFilter) return 'All Chats'
+    if (!sessionFilter) return 'Quick Chats'
     switch (sessionFilter.kind) {
+      case 'allSessions': return 'All Chats'
+      case 'quickChats': return 'Quick Chats'
       case 'flagged': return 'Flagged'
       case 'archived': return 'Archived'
       case 'state': {
@@ -1667,7 +1679,7 @@ function AppShellContent({
         return sessionFilter.labelId === '__all__' ? 'Labels' : getLabelDisplayName(labelConfigs, sessionFilter.labelId)
       case 'view':
         return sessionFilter.viewId === '__all__' ? 'Views' : viewConfigs.find(v => v.id === sessionFilter.viewId)?.name || 'Views'
-      default: return 'All Chats'
+      default: return 'Quick Chats'
     }
   }, [sessionFilter, effectiveSessionStatuses, labelConfigs, viewConfigs])
 
@@ -1677,7 +1689,9 @@ function AppShellContent({
     items: searchActive
       ? (sessionFilter?.kind === 'archived'
           ? workspaceSessionMetas.filter(s => s.isArchived)
-          : activeSessionMetas)
+          : sessionFilter?.kind === 'quickChats'
+            ? activeSessionMetas.filter(s => !s.skillSlug)
+            : activeSessionMetas)
       : filteredSessionMetas,
     searchActive,
     searchQuery,
@@ -1768,6 +1782,10 @@ function AppShellContent({
 
   const handleAllSessionsClick = useCallback(() => {
     navigate(routes.view.allSessions())
+  }, [])
+
+  const handleQuickChatsClick = useCallback(() => {
+    navigate(routes.view.quickChats())
   }, [])
 
   const handleFlaggedClick = useCallback(() => {
@@ -2102,7 +2120,7 @@ function AppShellContent({
     }
 
     // 2. Sessions section
-    result.push({ id: 'nav:allSessions', type: 'nav', action: handleAllSessionsClick })
+    result.push({ id: 'nav:quickChats', type: 'nav', action: handleQuickChatsClick })
     for (const state of effectiveSessionStatuses) {
       result.push({ id: `nav:state:${state.id}`, type: 'nav', action: () => handleSessionStatusClick(state.id) })
     }
@@ -2128,7 +2146,7 @@ function AppShellContent({
     result.push({ id: 'nav:whats-new', type: 'nav', action: handleWhatsNewClick })
 
     return result
-  }, [handleAllSessionsClick, handleFlaggedClick, handleArchivedClick, handleSessionStatusClick, effectiveSessionStatuses, handleLabelClick, labelConfigs, labelTree, viewConfigs, handleViewClick, handleSourcesClick, handleSkillsClick, skills, navigate, handleAutomationsClick, handleSettingsClick, handleWhatsNewClick])
+  }, [handleQuickChatsClick, handleFlaggedClick, handleArchivedClick, handleSessionStatusClick, effectiveSessionStatuses, handleLabelClick, labelConfigs, labelTree, viewConfigs, handleViewClick, handleSourcesClick, handleSkillsClick, skills, navigate, handleAutomationsClick, handleSettingsClick, handleWhatsNewClick])
 
   // Toggle folder expanded state
   const handleToggleFolder = React.useCallback((path: string) => {
@@ -2405,23 +2423,52 @@ function AppShellContent({
                         const agentSessions = isShowingAllSessions ? allAgentSessions : allAgentSessions.slice(0, 5)
                         // Resolve agent icon: emoji > manifest lucide name > keyword inference > Zap
                         const hasEmoji = !!(skill.metadata.icon && isEmoji(skill.metadata.icon))
-                        const agentIcon: any = hasEmoji
-                          ? <span className="text-[14px] leading-none">{skill.metadata.icon}</span>
-                          : resolveIconComponent(skill.manifest?.icon, skill.metadata.name)
+                        const accent = getAccentColor(skill.slug)
+                        const resolvedIconComponent = !hasEmoji
+                          ? resolveIconComponent(skill.manifest?.icon, skill.metadata.name)
+                          : null
+                        // Tinted background container — agents are teammates, not nav items
+                        const agentIcon: any = (
+                          <span
+                            className="flex items-center justify-center h-5 w-5 rounded-lg shrink-0"
+                            style={{ backgroundColor: `${accent}22` }}
+                          >
+                            {hasEmoji
+                              ? <span className="text-[12px] leading-none">{skill.metadata.icon}</span>
+                              : resolvedIconComponent
+                                ? React.createElement(resolvedIconComponent as any, { className: 'h-3 w-3', style: { color: accent } })
+                                : null}
+                          </span>
+                        )
+                        // Agent activity: based on most recent session
+                        const lastUsedAt = allAgentSessions[0]?.lastMessageAt ?? undefined
+                        const activityStatus = getActivityStatus(lastUsedAt)
+                        const activityDotColor = activityStatus === 'active' ? 'var(--success)' : activityStatus === 'recent' ? 'var(--info)' : 'color-mix(in oklch, var(--foreground) 20%, transparent)'
+                        const hasNoSessions = allAgentSessions.length === 0
                         return {
                           id: `nav:skill-filter:${skill.slug}`,
                           title: skill.metadata?.name || skill.slug,
+                          subtitle: lastUsedAt ? formatRelativeTime(lastUsedAt) : undefined,
                           icon: agentIcon,
-                          iconColor: getAccentColor(skill.slug),
-                          iconColorable: !hasEmoji,
+                          iconColorable: false,
                           label: allAgentSessions.length > 0 ? String(allAgentSessions.length) : undefined,
                           variant: (isAgentPageOnly ? "default" : "ghost") as "default" | "ghost",
-                          compact: true,
+                          muted: hasNoSessions,
                           onClick: () => navigate(routes.view.skills(skill.slug)),
                           // Each agent is individually collapsible when it has sessions
                           expandable: agentSessions.length > 0,
                           expanded: isExpanded(`nav:skill-filter:${skill.slug}`),
                           onToggle: () => toggleExpanded(`nav:skill-filter:${skill.slug}`),
+                          // Activity dot — pulsing when active
+                          afterTitle: (
+                            <span
+                              className="h-[6px] w-[6px] rounded-full shrink-0"
+                              style={{
+                                backgroundColor: activityDotColor,
+                                animation: activityStatus === 'active' ? 'sidebar-pulse 2s ease-in-out infinite' : undefined,
+                              }}
+                            />
+                          ),
                           items: [
                             ...agentSessions.map(s => {
                               const statusColor = getStateColor(s.sessionStatus || 'todo', effectiveSessionStatuses) || 'var(--muted-foreground)'
@@ -2467,16 +2514,13 @@ function AppShellContent({
                     { id: "separator:agents-sessions", type: "separator" },
                     // --- Sessions Section ---
                     {
-                      id: "nav:allSessions",
-                      title: "All Chats",
-                      label: String(activeSessionMetas.length),
+                      id: "nav:quickChats",
+                      title: "Quick Chats",
+                      label: quickChatCount > 0 ? String(quickChatCount) : undefined,
                       icon: Inbox,
                       iconColor: 'var(--info)',
-                      variant: (sessionFilter?.kind === 'allSessions' && isSessionsNavigation(navState) && navState.details) ? "default" : "ghost",
-                      onClick: handleAllSessionsClick,
-                      expandable: true,
-                      expanded: isExpanded('nav:allSessions'),
-                      onToggle: () => toggleExpanded('nav:allSessions'),
+                      variant: (sessionFilter?.kind === 'quickChats' && isSessionsNavigation(navState)) ? "default" : "ghost",
+                      onClick: handleQuickChatsClick,
                       contextMenu: {
                         type: 'allSessions',
                         onConfigureStatuses: openConfigureStatuses,
@@ -2494,30 +2538,28 @@ function AppShellContent({
                           window.electronAPI.markAllSessionsRead(activeWorkspaceId)
                         },
                       },
-                      items: [
-                        {
-                          id: "nav:flagged",
-                          title: "Flagged",
-                          label: String(flaggedCount),
-                          icon: <Flag className="h-4 w-4" />,
-                          variant: (sessionFilter?.kind === 'flagged' ? "default" : "ghost") as "default" | "ghost",
-                          onClick: handleFlaggedClick,
-                        },
-                        {
-                          id: "nav:archived",
-                          title: "Archived",
-                          label: archivedCount > 0 ? String(archivedCount) : undefined,
-                          icon: Archive,
-                          variant: (sessionFilter?.kind === 'archived' ? "default" : "ghost") as "default" | "ghost",
-                          onClick: handleArchivedClick,
-                        },
-                      ],
+                    },
+                    {
+                      id: "nav:flagged",
+                      title: "Flagged",
+                      label: flaggedCount > 0 ? String(flaggedCount) : undefined,
+                      icon: <Flag className="h-4 w-4" />,
+                      variant: (sessionFilter?.kind === 'flagged' ? "default" : "ghost") as "default" | "ghost",
+                      onClick: handleFlaggedClick,
+                    },
+                    {
+                      id: "nav:archived",
+                      title: "Archived",
+                      label: archivedCount > 0 ? String(archivedCount) : undefined,
+                      icon: Archive,
+                      variant: (sessionFilter?.kind === 'archived' ? "default" : "ghost") as "default" | "ghost",
+                      onClick: handleArchivedClick,
                     },
                   ]}
                 />
                 </div>
-                {/* Bottom Nav (pinned): Automations, Sources, Settings */}
-                <div className="shrink-0 border-t border-foreground/8 pt-2 pb-1">
+                {/* Bottom Nav (pinned): Automations, Sources, Settings — visually subordinate */}
+                <div className="shrink-0 border-t border-foreground/12 pt-2 pb-1 text-foreground/60">
                 <LeftSidebar
                   isCollapsed={false}
                   getItemProps={getSidebarItemProps}

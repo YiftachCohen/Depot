@@ -121,7 +121,7 @@ export function getAccentColor(slug: string): string {
   for (let i = 0; i < slug.length; i++) hash = ((hash << 5) - hash + slug.charCodeAt(i)) | 0
   return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length]
 }
-function getActivityStatus(lastUsedAt?: number): 'active' | 'recent' | 'idle' {
+export function getActivityStatus(lastUsedAt?: number): 'active' | 'recent' | 'idle' {
   if (!lastUsedAt) return 'idle'
   const diff = Date.now() - lastUsedAt
   return diff < 3600_000 ? 'active' : diff < 86400_000 ? 'recent' : 'idle'

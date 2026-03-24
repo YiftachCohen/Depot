@@ -96,6 +96,10 @@ export const routes = {
     allSessions: (sessionId?: string) =>
       sessionId ? `allSessions/session/${sessionId}` as const : 'allSessions' as const,
 
+    /** Quick chats view — non-agent sessions only (sessions navigator, quickChats filter) */
+    quickChats: (sessionId?: string) =>
+      sessionId ? `quickChats/session/${sessionId}` as const : 'quickChats' as const,
+
     /** Flagged view (sessions navigator, flagged filter) */
     flagged: (sessionId?: string) =>
       sessionId ? `flagged/session/${sessionId}` as const : 'flagged' as const,
