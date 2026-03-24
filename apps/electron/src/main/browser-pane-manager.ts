@@ -31,9 +31,18 @@ import { getPrimaryDeepLinkPrefix, isSupportedDeepLinkUrl } from './deep-link-sc
 
 export type { BrowserInstanceInfo }
 
-const { app, ipcMain, nativeTheme, session, shell } = electron
-const BrowserWindow = electron.BrowserWindow
-const BrowserView = electron.BrowserView
+const electronApi = ((
+  electron && typeof electron === 'object' && 'default' in electron && electron.default
+    ? {
+        ...electron.default,
+        ...electron,
+      }
+    : electron
+) as typeof import('electron'))
+
+const { app, ipcMain, nativeTheme, session, shell } = electronApi
+const BrowserWindow = electronApi.BrowserWindow
+const BrowserView = electronApi.BrowserView
 
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 const TOOLBAR_LOAD_MAX_RETRIES = 4
