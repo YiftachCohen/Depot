@@ -201,6 +201,8 @@ export interface SendMessageOptions {
   skillSlugs?: string[]
   badges?: ContentBadge[]
   optimisticMessageId?: string
+  /** One-shot model override for this message only (restored after turn completes) */
+  modelOverride?: string
 }
 
 // ---------------------------------------------------------------------------

@@ -15,6 +15,17 @@ All notable changes to Depot are documented in this file.
 
 - **Stdio MCP sources with bearer auth fail silently** — Sources like `todoist-mcp` that run as stdio subprocesses and require an API key as an environment variable (e.g., `API_KEY`) would fail with "Connection closed" because `buildMcpServer` ignored the bearer token for stdio sources entirely. Added `McpSourceConfig.tokenEnvVar` field: when set, the bearer credential is injected into the subprocess env as `env[tokenEnvVar]`. Auto-infers the env var name from common patterns (`API_KEY`, `TOKEN`, etc.) during credential input.
 
+## [1.2.7] - 2026-03-24
+
+### Added
+
+- **Per-agent model selection via depot.yaml** — Skills can now specify a default `model` and `llm_connection` in their manifest. Sessions created from that skill use the specified model/connection instead of the workspace default. Resolution chain: session option → manifest default → workspace default.
+- **Per-action model override on quick commands** — Quick commands can specify a `model` field that overrides the agent's model for that single message turn only, then restores the previous model. Enables skills with mixed-model workflows (e.g., fast triage with Haiku, deep analysis with Opus).
+
+### Changed
+
+- **Quick command model field sanitized** — Non-string or empty `model` values in depot.yaml quick commands are now coerced to undefined instead of passing raw YAML values through to the runtime.
+
 ## [1.2.6] - 2026-03-23
 
 ### Fixed

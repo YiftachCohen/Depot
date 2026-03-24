@@ -471,7 +471,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       name: cmd.name, skillSlug: skill.slug,
       enabledSourceSlugs: skill.manifest?.sources ?? skill.metadata.requiredSources,
     })
-    if (session?.id && cmd.prompt) onSendMessage(session.id, cmd.prompt, undefined, [skill.slug])
+    if (session?.id && cmd.prompt) onSendMessage(session.id, cmd.prompt, undefined, [skill.slug], undefined, cmd.model)
     if (session?.id) navigate(routes.view.skills(skill.slug, session.id))
   }, [activeWorkspaceId, onCreateSession, onSendMessage])
 
@@ -487,7 +487,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
         toast.error('Failed to create session')
         return
       }
-      if (resolvedPrompt) onSendMessage(session.id, resolvedPrompt, undefined, [skill.slug])
+      if (resolvedPrompt) onSendMessage(session.id, resolvedPrompt, undefined, [skill.slug], undefined, cmd.model)
       setPendingVarCommand(null)
       navigate(routes.view.skills(skill.slug, session.id))
     } catch (err) {
