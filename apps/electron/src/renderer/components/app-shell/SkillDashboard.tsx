@@ -108,9 +108,8 @@ Choose an appropriate icon, write a clear description, and create 2-4 useful qui
 // ---------------------------------------------------------------------------
 // Helpers — canonical definitions in dashboard/utils.tsx
 // ---------------------------------------------------------------------------
-import { getAccentColor, getActivityStatus, formatRelativeTime } from './dashboard/utils'
+import { getActivityStatus } from './dashboard/utils'
 import type { SkillSessionStats } from './dashboard/utils'
-export { getAccentColor, formatRelativeTime }
 // Dynamic greeting pool — each entry has [withName, withoutName] variants
 type TimeBucket = 'morning' | 'afternoon' | 'evening' | 'latenight' | 'any'
 const GREETINGS: [TimeBucket, string, string][] = [
@@ -188,6 +187,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const [agentStateMap, setAgentStateMap] = useState<Map<string, import('@depot/shared/skills').AgentState>>(new Map())
   const [knowledgeStatsMap, setKnowledgeStatsMap] = useState<Map<string, { entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: 'green' | 'yellow' | 'red' | 'gray' }>>(new Map())
   const [observationsToday, setObservationsToday] = useState<number | null>(null)
+  const [statsLoaded, setStatsLoaded] = useState(false)
 
   // Load templates on mount
   useEffect(() => {
@@ -203,6 +203,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     if (!activeWorkspaceId) return
     const agents = skills.filter(isAgent)
     if (agents.length === 0) return
+    let stale = false
 
     // Batch-load agent states
     Promise.all(agents.map(async (s) => {
@@ -211,11 +212,13 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
         return [s.slug, state] as const
       } catch { return [s.slug, null] as const }
     })).then((entries) => {
+      if (stale) return
       const map = new Map<string, import('@depot/shared/skills').AgentState>()
       for (const [slug, state] of entries) {
         if (state) map.set(slug, state)
       }
       setAgentStateMap(map)
+      setStatsLoaded(true)
     })
 
     // Batch-load knowledge stats for knowledge-enabled agents
@@ -227,6 +230,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           return [s.slug, stats] as const
         } catch { return [s.slug, null] as const }
       })).then((entries) => {
+        if (stale) return
         const map = new Map<string, { entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: 'green' | 'yellow' | 'red' | 'gray' }>()
         for (const [slug, stats] of entries) {
           if (stats) map.set(slug, { ...stats, observationHealth: (stats.observationHealth ?? 'gray') as 'green' | 'yellow' | 'red' | 'gray' })
@@ -244,7 +248,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           return history.filter(h => h.timestamp >= todayMs).length
         } catch { return 0 }
       })).then((counts) => {
-        setObservationsToday(counts.reduce((a, b) => a + b, 0))
+        if (!stale) setObservationsToday(counts.reduce((a, b) => a + b, 0))
       })
     }
 
@@ -273,7 +277,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           }).catch(() => {})
       }
     })
-    return unsubscribe
+    return () => { stale = true; unsubscribe() }
   }, [activeWorkspaceId, skills])
 
   const handleCreateFromTemplate = useCallback(async (
@@ -516,7 +520,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     return total
   }, [knowledgeStatsMap])
 
-  const isStatsLoading = filteredAgents.length > 0 && agentStateMap.size === 0
+  const isStatsLoading = filteredAgents.length > 0 && !statsLoaded
 
   const enabledSlugsSet = useMemo(() => new Set(filteredAgents.map(s => s.slug)), [filteredAgents])
   const filteredRecentSessions = useMemo(() =>
