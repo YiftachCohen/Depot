@@ -1971,11 +1971,13 @@ export class SessionManager implements ISessionManager {
         const { loadSourceConfig, saveSourceConfig } = await import('@depot/shared/sources')
         const sourceConfig = loadSourceConfig(managed.workspace.rootPath, request.sourceSlug)
         if (sourceConfig?.type === 'mcp' && sourceConfig.mcp?.transport === 'stdio' && !sourceConfig.mcp.tokenEnvVar) {
-          // Infer env var name from existing env config or use common defaults
+          // Infer env var name from existing env config.
+          // Match any key containing common credential substrings (e.g., API_KEY, TODOIST_API_TOKEN, SECRET_KEY).
+          // If only one env key is defined, use it regardless of name — it's almost certainly the credential.
           const envKeys = Object.keys(sourceConfig.mcp.env || {})
-          const tokenKey = envKeys.find(k =>
-            /^(api[_-]?key|token|bearer[_-]?token|access[_-]?token|secret[_-]?key|auth[_-]?token)$/i.test(k)
-          )
+          const tokenKey = envKeys.length === 1
+            ? envKeys[0]
+            : envKeys.find(k => /(?:api[_-]?key|token|secret|key|password|credential)/i.test(k))
           if (tokenKey) {
             sourceConfig.mcp.tokenEnvVar = tokenKey
             saveSourceConfig(managed.workspace.rootPath, sourceConfig)
