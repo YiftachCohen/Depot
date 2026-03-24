@@ -15,6 +15,20 @@ All notable changes to Depot are documented in this file.
 
 - **Stdio MCP sources with bearer auth fail silently** — Sources like `todoist-mcp` that run as stdio subprocesses and require an API key as an environment variable (e.g., `API_KEY`) would fail with "Connection closed" because `buildMcpServer` ignored the bearer token for stdio sources entirely. Added `McpSourceConfig.tokenEnvVar` field: when set, the bearer credential is injected into the subprocess env as `env[tokenEnvVar]`. Auto-infers the env var name from common patterns (`API_KEY`, `TOKEN`, etc.) during credential input.
 
+## [1.2.8] - 2026-03-24
+
+### Added
+
+- **GitHub changelog links in update flows** — Update notifications now expose the exact GitHub release page from the ready-to-install toast, the Settings > About page, and the macOS app menu when an update is available.
+
+### Changed
+
+- **Updater state now carries release URLs** — Auto-update events include the matching GitHub release URL so renderer and native menu surfaces stay in sync without extra network requests.
+
+### Fixed
+
+- **Update CTA dismissals no longer suppress future prompts** — Clicking `Restart` or `View Changelog` on the ready-update toast no longer marks that version as dismissed. Only an actual manual dismiss persists the suppression.
+
 ## [1.2.7] - 2026-03-24
 
 ### Added

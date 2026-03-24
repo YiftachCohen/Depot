@@ -1,5 +1,5 @@
 import { Menu, app, shell, BrowserWindow } from 'electron'
-import { RPC_CHANNELS, type BroadcastEventMap } from '../shared/types'
+import { RPC_CHANNELS, type BroadcastEventMap, type UpdateInfo } from '../shared/types'
 import { EDIT_MENU, VIEW_MENU, WINDOW_MENU } from '../shared/menu-schema'
 import type { MenuItem } from '../shared/menu-schema'
 import type { WindowManager } from './window-manager'
@@ -12,6 +12,35 @@ type ClientResolver = (webContentsId: number) => string | undefined
 let cachedWindowManager: WindowManager | null = null
 let cachedEventSink: EventSink | null = null
 let cachedClientResolver: ClientResolver | null = null
+
+export interface MacUpdateMenuEntry {
+  action: 'check' | 'install' | 'releaseNotes'
+  label: string
+}
+
+export function getMacUpdateMenuEntries(updateInfo: UpdateInfo): MacUpdateMenuEntry[] {
+  const updateReady = updateInfo.available && updateInfo.downloadState === 'ready'
+
+  if (!updateReady) {
+    return [{ action: 'check', label: 'Check for Updates…' }]
+  }
+
+  const entries: MacUpdateMenuEntry[] = [{
+    action: 'install',
+    label: updateInfo.latestVersion
+      ? `Install Update…\t【${updateInfo.latestVersion}】`
+      : 'Install Update…',
+  }]
+
+  if (updateInfo.releaseUrl) {
+    entries.push({
+      action: 'releaseNotes',
+      label: 'View Changelog…',
+    })
+  }
+
+  return entries
+}
 
 /**
  * Creates and sets the application menu for macOS.
@@ -58,47 +87,67 @@ export async function rebuildMenu(): Promise<void> {
   // Get current update state
   const { getUpdateInfo, installUpdate, checkForUpdates } = await import('./auto-update')
   const updateInfo = getUpdateInfo()
-  const updateReady = updateInfo.available && updateInfo.downloadState === 'ready'
-
-  // Build the update menu item based on state
-  const updateMenuItem: Electron.MenuItemConstructorOptions = updateReady
-    ? {
-        label: `Install Update…\t【${updateInfo.latestVersion}】`,
-        click: async () => {
-          await installUpdate()
-        }
-      }
-    : {
-        label: 'Check for Updates…',
-        click: async () => {
-          const { dialog } = await import('electron')
-          const result = await checkForUpdates({ autoDownload: true })
-          if (result.downloadState === 'error') {
-            dialog.showMessageBox({
-              type: 'error',
-              title: 'Update Check Failed',
-              message: 'Could not check for updates.',
-              detail: result.error || 'An unknown error occurred. Check your network connection and try again.',
-            })
-          } else if (!result.available) {
-            dialog.showMessageBox({
-              type: 'info',
-              title: 'No Updates Available',
-              message: `You're up to date.`,
-              detail: `Version ${result.currentVersion} is the latest version.`,
-            })
-          } else if (result.available && result.latestVersion) {
-            dialog.showMessageBox({
-              type: 'info',
-              title: 'Update Found',
-              message: `Version ${result.latestVersion} is available.`,
-              detail: result.downloadState === 'ready'
-                ? 'The update is ready to install. Use "Install Update" from the menu.'
-                : 'Downloading in the background. You\'ll be notified when it\'s ready.',
-            })
+  const updateMenuItems = getMacUpdateMenuEntries(updateInfo).map((entry) => {
+    switch (entry.action) {
+      case 'install':
+        return {
+          label: entry.label,
+          click: async () => {
+            await installUpdate()
           }
-        }
-      }
+        } satisfies Electron.MenuItemConstructorOptions
+      case 'releaseNotes':
+        return {
+          label: entry.label,
+          click: async () => {
+            if (updateInfo.releaseUrl) {
+              await shell.openExternal(updateInfo.releaseUrl)
+            }
+          }
+        } satisfies Electron.MenuItemConstructorOptions
+      case 'check':
+      default:
+        return {
+          label: entry.label,
+          click: async () => {
+            const { dialog } = await import('electron')
+            const result = await checkForUpdates({ autoDownload: true })
+            if (result.downloadState === 'error') {
+              await dialog.showMessageBox({
+                type: 'error',
+                title: 'Update Check Failed',
+                message: 'Could not check for updates.',
+                detail: result.error || 'An unknown error occurred. Check your network connection and try again.',
+              })
+            } else if (!result.available) {
+              await dialog.showMessageBox({
+                type: 'info',
+                title: 'No Updates Available',
+                message: `You're up to date.`,
+                detail: `Version ${result.currentVersion} is the latest version.`,
+              })
+            } else if (result.available && result.latestVersion) {
+              const buttons = result.releaseUrl ? ['OK', 'View Changelog'] : ['OK']
+              const response = await dialog.showMessageBox({
+                type: 'info',
+                title: 'Update Found',
+                message: `Version ${result.latestVersion} is available.`,
+                detail: result.downloadState === 'ready'
+                  ? 'The update is ready to install. Use "Install Update" from the menu.'
+                  : 'Downloading in the background. You\'ll be notified when it\'s ready.',
+                buttons,
+                defaultId: 0,
+                cancelId: 0,
+              })
+
+              if (result.releaseUrl && response.response === 1) {
+                await shell.openExternal(result.releaseUrl)
+              }
+            }
+          }
+        } satisfies Electron.MenuItemConstructorOptions
+    }
+  })
 
   const template: Electron.MenuItemConstructorOptions[] = [
     // App menu (macOS only)
@@ -106,7 +155,7 @@ export async function rebuildMenu(): Promise<void> {
       label: 'Depot',
       submenu: [
         { role: 'about' as const, label: 'About Depot' },
-        updateMenuItem,
+        ...updateMenuItems,
         { type: 'separator' as const },
         {
           label: 'Settings...',

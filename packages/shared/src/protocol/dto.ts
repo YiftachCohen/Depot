@@ -467,6 +467,7 @@ export interface UpdateInfo {
   available: boolean
   currentVersion: string
   latestVersion: string | null
+  releaseUrl: string | null
   downloadState: 'idle' | 'downloading' | 'ready' | 'installing' | 'error'
   downloadProgress: number
   error?: string
