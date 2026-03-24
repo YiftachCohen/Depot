@@ -4,7 +4,11 @@ All notable changes to Depot are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-03-24
+
 ### Fixed
+
+- **Dock icon now matches the selected amber icon set and survives restarts** — The bundled macOS/Windows/Linux app icons were still on the old cyan/violet palette, so the Dock showed an icon that didn’t match any selectable option. Rebuilt the bundled icon assets from the default amber “Starburst Grid” source, persist the selected dock icon PNG to the Depot config directory, validate it before writing, and restore it on startup with fallback to the bundled icon if the persisted file is missing or invalid.
 
 - **Remote MCP tools still not discoverable after v1.2.5 fix** — Despite the bearer auth fix in v1.2.5, ToolSearch still returned zero tools because:
   1. `markSourceAuthenticated()` set `connectionStatus: 'connected'` before any MCP handshake — the agent saw "Active" but had no tools. Now sets `'connecting'` and only transitions to `'connected'` after pool sync confirms tools are available.
