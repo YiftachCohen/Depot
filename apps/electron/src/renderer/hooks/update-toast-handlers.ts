@@ -37,7 +37,6 @@ export function createReadyUpdateToastHandlers({
     },
     onDismiss: () => {
       if (!persistDismissal) {
-        persistDismissal = true
         return
       }
 

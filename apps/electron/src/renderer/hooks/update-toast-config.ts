@@ -17,14 +17,14 @@ interface ManualUpdateToastOptionsParams {
 }
 
 export function buildReadyUpdateToastOptions({
-  version: _version,
+  version,
   releaseUrl,
   onInstall,
   onOpenReleaseNotes,
   onDismiss,
 }: ReadyUpdateToastOptionsParams): ExternalToast {
   return {
-    description: 'Restart to apply the update.',
+    description: `Restart to install v${version}.`,
     duration: 10000,
     action: {
       label: 'Restart',
