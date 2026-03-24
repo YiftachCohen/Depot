@@ -31,14 +31,7 @@ import { getPrimaryDeepLinkPrefix, isSupportedDeepLinkUrl } from './deep-link-sc
 
 export type { BrowserInstanceInfo }
 
-const electronApi = ((
-  electron && typeof electron === 'object' && 'default' in electron && electron.default
-    ? {
-        ...electron.default,
-        ...electron,
-      }
-    : electron
-) as typeof import('electron'))
+const electronApi = (((electron as any)?.default ?? electron) as typeof import('electron'))
 
 const { app, ipcMain, nativeTheme, session, shell } = electronApi
 const BrowserWindow = electronApi.BrowserWindow
