@@ -1,4 +1,3 @@
-import { nativeImage } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { CONFIG_DIR } from '@depot/shared/config/paths'
@@ -23,6 +22,9 @@ export function isValidPngBuffer(buffer: Buffer): boolean {
 
 function isDecodablePngBuffer(buffer: Buffer): boolean {
   try {
+    // Lazy require to avoid top-level import — electron is not available in test context
+    // and import.meta.url is undefined in the CJS main process bundle
+    const { nativeImage } = require('electron') as typeof import('electron')
     const image = nativeImage.createFromBuffer(buffer)
     return !image.isEmpty()
   } catch {
