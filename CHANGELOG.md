@@ -2,6 +2,27 @@
 
 All notable changes to Depot are documented in this file.
 
+## [1.2.8] - 2026-03-24
+
+### Changed
+
+- **Dashboard refactored into modular components** — Extracted the monolithic SkillDashboard (1050+ lines) into focused components: TeamHealthBar, AgentGrid, AgentCard, ActivityFeed, and AgentDetailView. Improves maintainability and enables independent iteration on each section.
+- **All quick commands visible on agent cards** — Agent cards now show all commands inline instead of truncating with "+N more". Commands fold/collapse when there are more than 6.
+- **Accent palette aligned with DESIGN.md** — Removed violet and magenta from the agent color palette. All agents now use warm tones (amber, green, blue, red, teal, yellow, brown, sky) consistent with the Depot design system.
+- **Search persists during no-results** — Health bar, action buttons, and activity feed remain visible when search returns no results. The "No agents enabled" empty state no longer incorrectly appears during active search.
+
+### Added
+
+- **Card skeleton loading** — Agent cards show subtle skeleton placeholders while stats load, distinguishing "loading" from "no data".
+- **Warm activity empty state** — The empty activity feed now shows a friendly prompt ("Your agents are ready — run a quick command above to get started") instead of generic italic text.
+- **TODO-DASH-002** — Deferred keyboard navigation optimization (roving tabindex for agent cards).
+
+### Fixed
+
+- **Duplicate accent palette** — Removed the old palette definition from SkillDashboard.tsx that still contained DESIGN.md-violating violet/magenta colors. All imports now use the canonical palette from dashboard/utils.tsx.
+- **Dead code removed** — Removed unused AgentRoster, DetailPane components and unused state variables (selectedAgentSlug, selectedAgentSessions, accentMap).
+- **Sort stability** — Agent sort now uses alphabetical slug as tiebreaker when timestamps are equal, preventing non-deterministic ordering.
+
 ## [Unreleased]
 
 ### Fixed
