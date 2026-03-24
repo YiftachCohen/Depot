@@ -200,9 +200,16 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   // Load agent states for all agent skills + subscribe to changes
   useEffect(() => {
+    setStatsLoaded(false)
+    setAgentStateMap(new Map())
+    setKnowledgeStatsMap(new Map())
+    setObservationsToday(null)
     if (!activeWorkspaceId) return
     const agents = skills.filter(isAgent)
-    if (agents.length === 0) return
+    if (agents.length === 0) {
+      setStatsLoaded(true)
+      return
+    }
     let stale = false
 
     // Batch-load agent states
@@ -365,29 +372,26 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     return counts
   }, [allAutomations])
 
+  const enabledSkills = useMemo(() => {
+    if (!enabledSlugs) return skills
+    const set = new Set(enabledSlugs)
+    return skills.filter((skill) => set.has(skill.slug))
+  }, [skills, enabledSlugs])
+
+  const enabledAgents = useMemo(() => enabledSkills.filter(isAgent), [enabledSkills])
+
   const filteredSkills = useMemo(() => {
-    let base = skills
-    if (enabledSlugs) {
-      const set = new Set(enabledSlugs)
-      base = skills.filter((s) => set.has(s.slug))
-    }
+    const base = enabledSkills
     if (!searchQuery.trim()) return base
     const q = searchQuery.toLowerCase()
     return base.filter((s) =>
       s.metadata.name.toLowerCase().includes(q) || s.metadata.description.toLowerCase().includes(q) || s.slug.toLowerCase().includes(q))
-  }, [skills, enabledSlugs, searchQuery])
+  }, [enabledSkills, searchQuery])
 
   const filteredAgents = useMemo(() => filteredSkills.filter(isAgent), [filteredSkills])
 
   // Total enabled agents (before search filtering) — used for search visibility
-  const totalAgentCount = useMemo(() => {
-    let base = skills
-    if (enabledSlugs) {
-      const set = new Set(enabledSlugs)
-      base = skills.filter((s) => set.has(s.slug))
-    }
-    return base.filter(isAgent).length
-  }, [skills, enabledSlugs])
+  const totalAgentCount = enabledAgents.length
 
   // Sort agents by most recently used
   const sortedAgents = useMemo(() => {
@@ -511,8 +515,8 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   // --- Team Health Bar metrics (computed before conditional returns) ---
   const activeCount = useMemo(() => {
-    return filteredAgents.filter(s => getActivityStatus(skillStats.get(s.slug)?.lastUsedAt) === 'active').length
-  }, [filteredAgents, skillStats])
+    return enabledAgents.filter(s => getActivityStatus(skillStats.get(s.slug)?.lastUsedAt) === 'active').length
+  }, [enabledAgents, skillStats])
 
   const totalEntities = useMemo(() => {
     let total = 0
@@ -520,9 +524,9 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     return total
   }, [knowledgeStatsMap])
 
-  const isStatsLoading = filteredAgents.length > 0 && !statsLoaded
+  const isStatsLoading = enabledAgents.length > 0 && !statsLoaded
 
-  const enabledSlugsSet = useMemo(() => new Set(filteredAgents.map(s => s.slug)), [filteredAgents])
+  const enabledSlugsSet = useMemo(() => new Set(enabledAgents.map(s => s.slug)), [enabledAgents])
   const filteredRecentSessions = useMemo(() =>
     recentGlobalSessions.filter(s => s.skillSlug && enabledSlugsSet.has(s.skillSlug)),
   [recentGlobalSessions, enabledSlugsSet])
@@ -578,7 +582,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           {totalAgentCount > 0 && (
             <div className="flex items-center justify-between gap-4">
               <TeamHealthBar
-                agentCount={sortedAgents.length}
+                agentCount={totalAgentCount}
                 activeCount={activeCount}
                 observationsToday={observationsToday}
                 totalEntities={totalEntities}
