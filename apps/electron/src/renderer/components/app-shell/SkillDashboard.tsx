@@ -395,13 +395,6 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     })
   }, [filteredAgents, skillStats])
 
-  // Accent color map — stable per agent slug
-  const accentMap = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const s of filteredAgents) map.set(s.slug, getAccentColor(s.slug))
-    return map
-  }, [filteredAgents])
-
   // Auto-select first agent if none selected or selection is no longer valid
   useEffect(() => {
     if (sortedAgents.length > 0 && (!selectedAgentSlug || !sortedAgents.some(s => s.slug === selectedAgentSlug))) {
