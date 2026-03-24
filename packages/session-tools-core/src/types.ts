@@ -245,6 +245,8 @@ export interface McpSourceConfig {
   command?: string;
   args?: string[];
   env?: Record<string, string>;
+  /** Env var name to inject bearer token as for stdio sources (e.g., 'API_KEY') */
+  tokenEnvVar?: string;
 }
 
 /**

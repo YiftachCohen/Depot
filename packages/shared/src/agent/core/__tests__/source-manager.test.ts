@@ -213,6 +213,33 @@ describe('SourceManager', () => {
 
       expect(formatted).toContain('github (no tools)');
     });
+
+    it('should show source_issue for source with error connectionStatus', () => {
+      const errorSource = createMockSource('todoist', {
+        connectionStatus: 'error',
+        connectionError: 'MCP server connection failed (tried HTTP + SSE transports)',
+      });
+      sourceManager.setAllSources([...sourceManager.getAllSources(), errorSource]);
+      sourceManager.updateActiveState(['todoist'], [], ['todoist']);
+
+      const formatted = sourceManager.formatSourceState();
+
+      expect(formatted).toContain('<source_issue');
+      expect(formatted).toContain('todoist');
+    });
+
+    it('should show source_issue for source with connecting connectionStatus', () => {
+      const connectingSource = createMockSource('todoist', {
+        connectionStatus: 'connecting',
+      });
+      sourceManager.setAllSources([...sourceManager.getAllSources(), connectingSource]);
+      sourceManager.updateActiveState(['todoist'], [], ['todoist']);
+
+      const formatted = sourceManager.formatSourceState();
+
+      expect(formatted).toContain('<source_issue');
+      expect(formatted).toContain('todoist');
+    });
   });
 
   describe('Authentication Utilities', () => {

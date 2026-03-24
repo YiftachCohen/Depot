@@ -176,7 +176,7 @@ export class SourceManager {
       (s) => this.intendedSlugs.has(s.config.slug)
     );
     const sourcesNeedingAttention = activeSources.filter(
-      (s) => s.config.connectionStatus === 'needs_auth' || s.config.connectionStatus === 'failed'
+      (s) => s.config.connectionStatus === 'needs_auth' || s.config.connectionStatus === 'failed' || s.config.connectionStatus === 'error' || s.config.connectionStatus === 'connecting'
     );
 
     // Check if this is the first message (no sources known yet)

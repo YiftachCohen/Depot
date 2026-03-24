@@ -350,7 +350,8 @@ async function buildServersFromSources(
   sources: LoadedSource[],
   sessionPath?: string,
   tokenRefreshManager?: TokenRefreshManager,
-  summarize?: SummarizeCallback
+  summarize?: SummarizeCallback,
+  skipReauthSlugs?: Set<string>
 ) {
   const span = perf.span('sources.buildServers', { count: sources.length })
   const credManager = getSourceCredentialManager()
@@ -387,19 +388,61 @@ async function buildServersFromSources(
   span.setMetadata('mcpCount', Object.keys(result.mcpServers).length)
   span.setMetadata('apiCount', Object.keys(result.apiServers).length)
 
-  // Update source configs for auth errors so UI reflects actual state
+  // Update source configs for auth errors so UI reflects actual state.
+  // Skip sources in skipReauthSlugs — these were just authenticated and shouldn't be
+  // destructively marked as needing re-auth if the first pool sync fails.
   for (const error of result.errors) {
     if (error.error === SERVER_BUILD_ERRORS.AUTH_REQUIRED) {
       const source = sources.find(s => s.config.slug === error.sourceSlug)
-      if (source) {
+      if (source && !skipReauthSlugs?.has(error.sourceSlug)) {
         credManager.markSourceNeedsReauth(source, 'Token missing or expired')
         sessionLog.info(`Marked source ${error.sourceSlug} as needing re-auth`)
+      } else if (source && skipReauthSlugs?.has(error.sourceSlug)) {
+        sessionLog.warn(`Source ${error.sourceSlug} just authenticated — skipping re-auth mark despite AUTH_REQUIRED`)
       }
     }
   }
 
   span.end()
   return result
+}
+
+/**
+ * Reconcile source connection status after a pool sync.
+ * Checks which MCP sources actually connected and have tools, then updates
+ * their on-disk connection status so the UI and agent <sources> block reflect reality.
+ */
+async function reconcileSourceConnectionStatus(
+  mcpPool: import('@depot/shared/mcp').McpClientPool | undefined,
+  workspaceRootPath: string,
+  mcpServerSlugs: string[]
+): Promise<void> {
+  if (!mcpPool || mcpServerSlugs.length === 0) return
+
+  const { updateSourceConnectionStatus, loadSourceConfig } = await import('@depot/shared/sources')
+  const connectedSlugs = mcpPool.getConnectedSlugs()
+
+  for (const slug of mcpServerSlugs) {
+    // Skip local/stdio sources that may be filtered by the pool when local MCP is disabled.
+    // Their status is managed separately (local_disabled).
+    const sourceConfig = loadSourceConfig(workspaceRootPath, slug)
+    if (sourceConfig?.mcp?.transport === 'stdio') continue
+    if (sourceConfig?.connectionStatus === 'local_disabled') continue
+
+    const tools = mcpPool.getTools(slug)
+    if (connectedSlugs.includes(slug) && tools.length > 0) {
+      updateSourceConnectionStatus(workspaceRootPath, slug, 'connected', undefined, tools.length)
+      sessionLog.debug(`Source ${slug} connected with ${tools.length} tools`)
+    } else if (connectedSlugs.includes(slug)) {
+      // Connected but 0 tools — server responded but had nothing
+      updateSourceConnectionStatus(workspaceRootPath, slug, 'connected', undefined, 0)
+      sessionLog.debug(`Source ${slug} connected with 0 tools`)
+    } else {
+      updateSourceConnectionStatus(workspaceRootPath, slug, 'error',
+        'MCP server connection failed (tried HTTP + SSE transports)')
+      sessionLog.warn(`Source ${slug} failed to connect`)
+    }
+  }
 }
 
 /**
@@ -433,7 +476,7 @@ async function refreshOAuthTokensIfNeeded(
   sources: LoadedSource[],
   sessionPath: string,
   tokenRefreshManager: TokenRefreshManager,
-  options?: { sessionId?: string; workspaceRootPath?: string; poolServerUrl?: string }
+  options?: { sessionId?: string; workspaceRootPath?: string; poolServerUrl?: string; mcpPool?: import('@depot/shared/mcp').McpClientPool }
 ): Promise<OAuthTokenRefreshResult> {
   sessionLog.debug('[OAuth] Checking if any OAuth tokens need refresh')
 
@@ -467,6 +510,9 @@ async function refreshOAuthTokensIfNeeded(
     )
     const intendedSlugs = enabledSources.map(s => s.config.slug)
     await agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
+    if (options?.workspaceRootPath && options?.mcpPool) {
+      await reconcileSourceConnectionStatus(options.mcpPool, options.workspaceRootPath, Object.keys(mcpServers))
+    }
 
     // Update bridge-mcp-server config/credentials for backends that need it
     if (options?.sessionId && options?.workspaceRootPath) {
@@ -1511,6 +1557,7 @@ export class SessionManager implements ISessionManager {
     await applyBridgeUpdates(managed.agent, sessionPath, enabledSources, mcpServers, managed.id, workspaceRootPath, 'source reload', managed.poolServer?.url)
 
     await managed.agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
+    await reconcileSourceConnectionStatus(managed.mcpPool, workspaceRootPath, Object.keys(mcpServers))
 
     sessionLog.info(`Sources reloaded for session ${managed.id}: ${Object.keys(mcpServers).length} MCP, ${Object.keys(apiServers).length} API`)
   }
@@ -1841,10 +1888,11 @@ export class SessionManager implements ISessionManager {
         enabledSlugs.includes(s.config.slug) && isSourceUsable(s)
       )
       const { mcpServers, apiServers } = await buildServersFromSources(
-        enabledSources, sessionPath, managed.tokenRefreshManager
+        enabledSources, sessionPath, managed.tokenRefreshManager, undefined, new Set([result.sourceSlug])
       )
       const intendedSlugs = enabledSources.map(s => s.config.slug)
       await managed.agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
+      await reconcileSourceConnectionStatus(managed.mcpPool, workspaceRootPath, Object.keys(mcpServers))
       await applyBridgeUpdates(managed.agent, sessionPath, enabledSources, mcpServers, managed.id, workspaceRootPath, 'source auth', managed.poolServer?.url)
     }
 
@@ -1915,6 +1963,27 @@ export class SessionManager implements ISessionManager {
           { type: 'source_apikey', workspaceId: wsId, sourceId: request.sourceSlug },
           { value: response.value! }
         )
+      }
+
+      // For stdio MCP sources with bearer auth, auto-set tokenEnvVar if not already set.
+      // This ensures the token gets injected into the subprocess environment.
+      if (request.mode === 'bearer') {
+        const { loadSourceConfig, saveSourceConfig } = await import('@depot/shared/sources')
+        const sourceConfig = loadSourceConfig(managed.workspace.rootPath, request.sourceSlug)
+        if (sourceConfig?.type === 'mcp' && sourceConfig.mcp?.transport === 'stdio' && !sourceConfig.mcp.tokenEnvVar) {
+          // Infer env var name from existing env config.
+          // Match any key containing common credential substrings (e.g., API_KEY, TODOIST_API_TOKEN, SECRET_KEY).
+          // If only one env key is defined, use it regardless of name — it's almost certainly the credential.
+          const envKeys = Object.keys(sourceConfig.mcp.env || {})
+          const tokenKey = envKeys.length === 1
+            ? envKeys[0]
+            : envKeys.find(k => /(?:api[_-]?key|token|secret|key|password|credential)/i.test(k))
+          if (tokenKey) {
+            sourceConfig.mcp.tokenEnvVar = tokenKey
+            saveSourceConfig(managed.workspace.rootPath, sourceConfig)
+            sessionLog.info(`Auto-set tokenEnvVar=${tokenKey} for stdio source ${request.sourceSlug}`)
+          }
+        }
       }
 
       // Update source config to mark as authenticated
@@ -3484,6 +3553,7 @@ export class SessionManager implements ISessionManager {
         await applyBridgeUpdates(managed.agent!, sessionPath, allEnabledSources, mcpServers, managed.id, workspaceRootPath, 'source enable', managed.poolServer?.url)
 
         await managed.agent!.setSourceServers(mcpServers, apiServers, intendedSlugs)
+        await reconcileSourceConnectionStatus(managed.mcpPool, workspaceRootPath, Object.keys(mcpServers))
 
         sessionLog.info(`Auto-enabled source ${sourceSlug} for session ${managed.id}`)
 
@@ -3923,6 +3993,7 @@ export class SessionManager implements ISessionManager {
       await applyBridgeUpdates(managed.agent, sessionPath, usableSources, mcpServers, managed.id, workspaceRootPath, 'source config change', managed.poolServer?.url)
 
       await managed.agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
+      await reconcileSourceConnectionStatus(managed.mcpPool, workspaceRootPath, Object.keys(mcpServers))
 
       sessionLog.info(`Applied ${Object.keys(mcpServers).length} MCP + ${Object.keys(apiServers).length} API sources to active agent (${allSources.length} total)`)
     }
@@ -4835,7 +4906,7 @@ export class SessionManager implements ISessionManager {
           sources,
           sessionPath,
           managed.tokenRefreshManager,
-          { sessionId, workspaceRootPath, poolServerUrl: managed.poolServer?.url }
+          { sessionId, workspaceRootPath, poolServerUrl: managed.poolServer?.url, mcpPool: managed.mcpPool }
         )
         if (refreshResult.failedSources.length > 0) {
           sessionLog.warn('[OAuth] Some sources failed token refresh:', refreshResult.failedSources.map(f => f.slug))
@@ -4857,6 +4928,7 @@ export class SessionManager implements ISessionManager {
           const intendedSlugs = sources.filter(isSourceUsable).map(s => s.config.slug)
           const usableSources = sources.filter(isSourceUsable)
           await agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
+          await reconcileSourceConnectionStatus(managed.mcpPool, workspaceRootPath, Object.keys(mcpServers))
           await applyBridgeUpdates(agent, sessionPath, usableSources, mcpServers, sessionId, workspaceRootPath, 'send message', managed.poolServer?.url)
           sessionLog.info(`Applied ${mcpCount} MCP + ${apiCount} API sources to session ${sessionId} (${allSources.length} total)`)
         }
