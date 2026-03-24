@@ -2230,14 +2230,23 @@ export class SessionManager implements ISessionManager {
       resolvedWorkingDir = options.workingDirectory
     }
 
-    // Load skill manifest for permission_mode and source resolution (independent concerns).
+    // Load skill manifest for permission_mode, model, connection, and source resolution.
     let skillPermissionMode: PermissionMode | undefined
+    let skillManifestModel: string | undefined
+    let skillManifestConnection: string | undefined
     if (options?.skillSlug) {
       const skill = loadSkillBySlug(workspace.rootPath, options.skillSlug, resolvedWorkingDir)
       if (skill?.manifest) {
         // Apply manifest permission_mode as default if no explicit override
         if (skill.manifest.permission_mode && !options?.permissionMode) {
           skillPermissionMode = skill.manifest.permission_mode
+        }
+        // Apply manifest model/connection as defaults if no explicit override
+        if (skill.manifest.model && !options?.model) {
+          skillManifestModel = skill.manifest.model
+        }
+        if (skill.manifest.llm_connection && !options?.llmConnection) {
+          skillManifestConnection = skill.manifest.llm_connection
         }
         // Resolve sources only when no slugs are already preset
         if (!hasExplicitSourceSelection && (!defaultEnabledSourceSlugs || defaultEnabledSourceSlugs.length === 0) && skill.manifest.sources?.length) {
@@ -2260,10 +2269,11 @@ export class SessionManager implements ISessionManager {
     }
 
     // Resolve backend target early for branching policy checks.
+    // Resolution chain: session option → manifest default → workspace default → connection default
     const targetBackendContext = resolveBackendContext({
-      sessionConnectionSlug: options?.llmConnection,
+      sessionConnectionSlug: options?.llmConnection || skillManifestConnection,
       workspaceDefaultConnectionSlug: wsConfig?.defaults?.defaultLlmConnection,
-      managedModel: options?.model || defaultModel,
+      managedModel: options?.model || skillManifestModel || defaultModel,
     })
     const targetProviderType = targetBackendContext.connection?.providerType
       ?? (targetBackendContext.provider === 'pi' ? 'pi' : 'anthropic')
@@ -2525,7 +2535,7 @@ export class SessionManager implements ISessionManager {
       permissionMode: defaultPermissionMode,
       workingDirectory: resolvedWorkingDir,
       model: resolvedModel,
-      llmConnection: options?.llmConnection,
+      llmConnection: options?.llmConnection || skillManifestConnection,
       thinkingLevel: defaultThinkingLevel,
       systemPromptPreset: options?.systemPromptPreset,
       enabledSourceSlugs: defaultEnabledSourceSlugs,
@@ -4936,6 +4946,14 @@ export class SessionManager implements ISessionManager {
       sendSpan.mark('servers.applied')
     }
 
+    // Apply per-action model override (one-shot: restored after turn completes in finally)
+    let modelOverridePrevious: string | undefined
+    if (options?.modelOverride) {
+      modelOverridePrevious = agent.getModel()
+      agent.setModel(options.modelOverride)
+      sessionLog.info(`Per-action model override: ${modelOverridePrevious} → ${options.modelOverride}`)
+    }
+
     try {
       sessionLog.info('Starting chat for session:', sessionId)
       sessionLog.info('Workspace:', JSON.stringify(managed.workspace, null, 2))
@@ -5154,6 +5172,12 @@ export class SessionManager implements ISessionManager {
         this.onProcessingStopped(sessionId, 'error')
       }
     } finally {
+      // Restore per-action model override (always restore, even on error/interrupt)
+      if (modelOverridePrevious !== undefined && managed.agent) {
+        managed.agent.setModel(modelOverridePrevious)
+        sessionLog.info(`Per-action model restored: ${modelOverridePrevious}`)
+      }
+
       // Only handle cleanup for unexpected exits (loop break without complete event)
       // Normal completion returns early after calling onProcessingStopped
       // Errors are handled in catch block
