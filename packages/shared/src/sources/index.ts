@@ -37,6 +37,7 @@ export {
   loadSourceConfig,
   saveSourceConfig,
   markSourceAuthenticated,
+  updateSourceConnectionStatus,
   // Guide operations
   loadSourceGuide,
   saveSourceGuide,

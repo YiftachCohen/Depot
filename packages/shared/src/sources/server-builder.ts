@@ -94,11 +94,19 @@ export class SourceServerBuilder {
         debug(`[SourceServerBuilder] Stdio source ${source.config.slug} missing command`);
         return null;
       }
+
+      // Inject bearer token into env if tokenEnvVar is configured
+      let env = mcp.env;
+      if (mcp.tokenEnvVar && token) {
+        env = { ...env, [mcp.tokenEnvVar]: token };
+        debug(`[SourceServerBuilder] Injected token as ${mcp.tokenEnvVar} for stdio source ${source.config.slug}`);
+      }
+
       return {
         type: 'stdio',
         command: mcp.command,
         args: mcp.args,
-        env: mcp.env,
+        env,
       };
     }
 
