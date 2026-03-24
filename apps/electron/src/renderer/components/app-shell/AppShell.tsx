@@ -1780,9 +1780,7 @@ function AppShellContent({
     storage.set(storage.KEYS.collapsedSidebarItems, [...collapsedItems], activeWorkspaceId)
   }, [collapsedItems, activeWorkspaceId])
 
-  const handleAllSessionsClick = useCallback(() => {
-    navigate(routes.view.allSessions())
-  }, [])
+
 
   const handleQuickChatsClick = useCallback(() => {
     navigate(routes.view.quickChats())

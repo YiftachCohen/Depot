@@ -509,7 +509,8 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
           link.variant === "default"
             ? "bg-sidebar-active text-foreground border-l-2 border-accent/40"
             // Highlight on hover, context menu open (data-state), or EditPopover active (data-edit-active)
-            : "transition-all duration-75 hover:bg-sidebar-hover hover:-translate-y-px data-[state=open]:bg-sidebar-hover data-[edit-active=true]:bg-sidebar-hover",
+            // Reserve border-l-2 space with transparent border to prevent layout shift on active toggle
+            : "border-l-2 border-transparent transition-all duration-75 hover:bg-sidebar-hover hover:-translate-y-px data-[state=open]:bg-sidebar-hover data-[edit-active=true]:bg-sidebar-hover",
           extraClassName,
         )}
       >
