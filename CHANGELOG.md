@@ -24,6 +24,7 @@ All notable changes to Depot are documented in this file.
 - **Duplicate accent palette** — Removed the old palette definition from SkillDashboard.tsx that still contained DESIGN.md-violating violet/magenta colors. All imports now use the canonical palette from dashboard/utils.tsx.
 - **Dead code removed** — Removed unused AgentRoster, DetailPane components and unused state variables (selectedAgentSlug, selectedAgentSessions, accentMap).
 - **Sort stability** — Agent sort now uses alphabetical slug as tiebreaker when timestamps are equal, preventing non-deterministic ordering.
+- **Dock icon now matches the selected amber icon set and survives restarts** — The bundled macOS/Windows/Linux app icons were still on the old cyan/violet palette, so the Dock showed an icon that didn’t match any selectable option. Rebuilt the bundled icon assets from the default amber “Starburst Grid” source, persist the selected dock icon PNG to the Depot config directory, validate it before writing, and restore it on startup with fallback to the bundled icon if the persisted file is missing or invalid.
 
 - **Remote MCP tools still not discoverable after v1.2.5 fix** — Despite the bearer auth fix in v1.2.5, ToolSearch still returned zero tools because:
   1. `markSourceAuthenticated()` set `connectionStatus: 'connected'` before any MCP handshake — the agent saw "Active" but had no tools. Now sets `'connecting'` and only transitions to `'connected'` after pool sync confirms tools are available.
