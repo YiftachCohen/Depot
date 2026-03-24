@@ -181,10 +181,20 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     throw new Error(`Invalid depot.yaml:\n  - ${errors.join('\n  - ')}`);
   }
 
-  // Validate template variable references
+  // Validate template variable references and sanitize optional string fields
   const parsedCommands = quickCommands as QuickCommand[];
   for (let i = 0; i < parsedCommands.length; i++) {
-    errors.push(...validateQuickCommandVariables(parsedCommands[i]!, i));
+    const cmd = parsedCommands[i]!;
+    errors.push(...validateQuickCommandVariables(cmd, i));
+    // Validate and sanitize model field
+    if (cmd.model !== undefined) {
+      if (typeof cmd.model !== 'string') {
+        errors.push(`quick_commands[${i}].model must be a string, got ${typeof cmd.model}`);
+        cmd.model = undefined;
+      } else {
+        cmd.model = cmd.model.trim() !== '' ? cmd.model.trim() : undefined;
+      }
+    }
   }
 
   if (errors.length > 0) {
@@ -208,6 +218,14 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
 
   const provider = typeof data.provider === 'string' && data.provider.trim() !== ''
     ? data.provider.trim()
+    : undefined;
+
+  const model = typeof data.model === 'string' && data.model.trim() !== ''
+    ? data.model.trim()
+    : undefined;
+
+  const llmConnection = typeof data.llm_connection === 'string' && data.llm_connection.trim() !== ''
+    ? data.llm_connection.trim()
     : undefined;
 
   // --- v2 optional fields ---
@@ -345,6 +363,8 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     icon: (data.icon as string).trim(),
     description: (data.description as string).trim(),
     provider,
+    model,
+    llm_connection: llmConnection,
     sources: sources && sources.length > 0 ? sources : undefined,
     quick_commands: parsedCommands,
     context_files: contextFiles && contextFiles.length > 0 ? contextFiles : undefined,
