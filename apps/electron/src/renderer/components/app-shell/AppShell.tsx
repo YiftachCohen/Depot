@@ -2400,7 +2400,7 @@ function AppShellContent({
                       id: "nav:skills",
                       title: "Agents",
                       label: String(pinnedAgents.length),
-                      icon: Zap,
+                      icon: Bot,
                       iconColor: 'var(--accent)',
                       variant: (isSkillsNavigation(navState) && !navState.details) ? "default" : "ghost",
                       onClick: handleSkillsClick,
