@@ -1965,6 +1965,25 @@ export class SessionManager implements ISessionManager {
         )
       }
 
+      // For stdio MCP sources with bearer auth, auto-set tokenEnvVar if not already set.
+      // This ensures the token gets injected into the subprocess environment.
+      if (request.mode === 'bearer') {
+        const { loadSourceConfig, saveSourceConfig } = await import('@depot/shared/sources')
+        const sourceConfig = loadSourceConfig(managed.workspace.rootPath, request.sourceSlug)
+        if (sourceConfig?.type === 'mcp' && sourceConfig.mcp?.transport === 'stdio' && !sourceConfig.mcp.tokenEnvVar) {
+          // Infer env var name from existing env config or use common defaults
+          const envKeys = Object.keys(sourceConfig.mcp.env || {})
+          const tokenKey = envKeys.find(k =>
+            /^(api[_-]?key|token|bearer[_-]?token|access[_-]?token|secret[_-]?key|auth[_-]?token)$/i.test(k)
+          )
+          if (tokenKey) {
+            sourceConfig.mcp.tokenEnvVar = tokenKey
+            saveSourceConfig(managed.workspace.rootPath, sourceConfig)
+            sessionLog.info(`Auto-set tokenEnvVar=${tokenKey} for stdio source ${request.sourceSlug}`)
+          }
+        }
+      }
+
       // Update source config to mark as authenticated
       const { markSourceAuthenticated } = await import('@depot/shared/sources')
       markSourceAuthenticated(managed.workspace.rootPath, request.sourceSlug)
