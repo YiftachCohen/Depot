@@ -94,11 +94,19 @@ export class SourceServerBuilder {
         debug(`[SourceServerBuilder] Stdio source ${source.config.slug} missing command`);
         return null;
       }
+
+      // Inject bearer token into env if tokenEnvVar is configured
+      let env = mcp.env;
+      if (mcp.tokenEnvVar && token) {
+        env = { ...env, [mcp.tokenEnvVar]: token };
+        debug(`[SourceServerBuilder] Injected token as ${mcp.tokenEnvVar} for stdio source ${source.config.slug}`);
+      }
+
       return {
         type: 'stdio',
         command: mcp.command,
         args: mcp.args,
-        env: mcp.env,
+        env,
       };
     }
 
@@ -108,7 +116,9 @@ export class SourceServerBuilder {
       return null;
     }
 
-    const url = normalizeMcpUrl(mcp.url);
+    // Use the raw URL from config — this is the URL that passed TEST_CONNECTION.
+    // Don't normalize (e.g. append /mcp) since not all servers follow that convention.
+    const url = mcp.url.replace(/\/+$/, '');
 
     const config: McpServerConfig = {
       type: url.includes('/sse') ? 'sse' : 'http',
@@ -290,10 +300,12 @@ export class SourceServerBuilder {
 }
 
 /**
- * Normalize MCP URL to standard format
- * - Removes trailing slashes
- * - Preserves /sse suffix for SSE type detection
- * - Ensures /mcp suffix for HTTP type
+ * Normalize MCP URL to standard format.
+ *
+ * @deprecated Do not use — appending `/mcp` breaks MCP servers that don't
+ * follow the `/mcp` path convention. The raw URL from source config (which
+ * was validated by TEST_CONNECTION) should be used as-is. Kept only for
+ * backward compatibility of the export.
  */
 export function normalizeMcpUrl(url: string): string {
   url = url.replace(/\/+$/, '');

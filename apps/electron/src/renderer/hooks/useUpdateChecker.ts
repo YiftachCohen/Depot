@@ -143,6 +143,11 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
           description: `${info.downloadProgress}% complete`,
           duration: 3000,
         })
+      } else if (info.available && info.latestVersion) {
+        toast.info(`Update v${info.latestVersion} found`, {
+          description: 'Download will start automatically.',
+          duration: 3000,
+        })
       }
     } catch (error) {
       console.error('[useUpdateChecker] Check failed:', error)

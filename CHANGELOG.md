@@ -2,6 +2,54 @@
 
 All notable changes to Depot are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **Remote MCP tools still not discoverable after v1.2.5 fix** — Despite the bearer auth fix in v1.2.5, ToolSearch still returned zero tools because:
+  1. `markSourceAuthenticated()` set `connectionStatus: 'connected'` before any MCP handshake — the agent saw "Active" but had no tools. Now sets `'connecting'` and only transitions to `'connected'` after pool sync confirms tools are available.
+  2. When `buildMcpServer` returned null for a freshly-authenticated source, `markSourceNeedsReauth()` destructively reset `isAuthenticated=false`, creating an infinite re-auth loop. Freshly-authenticated sources now skip this destructive cycle.
+  3. Pool sync failures were invisible to the agent — no `<source_issue>` block was generated for `'error'` or `'connecting'` statuses. Both now surface diagnostic information.
+  4. Connection status was never reconciled after pool sync — added `reconcileSourceConnectionStatus()` at all 6 `setSourceServers` call sites to reflect actual MCP connection state.
+  5. Local/stdio sources were incorrectly marked as `'error'` when local MCP was disabled. Now excluded from remote connection reconciliation.
+
+- **Stdio MCP sources with bearer auth fail silently** — Sources like `todoist-mcp` that run as stdio subprocesses and require an API key as an environment variable (e.g., `API_KEY`) would fail with "Connection closed" because `buildMcpServer` ignored the bearer token for stdio sources entirely. Added `McpSourceConfig.tokenEnvVar` field: when set, the bearer credential is injected into the subprocess env as `env[tokenEnvVar]`. Auto-infers the env var name from common patterns (`API_KEY`, `TOKEN`, etc.) during credential input.
+
+## [1.2.6] - 2026-03-23
+
+### Fixed
+
+- **Knowledge store fails to initialize in packaged Electron builds** — Knowledge-enabled skills errored with "Knowledge store failed to initialize" because the `sql-wasm.wasm` binary was never copied to the Electron dist bundle. In packaged builds, `node_modules` is excluded and sql.js couldn't find its WASM file. Now copied during both production and dev builds.
+
+### Changed
+
+- **Dev mode uses Depot icon instead of default Electron icon** — macOS dev builds now replace the generic Electron icon with the Depot app icon for easier identification in the Dock.
+
+## [1.2.5] - 2026-03-23
+
+### Fixed
+
+- **Remote MCP source tools not registered despite successful auth** — Bearer-auth HTTP MCP sources (e.g., Todoist) showed as connected and authenticated but registered zero tools. Root causes:
+  1. The `source_test` connection validator never passed the MCP source's bearer token to the server — it checked for Claude API credentials instead, producing the misleading error "No Claude API key or OAuth token configured."
+  2. After credential save, the MCP client pool wasn't synced until the next message, so tools weren't discovered immediately.
+  3. No SSE transport fallback for MCP servers using the older protocol — connections failed silently.
+  4. MCP pool connection failures were logged at debug level, invisible to users.
+
+## [1.2.4] - 2026-03-23
+
+### Fixed
+
+- **MCP sources fail in agents but work in sources tab** — Two bugs caused MCP sources (like Todoist) to show as connected in the sources panel but fail with re-authentication errors when used through agents:
+  1. URL normalization appended `/mcp` to server URLs, breaking servers that don't follow that path convention. The agent now uses the raw URL that was validated during connection testing.
+  2. Expired OAuth tokens were rejected during agent startup even when the MCP server still accepted them. OAuth sources now use the token refresh manager which returns non-refreshable tokens as-is instead of rejecting them based on client-side expiry.
+
+## [1.2.3] - 2026-03-23
+
+### Fixed
+
+- **Auto-update broken on macOS** — The release workflow's YAML merge script used a regex that failed to capture `sha512` and `size` fields from `latest-mac.yml`, writing `undefined` instead of real values. This caused electron-updater to fail silently on update checks. Fixed the regex to handle 4-space indented YAML properties.
+- **No feedback on "Check for Updates" click** — Added fallback toast/dialog for update states that weren't previously handled, so users always see feedback when clicking the button (settings page and macOS menu).
+
 ## [1.2.1] - 2026-03-22
 
 ### Added

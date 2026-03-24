@@ -15,6 +15,8 @@ interface HeaderMetadataSignature {
   name?: string
   labels?: string[]
   isFlagged?: boolean
+  isArchived?: boolean
+  archivedAt?: number
   sessionStatus?: string
   permissionMode?: string
   hasUnread?: boolean
@@ -26,6 +28,8 @@ function getHeaderMetadataSignature(header: SessionHeader): string {
     name: header.name,
     labels: header.labels,
     isFlagged: header.isFlagged,
+    isArchived: header.isArchived,
+    archivedAt: header.archivedAt,
     sessionStatus: header.sessionStatus,
     permissionMode: header.permissionMode,
     hasUnread: header.hasUnread,
@@ -40,6 +44,8 @@ function mergeHeaderWithExternalMetadata(localHeader: SessionHeader, diskHeader:
     name: diskHeader.name,
     labels: diskHeader.labels,
     isFlagged: diskHeader.isFlagged,
+    isArchived: diskHeader.isArchived,
+    archivedAt: diskHeader.archivedAt,
     sessionStatus: diskHeader.sessionStatus,
     permissionMode: diskHeader.permissionMode,
     hasUnread: diskHeader.hasUnread,

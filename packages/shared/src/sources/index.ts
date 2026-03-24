@@ -25,6 +25,7 @@ export type {
 export {
   API_OAUTH_PROVIDERS,
   isApiOAuthProvider,
+  isOAuthSource,
 } from './types.ts';
 
 // Storage functions
@@ -36,6 +37,7 @@ export {
   loadSourceConfig,
   saveSourceConfig,
   markSourceAuthenticated,
+  updateSourceConnectionStatus,
   // Guide operations
   loadSourceGuide,
   saveSourceGuide,
@@ -113,3 +115,6 @@ export type {
   TokenRefreshResult,
   RefreshManagerOptions,
 } from './token-refresh-manager.ts';
+
+// Token loading for server config building
+export { getTokenForBuild } from './token-build.ts';

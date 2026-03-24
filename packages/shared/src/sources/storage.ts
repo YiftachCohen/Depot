@@ -81,8 +81,9 @@ export function loadSourceConfig(
 }
 
 /**
- * Mark a source as authenticated and connected.
- * Updates isAuthenticated, connectionStatus, and clears any connection error.
+ * Mark a source as authenticated and connecting.
+ * Sets isAuthenticated=true and connectionStatus='connecting' (not 'connected').
+ * The actual 'connected' status is set after successful MCP pool sync with tools discovered.
  *
  * @returns true if the source was found and updated, false otherwise
  */
@@ -97,11 +98,50 @@ export function markSourceAuthenticated(
   }
 
   config.isAuthenticated = true;
-  config.connectionStatus = 'connected';
+  // MCP sources go through pool sync which will set 'connected' after tools are discovered.
+  // API sources don't use the MCP pool, so they're immediately 'connected' after auth.
+  config.connectionStatus = config.type === 'mcp' ? 'connecting' : 'connected';
   config.connectionError = undefined;
 
   saveSourceConfig(workspaceRootPath, config);
-  debug(`[markSourceAuthenticated] Marked ${sourceSlug} as authenticated`);
+  debug(`[markSourceAuthenticated] Marked ${sourceSlug} as authenticated (connecting)`);
+  return true;
+}
+
+/**
+ * Update a source's connection status and optional tool count.
+ * Called after MCP pool sync to reflect the actual connection state.
+ *
+ * @returns true if the source was found and updated, false otherwise
+ */
+export function updateSourceConnectionStatus(
+  workspaceRootPath: string,
+  sourceSlug: string,
+  status: import('./types.ts').SourceConnectionStatus,
+  error?: string,
+  toolCount?: number
+): boolean {
+  const config = loadSourceConfig(workspaceRootPath, sourceSlug);
+  if (!config) {
+    debug(`[updateSourceConnectionStatus] Source ${sourceSlug} not found`);
+    return false;
+  }
+
+  // Skip write if nothing changed — prevents ConfigWatcher reload loops
+  if (
+    config.connectionStatus === status &&
+    config.connectionError === error &&
+    (toolCount === undefined || config.toolCount === toolCount)
+  ) {
+    return true;
+  }
+
+  config.connectionStatus = status;
+  config.connectionError = error;
+  if (toolCount !== undefined) config.toolCount = toolCount;
+
+  saveSourceConfig(workspaceRootPath, config);
+  debug(`[updateSourceConnectionStatus] ${sourceSlug}: status=${status}, tools=${toolCount ?? 'N/A'}`);
   return true;
 }
 

@@ -5,6 +5,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -73,8 +74,10 @@ export class DepotMcpClient {
   private client: Client;
   private transport: Transport;
   private connected = false;
+  private readonly clientConfig: McpClientConfig;
 
   constructor(config: McpClientConfig) {
+    this.clientConfig = config;
     this.client = new Client({
       name: 'depot-agent',
       version: '1.0.0',
@@ -96,7 +99,7 @@ export class DepotMcpClient {
         env: { ...processEnv, ...config.env },
       });
     } else {
-      // HTTP transport for remote MCP servers
+      // HTTP transport for remote MCP servers (Streamable HTTP, with SSE fallback in connect())
       this.transport = new StreamableHTTPClientTransport(
         new URL(config.url),
         {
@@ -111,16 +114,51 @@ export class DepotMcpClient {
   async connect(): Promise<void> {
     if (this.connected) return;
 
-    await this.client.connect(this.transport);
-
-    // Verify connection works by listing tools
     try {
-      await this.client.listTools();
+      await this.client.connect(this.transport);
+
+      // Verify connection works by listing tools
+      try {
+        await this.client.listTools();
+      } catch (error) {
+        await this.client.close();
+        throw new Error(
+          `MCP connection failed health check: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     } catch (error) {
-      await this.client.close();
-      throw new Error(
-        `MCP connection failed health check: ${error instanceof Error ? error.message : String(error)}`
-      );
+      // For HTTP transport, try SSE fallback if Streamable HTTP failed
+      if (this.clientConfig.transport === 'http') {
+        try {
+          await this.client.close().catch(() => {});
+        } catch { /* ignore */ }
+
+        // Create fresh client (Client can only be connected once)
+        this.client = new Client({ name: 'depot-agent', version: '1.0.0' });
+        const httpConfig = this.clientConfig as HttpMcpClientConfig;
+        this.transport = new SSEClientTransport(
+          new URL(httpConfig.url),
+          { requestInit: { headers: httpConfig.headers } }
+        );
+
+        try {
+          await this.client.connect(this.transport);
+        } catch (sseConnectError) {
+          throw new Error(
+            `MCP connection failed (tried HTTP + SSE): ${sseConnectError instanceof Error ? sseConnectError.message : String(sseConnectError)}`
+          );
+        }
+        try {
+          await this.client.listTools();
+        } catch (sseError) {
+          await this.client.close().catch(() => {});
+          throw new Error(
+            `MCP connection failed (tried HTTP + SSE): ${sseError instanceof Error ? sseError.message : String(sseError)}`
+          );
+        }
+      } else {
+        throw error;
+      }
     }
 
     this.connected = true;

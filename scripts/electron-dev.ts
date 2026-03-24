@@ -4,7 +4,7 @@
  */
 
 import { spawn, type Subprocess } from "bun";
-import { existsSync, rmSync, cpSync, readFileSync, statSync, mkdirSync } from "fs";
+import { existsSync, rmSync, cpSync, copyFileSync, readFileSync, statSync, mkdirSync } from "fs";
 import { join, basename } from "path";
 import * as esbuild from "esbuild";
 import { downloadUv, type Platform, type Arch } from "./build/common";
@@ -167,6 +167,27 @@ async function killProcessOnPort(port: string): Promise<void> {
   }
 }
 
+// Replace Electron's default icon with Depot's icon in dev mode (macOS only)
+function replaceDevIcon(): void {
+  if (process.platform !== 'darwin') return;
+
+  const electronIconPath = join(ROOT_DIR, 'node_modules/electron/dist/Electron.app/Contents/Resources/electron.icns');
+  const depotIconPath = join(ELECTRON_DIR, 'resources/icon.icns');
+
+  if (!existsSync(depotIconPath)) {
+    console.warn('⚠️  Dev icon not replaced: resources/icon.icns not found');
+    return;
+  }
+  if (!existsSync(electronIconPath)) return;
+
+  try {
+    cpSync(depotIconPath, electronIconPath);
+    console.log('🎨 Replaced dev Electron icon with Depot icon');
+  } catch (err) {
+    console.warn(`⚠️  Could not replace dev Electron icon: ${(err as Error).message}`);
+  }
+}
+
 // Clean Vite cache directory
 function cleanViteCache(): void {
   const viteCacheDir = join(ELECTRON_DIR, "node_modules/.vite");
@@ -183,6 +204,16 @@ function copyResources(): void {
   if (existsSync(srcDir)) {
     cpSync(srcDir, destDir, { recursive: true, force: true });
     console.log("📦 Copied resources to dist");
+  }
+
+  // Copy sql-wasm.wasm for Knowledge Store
+  const sqlWasmSrc = join(ROOT_DIR, 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
+  const sqlWasmDest = join(DIST_DIR, 'sql-wasm.wasm');
+  if (existsSync(sqlWasmSrc)) {
+    copyFileSync(sqlWasmSrc, sqlWasmDest);
+    console.log('📦 Copied sql-wasm.wasm to dist');
+  } else {
+    console.warn('⚠ sql-wasm.wasm not found at', sqlWasmSrc, '— Knowledge Store may fail');
   }
 }
 
@@ -366,6 +397,7 @@ async function main(): Promise<void> {
   detectInstance();
   loadEnvFile();
   cleanViteCache();
+  replaceDevIcon();
 
   // Ensure dist directory exists
   if (!existsSync(DIST_DIR)) {

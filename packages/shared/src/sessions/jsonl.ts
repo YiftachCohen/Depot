@@ -164,6 +164,28 @@ export function writeSessionJsonl(sessionFile: string, session: StoredSession): 
 }
 
 /**
+ * Update only the header (first line) of a session JSONL file.
+ * Preserves all message lines unchanged. Uses atomic write (tmp+rename).
+ * Used when messagesLoaded=false to persist metadata changes (archive, flag, status)
+ * without overwriting messages with an empty array.
+ */
+export function updateSessionHeaderOnly(
+  sessionFile: string,
+  newHeader: SessionHeader
+): void {
+  const content = readFileSync(sessionFile, 'utf-8')
+  const lines = content.split('\n')
+  // Replace first line (header) with new header, keep all message lines
+  const sessionDir = dirname(sessionFile)
+  lines[0] = makeSessionPathPortable(JSON.stringify(newHeader), sessionDir)
+  const tmpFile = sessionFile + '.tmp'
+  writeFileSync(tmpFile, lines.join('\n'))
+  // On Windows, rename fails if target exists. Delete first for cross-platform compatibility.
+  try { unlinkSync(sessionFile) } catch { /* ignore if doesn't exist */ }
+  renameSync(tmpFile, sessionFile)
+}
+
+/**
  * Create a SessionHeader from a StoredSession.
  * Pre-computes messageCount, preview, and lastMessageRole for fast list loading.
  * Uses pickSessionFields() to ensure all persistent fields are included.
