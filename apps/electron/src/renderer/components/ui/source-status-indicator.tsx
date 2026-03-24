@@ -98,7 +98,7 @@ export function SourceStatusIndicator({
   const sizeClass = SIZE_CONFIG[size]
 
   // Build tooltip description
-  const tooltipDescription = status === 'failed' && errorMessage
+  const tooltipDescription = (status === 'failed' || status === 'error') && errorMessage
     ? `${config.description}: ${errorMessage}`
     : config.description
 

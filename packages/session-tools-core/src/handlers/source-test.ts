@@ -638,10 +638,30 @@ async function testMcpConnection(
     if (ctx.validateStdioMcpConnection && source.mcp.command) {
       lines.push(`ℹ Testing stdio MCP: ${source.mcp.command}`);
       try {
+        // Inject bearer token into env if tokenEnvVar is configured
+        let env = source.mcp.env;
+        if (source.mcp.tokenEnvVar && source.isAuthenticated && ctx.credentialManager) {
+          const workspaceId = basename(ctx.workspacePath) || '';
+          const loadedSource = {
+            config: source,
+            folderPath: getSourcePath(ctx.workspacePath, source.slug),
+            workspaceRootPath: ctx.workspacePath,
+            workspaceId,
+          };
+          try {
+            const token = await ctx.credentialManager.getToken(loadedSource);
+            if (token) {
+              env = { ...env, [source.mcp.tokenEnvVar]: token };
+            }
+          } catch {
+            // Token retrieval failed — proceed without it
+          }
+        }
+
         const result = await ctx.validateStdioMcpConnection({
           command: source.mcp.command,
           args: source.mcp.args || [],
-          env: source.mcp.env,
+          env,
         });
         if (result.success) {
           success = true;

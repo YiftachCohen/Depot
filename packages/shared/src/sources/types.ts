@@ -249,6 +249,14 @@ export interface McpSourceConfig {
    * Environment variables for the spawned process.
    */
   env?: Record<string, string>;
+
+  /**
+   * Environment variable name to inject the bearer token as for stdio sources.
+   * Example: 'API_KEY' for todoist-mcp, 'GITHUB_TOKEN' for github-mcp.
+   * When set and a bearer credential exists, the token is injected into the
+   * subprocess env as env[tokenEnvVar] = token.
+   */
+  tokenEnvVar?: string;
 }
 
 /**
