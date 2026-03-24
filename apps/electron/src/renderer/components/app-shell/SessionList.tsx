@@ -4,7 +4,7 @@ import { useAction } from "@/actions"
 import { Inbox, Archive } from "lucide-react"
 import { toast } from "sonner"
 import { resolveIconComponent } from "@/lib/command-icon"
-import { getAccentColor } from "./SkillDashboard"
+import { getAccentColor } from "./dashboard/utils"
 import { isEmoji } from "@depot/shared/utils/icon-constants"
 
 import { getSessionStatus } from "@/utils/session"
