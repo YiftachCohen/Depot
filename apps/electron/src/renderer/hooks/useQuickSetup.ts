@@ -6,8 +6,8 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { atom, useAtom } from 'jotai'
-import type { SourceTemplate } from '@depot/shared/sources'
-import { resolveTemplateFields, validatePreAuthField } from '@depot/shared/sources'
+import type { SourceTemplate } from '@depot/shared/sources/templates'
+import { resolveTemplateFields, validatePreAuthField } from '@depot/shared/sources/templates'
 
 export type QuickSetupStep = 'idle' | 'creating' | 'authenticating' | 'testing' | 'success' | 'error'
 

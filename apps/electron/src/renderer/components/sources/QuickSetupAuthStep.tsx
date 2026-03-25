@@ -2,8 +2,8 @@ import * as React from 'react'
 import { useState, useCallback } from 'react'
 import { Check, AlertCircle, Loader2, Eye, EyeOff, ExternalLink, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { validatePreAuthField } from '@depot/shared/sources'
-import type { SourceTemplate } from '@depot/shared/sources'
+import { validatePreAuthField } from '@depot/shared/sources/templates'
+import type { SourceTemplate } from '@depot/shared/sources/templates'
 import type { QuickSetupStep } from '@/hooks/useQuickSetup'
 
 interface QuickSetupAuthStepProps {

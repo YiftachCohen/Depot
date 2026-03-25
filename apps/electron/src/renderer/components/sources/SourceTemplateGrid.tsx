@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { SourceTemplate } from '@depot/shared/sources'
+import type { SourceTemplate } from '@depot/shared/sources/templates'
 
 interface SourceTemplateGridProps {
   templates?: SourceTemplate[]

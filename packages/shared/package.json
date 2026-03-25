@@ -30,6 +30,7 @@
     "./sessions": "./src/sessions/index.ts",
     "./sources": "./src/sources/index.ts",
     "./sources/types": "./src/sources/types.ts",
+    "./sources/templates": "./src/sources/templates.ts",
     "./skills": "./src/skills/index.ts",
     "./skills/knowledge": "./src/skills/knowledge/index.ts",
     "./workspaces": "./src/workspaces/index.ts",

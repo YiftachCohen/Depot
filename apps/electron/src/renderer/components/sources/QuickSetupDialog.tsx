@@ -8,8 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { SOURCE_TEMPLATES } from '@depot/shared/sources'
-import type { SourceTemplate } from '@depot/shared/sources'
+import { SOURCE_TEMPLATES } from '@depot/shared/sources/templates'
+import type { SourceTemplate } from '@depot/shared/sources/templates'
 import { sourcesAtom } from '@/atoms/sources'
 import { SourceTemplateGrid } from './SourceTemplateGrid'
 import { QuickSetupAuthStep } from './QuickSetupAuthStep'
