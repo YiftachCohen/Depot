@@ -12,10 +12,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import type { UpdateInfo } from '../../shared/types'
+import { buildManualUpdateToastOptions, buildReadyUpdateToastOptions } from './update-toast-config'
+import { createReadyUpdateToastHandlers } from './update-toast-handlers'
 
 interface UseUpdateCheckerResult {
   /** Current update info */
   updateInfo: UpdateInfo | null
+  /** GitHub release page for the available update */
+  releaseUrl: string | null
   /** Whether an update is available */
   updateAvailable: boolean
   /** Whether update is currently downloading */
@@ -28,6 +32,8 @@ interface UseUpdateCheckerResult {
   checkForUpdates: () => Promise<void>
   /** Install the downloaded update and restart */
   installUpdate: () => Promise<void>
+  /** Open the changelog for the available update */
+  openReleaseNotes: () => Promise<void>
 }
 
 // Toast ID for update notification (allows dismiss/update)
@@ -38,26 +44,45 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
   // Track if we've shown the toast for this version to avoid duplicates
   const shownToastVersionRef = useRef<string | null>(null)
 
+  const openReleaseNotes = useCallback(async () => {
+    const releaseUrl = updateInfo?.releaseUrl
+    if (!releaseUrl) return
+
+    await window.electronAPI.openUrl(releaseUrl)
+  }, [updateInfo?.releaseUrl])
+
   // Show toast notification when update is ready
-  const showUpdateToast = useCallback((version: string, onInstall: () => void) => {
+  const showUpdateToast = useCallback((version: string, releaseUrl: string | null, onInstall: () => void) => {
     // Don't show if already shown for this version in this session
     if (shownToastVersionRef.current === version) {
       return
     }
     shownToastVersionRef.current = version
 
+    const handlers = createReadyUpdateToastHandlers({
+      version,
+      releaseUrl,
+      onInstall,
+      onOpenReleaseNotesUrl: (url) => {
+        void window.electronAPI.openUrl(url)
+      },
+      onPersistDismissal: (dismissedVersion) => {
+        void window.electronAPI.dismissUpdate(dismissedVersion)
+      },
+      onDismissToast: () => {
+        toast.dismiss(UPDATE_TOAST_ID)
+      },
+    })
+
     toast.info(`Update v${version} ready`, {
       id: UPDATE_TOAST_ID,
-      description: 'Restart to apply the update.',
-      duration: 10000, // 10 seconds, then auto-dismiss
-      action: {
-        label: 'Restart',
-        onClick: onInstall,
-      },
-      onDismiss: () => {
-        // Persist dismissal so we don't show again after app restart
-        window.electronAPI.dismissUpdate(version)
-      },
+      ...buildReadyUpdateToastOptions({
+        version,
+        releaseUrl,
+        onInstall: handlers.onInstall,
+        onOpenReleaseNotes: handlers.onOpenReleaseNotes,
+        onDismiss: handlers.onDismiss,
+      }),
     })
   }, [])
 
@@ -92,7 +117,7 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
       }
 
       // Show toast for ready update
-      showUpdateToast(info.latestVersion, installUpdate)
+      showUpdateToast(info.latestVersion, info.releaseUrl, installUpdate)
     }
 
     // Get initial update info
@@ -137,17 +162,32 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
       } else if (info.downloadState === 'ready' && info.latestVersion) {
         // If already ready, show toast (clear any previous dismissal since user explicitly checked)
         shownToastVersionRef.current = null // Reset so toast can show again
-        showUpdateToast(info.latestVersion, installUpdate)
+        showUpdateToast(info.latestVersion, info.releaseUrl, installUpdate)
       } else if (info.downloadState === 'downloading' && info.latestVersion) {
-        toast.info(`Downloading v${info.latestVersion}...`, {
-          description: `${info.downloadProgress}% complete`,
-          duration: 3000,
+        const manualToast = buildManualUpdateToastOptions({
+          version: info.latestVersion,
+          releaseUrl: info.releaseUrl,
+          downloadProgress: info.downloadProgress,
+          state: 'downloading',
+          onOpenReleaseNotes: () => {
+            if (info.releaseUrl) {
+              void window.electronAPI.openUrl(info.releaseUrl)
+            }
+          },
         })
+        toast.info(manualToast.message, manualToast.options)
       } else if (info.available && info.latestVersion) {
-        toast.info(`Update v${info.latestVersion} found`, {
-          description: 'Download will start automatically.',
-          duration: 3000,
+        const manualToast = buildManualUpdateToastOptions({
+          version: info.latestVersion,
+          releaseUrl: info.releaseUrl,
+          state: 'available',
+          onOpenReleaseNotes: () => {
+            if (info.releaseUrl) {
+              void window.electronAPI.openUrl(info.releaseUrl)
+            }
+          },
         })
+        toast.info(manualToast.message, manualToast.options)
       }
     } catch (error) {
       console.error('[useUpdateChecker] Check failed:', error)
@@ -159,11 +199,13 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
 
   return {
     updateInfo,
+    releaseUrl: updateInfo?.releaseUrl ?? null,
     updateAvailable: updateInfo?.available ?? false,
     isDownloading: updateInfo?.downloadState === 'downloading',
     isReadyToInstall: updateInfo?.downloadState === 'ready',
     downloadProgress: updateInfo?.downloadProgress ?? 0,
     checkForUpdates,
     installUpdate,
+    openReleaseNotes,
   }
 }
