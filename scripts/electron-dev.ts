@@ -188,8 +188,9 @@ function replaceDevIcon(): void {
   }
 }
 
-// Clean Vite cache directory
-function cleanViteCache(): void {
+// Clean Vite cache directory (optional, speeds up subsequent starts if skipped)
+function cleanViteCache(force = false): void {
+  if (!force) return;
   const viteCacheDir = join(ELECTRON_DIR, "node_modules/.vite");
   if (existsSync(viteCacheDir)) {
     rmSync(viteCacheDir, { recursive: true, force: true });
@@ -391,12 +392,15 @@ async function waitForFileStable(filePath: string, timeoutMs = 10000): Promise<b
 }
 
 async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const forceClean = args.includes("--clean");
+
   console.log("🚀 Starting Electron dev environment...\n");
 
   // Setup
   detectInstance();
   loadEnvFile();
-  cleanViteCache();
+  cleanViteCache(forceClean);
   replaceDevIcon();
 
   // Ensure dist directory exists

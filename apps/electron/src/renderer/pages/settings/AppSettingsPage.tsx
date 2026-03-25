@@ -315,6 +315,17 @@ export default function AppSettingsPage() {
                       )}
                     </Button>
                   </SettingsRow>
+                  {updateChecker.releaseUrl && (
+                    <SettingsRow label="Release notes">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void updateChecker.openReleaseNotes()}
+                      >
+                        View Changelog on GitHub
+                      </Button>
+                    </SettingsRow>
+                  )}
                   {updateChecker.isReadyToInstall && updateChecker.updateInfo?.latestVersion && (
                     <SettingsRow label="Update ready">
                       <Button
