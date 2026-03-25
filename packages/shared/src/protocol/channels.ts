@@ -345,11 +345,13 @@ export const RPC_CHANNELS = {
   automations: {
     TEST: 'automations:test',
     SET_ENABLED: 'automations:setEnabled',
+    SET_SKILL_OVERRIDE: 'automations:setSkillOverride',
     DUPLICATE: 'automations:duplicate',
     DELETE: 'automations:delete',
     GET_HISTORY: 'automations:getHistory',
     GET_LAST_EXECUTED: 'automations:getLastExecuted',
     REPLAY: 'automations:replay',
+    DELETE_FROM_MANIFEST: 'automations:deleteFromManifest',
     CHANGED: 'automations:changed',
   },
 } as const

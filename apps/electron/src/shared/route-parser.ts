@@ -62,7 +62,7 @@ export interface ParsedCompoundRoute {
  * Known prefixes that indicate a compound route
  */
 const COMPOUND_ROUTE_PREFIXES = [
-  'allSessions', 'flagged', 'archived', 'state', 'label', 'view', 'sources', 'skills', 'automations', 'settings'
+  'allSessions', 'quickChats', 'flagged', 'archived', 'state', 'label', 'view', 'sources', 'skills', 'automations', 'settings'
 ]
 
 /**
@@ -204,6 +204,10 @@ export function parseCompoundRoute(route: string): ParsedCompoundRoute | null {
       sessionFilter = { kind: 'allSessions' }
       detailsStartIndex = 1
       break
+    case 'quickChats':
+      sessionFilter = { kind: 'quickChats' }
+      detailsStartIndex = 1
+      break
     case 'flagged':
       sessionFilter = { kind: 'flagged' }
       detailsStartIndex = 1
@@ -296,6 +300,9 @@ export function buildCompoundRoute(parsed: ParsedCompoundRoute): string {
   switch (filter.kind) {
     case 'allSessions':
       base = 'allSessions'
+      break
+    case 'quickChats':
+      base = 'quickChats'
       break
     case 'flagged':
       base = 'flagged'

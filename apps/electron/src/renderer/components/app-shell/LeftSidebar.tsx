@@ -138,15 +138,15 @@ const containerVariants: Variants = {
 }
 
 const itemVariants: Variants = {
-  hidden: { opacity: 0, x: -8 },
+  hidden: { opacity: 0, y: 8 },
   visible: {
     opacity: 1,
-    x: 0,
-    transition: { duration: 0.15, ease: 'easeOut' },
+    y: 0,
+    transition: { duration: 0.15, ease: [0.16, 1, 0.3, 1] },
   },
   exit: {
     opacity: 0,
-    x: -8,
+    y: 4,
     transition: { duration: 0.1, ease: 'easeIn' },
   },
 }
@@ -189,7 +189,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
     <div className={cn("flex flex-col select-none", !isNested && "py-1")}>
       <NavWrapper
         className={cn(
-          "grid gap-1 min-w-0",
+          "grid gap-1.5 min-w-0",
           isNested ? "pl-6 pr-0 relative" : "px-2"
         )}
         role="navigation"
@@ -207,7 +207,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
           // Handle separator items
           if (isSeparatorItem(item)) {
             return (
-              <div key={item.id} className="py-1.5" aria-hidden="true" />
+              <div key={item.id} className="py-1" aria-hidden="true" />
             )
           }
 
@@ -494,22 +494,23 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
         onClick={isOverlay ? undefined : link.onClick}
         data-tutorial={link.dataTutorial}
         className={cn(
-          "group flex w-full min-w-0 gap-2.5 rounded-[6px] text-[13px] select-none outline-none",
+          "group flex w-full min-w-0 gap-2 rounded-[6px] text-[13px] select-none outline-none",
           link.subtitle ? "items-start" : "items-center",
           "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
           // Compact mode: reduced vertical padding; subtitle items get more room
-          link.subtitle ? "py-[6px]" : link.compact ? "py-[5px]" : "py-[7px]",
+          link.subtitle ? "py-1.5" : link.compact ? "py-1" : "py-2",
           // Section headers: small uppercase labels for expandable top-level items
-          link.expandable && !link.compact && "text-[11px] font-semibold uppercase tracking-wider text-sidebar-section",
+          link.expandable && !link.compact && "font-mono text-[11px] font-medium tracking-[0.08em] uppercase text-sidebar-section",
           // Leaf items (non-compact) get medium weight
           !link.expandable && !link.compact && "font-medium",
           // Muted style for subordinate items (lighter text)
           link.muted && "text-foreground/55",
           "px-2",
           link.variant === "default"
-            ? "bg-sidebar-active text-foreground"
+            ? "bg-sidebar-active text-foreground border-l-2 border-accent/40"
             // Highlight on hover, context menu open (data-state), or EditPopover active (data-edit-active)
-            : "hover:bg-sidebar-hover data-[state=open]:bg-sidebar-hover data-[edit-active=true]:bg-sidebar-hover",
+            // Reserve border-l-2 space with transparent border to prevent layout shift on active toggle
+            : "border-l-2 border-transparent transition-all duration-75 hover:bg-sidebar-hover hover:-translate-y-px data-[state=open]:bg-sidebar-hover data-[edit-active=true]:bg-sidebar-hover",
           extraClassName,
         )}
       >
@@ -546,7 +547,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
         {link.subtitle ? (
           <span className="flex flex-col min-w-0 text-left">
             <span className="truncate">{link.title}</span>
-            <span className="text-[10px] leading-tight text-foreground/30 truncate">{link.subtitle}</span>
+            <span className="text-[10px] leading-tight text-foreground/40 truncate">{link.subtitle}</span>
           </span>
         ) : (
           <span className="min-w-0 truncate">{link.title}</span>
@@ -563,7 +564,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
             link.afterTitle ? 'ml-0' : 'ml-auto',
             'transition-opacity',
             link.expandable
-              ? 'text-[9px] text-foreground/35 bg-foreground/[0.04] rounded-full px-1.5 py-px opacity-100'
+              ? 'text-[10px] text-foreground/50 bg-foreground/[0.07] rounded-full px-1.5 py-px opacity-100'
               : 'text-xs text-foreground/30 opacity-0 group-hover/section:opacity-100 group-data-[state=open]:opacity-100 group-data-[edit-active=true]:opacity-100'
           )}>
             {link.label}

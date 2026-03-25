@@ -1,11 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs'
-import { createRequire } from 'module'
 import { dirname, join } from 'path'
 import { CONFIG_DIR } from '@depot/shared/config/paths'
 
 const PNG_DATA_URL_PREFIX = 'data:image/png;base64,'
 const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-const require = createRequire(import.meta.url)
 
 export const MAX_DOCK_ICON_BYTES = 4 * 1024 * 1024
 export type PngDecoder = (buffer: Buffer) => boolean
@@ -24,6 +22,8 @@ export function isValidPngBuffer(buffer: Buffer): boolean {
 
 function isDecodablePngBuffer(buffer: Buffer): boolean {
   try {
+    // Lazy require to avoid top-level import — electron is not available in test context
+    // and import.meta.url is undefined in the CJS main process bundle
     const { nativeImage } = require('electron') as typeof import('electron')
     const image = nativeImage.createFromBuffer(buffer)
     return !image.isEmpty()
