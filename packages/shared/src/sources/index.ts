@@ -118,3 +118,16 @@ export type {
 
 // Token loading for server config building
 export { getTokenForBuild } from './token-build.ts';
+
+// Source Templates (quick setup wizard)
+export {
+  SOURCE_TEMPLATES,
+  getSourceTemplate,
+  resolveTemplateFields,
+  validatePreAuthField,
+} from './templates.ts';
+export type {
+  SourceTemplate,
+  SourceTemplateCategory,
+  PreAuthField,
+} from './templates.ts';
