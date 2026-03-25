@@ -338,6 +338,32 @@ export interface SessionToolContext {
   resetKnowledge?(domain?: string): Promise<void> | void;
 
   // ============================================================
+  // Automation Management (for manage_automations tool)
+  // ============================================================
+
+  /**
+   * List automations for this agent. Only available in skill-linked sessions.
+   */
+  listAgentAutomations?(): Array<{ id: string; name: string; event: string; enabled: boolean; cron?: string; lastExecutedAt?: number; source: string }>;
+
+  /**
+   * Enable or disable an automation by ID.
+   * Returns { ok: true } on success, { ok: false, error: string } on failure.
+   */
+  setAutomationEnabled?(id: string, enabled: boolean): Promise<{ ok: boolean; error?: string }>;
+
+  /**
+   * Edit a workspace automation's properties (name, cron, prompt, enabled).
+   * Returns { ok: true } on success, { ok: false, error: string } on failure.
+   */
+  editAutomation?(id: string, updates: { name?: string; cron?: string; prompt?: string; enabled?: boolean }): Promise<{ ok: boolean; error?: string }>;
+
+  /**
+   * Get execution history for an automation.
+   */
+  getAutomationHistory?(id: string, limit?: number): Promise<Array<{ ts: number; ok: boolean; prompt?: string; error?: string }>>;
+
+  // ============================================================
   // Session Paths (for transform_data / render_template)
   // ============================================================
 

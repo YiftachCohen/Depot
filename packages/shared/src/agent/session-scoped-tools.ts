@@ -284,6 +284,7 @@ export function getSessionScopedTools(
   workspaceId?: string,
   skillSlug?: string,
   projectRoot?: string,
+  automationSystem?: import('../automations/automation-system.ts').AutomationSystem,
 ): ReturnType<typeof createSdkMcpServer> {
   const cacheKey = `${sessionId}::${workspaceRootPath}`;
 
@@ -312,6 +313,7 @@ export function getSessionScopedTools(
         const callbacks = getSessionScopedToolCallbacks(sessionId);
         callbacks?.onKnowledgeChanged?.(slug);
       },
+      automationSystem,
     });
 
     // Helper to create a tool from the canonical registry.
@@ -329,8 +331,9 @@ export function getSessionScopedTools(
     // Ensure backend-mode tool wiring is in sync with core metadata.
     assertClaudeBackendSessionToolParity();
 
-    // Check if this skill has knowledge enabled
+    // Check if this skill has knowledge enabled, and enable automation tools for skill-bound sessions
     let includeKnowledgeTools = false;
+    const includeAutomationTools = !!skillSlug;
     if (skillSlug) {
       const skill = loadSkillBySlug(workspaceRootPath, skillSlug, projectRoot);
       includeKnowledgeTools = skill?.manifest?.knowledge?.enabled === true;
@@ -338,7 +341,7 @@ export function getSessionScopedTools(
 
     // Create tools from the canonical registry — all tools with handlers.
     // Tool visibility is centrally filtered in session-tools-core to avoid backend drift.
-    tools = getSessionToolDefs({ includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback, includeKnowledgeTools })
+    tools = getSessionToolDefs({ includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback, includeKnowledgeTools, includeAutomationTools })
       .filter(def => def.handler !== null) // Skip backend-specific tools (call_llm)
       .map(def => registryTool(def.name, def.inputSchema.shape));
 
