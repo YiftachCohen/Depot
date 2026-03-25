@@ -9,15 +9,17 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import { Plus, Settings2, Search, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid } from 'lucide-react'
+import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2, Brain, Copy, MoreHorizontal, Database, Play, Check, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { TeamHealthBar } from './dashboard/TeamHealthBar'
-import { AgentGrid } from './dashboard/AgentGrid'
-import { ActivityFeed } from './dashboard/ActivityFeed'
-import { AgentDetailView } from './dashboard/AgentDetailView'
+import { getCommandIcon, ICON_NAME_MAP, resolveIconComponent } from '@/lib/command-icon'
+import { useEntityIcon } from '@/lib/icon-cache'
+import { InlineSvg } from '@/lib/inline-svg'
 import { skillsAtom } from '@/atoms/skills'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
 import { automationsAtom } from '@/atoms/automations'
+import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { PanelHeader } from './PanelHeader'
@@ -28,8 +30,13 @@ import { cn } from '@/lib/utils'
 import { isAgent } from '../../../shared/types'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../shared/types'
 import { TemplateVariableModal } from './TemplateVariableModal'
+import { AgentDetailView } from './dashboard/AgentDetailView'
 import { AgentTemplateBrowser } from './AgentTemplateBrowser'
+import { AgentMemoryPanel } from './AgentMemoryPanel'
+import { KnowledgeBrowserPanel } from './KnowledgeBrowserPanel'
 import type { AgentTemplate } from '../../../shared/types'
+import { type AutomationListItem, type ExecutionEntry, type PromptAction } from '../automations/types'
+import { computeNextRuns, formatShortRelativeTime } from '../automations/utils'
 
 // ---------------------------------------------------------------------------
 // Skill Creator Prompt
@@ -106,10 +113,31 @@ Choose an appropriate icon, write a clear description, and create 2-4 useful qui
 }
 
 // ---------------------------------------------------------------------------
-// Helpers — canonical definitions in dashboard/utils.tsx
+// Helpers
 // ---------------------------------------------------------------------------
-import { getActivityStatus } from './dashboard/utils'
-import type { SkillSessionStats } from './dashboard/utils'
+const ACCENT_PALETTE = ['#D97706','#16A34A','#2563EB','#DC2626','#0D9488','#CA8A04','#7C3AED','#BE185D']
+
+export function getAccentColor(slug: string): string {
+  let hash = 0
+  for (let i = 0; i < slug.length; i++) hash = ((hash << 5) - hash + slug.charCodeAt(i)) | 0
+  return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length]
+}
+function getActivityStatus(lastUsedAt?: number): 'active' | 'recent' | 'idle' {
+  if (!lastUsedAt) return 'idle'
+  const diff = Date.now() - lastUsedAt
+  return diff < 3600_000 ? 'active' : diff < 86400_000 ? 'recent' : 'idle'
+}
+export function formatRelativeTime(epochMs: number): string {
+  const diff = Date.now() - epochMs
+  const s = Math.floor(diff / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return d < 30 ? `${d}d ago` : `${Math.floor(d / 30)}mo ago`
+}
 // Dynamic greeting pool — each entry has [withName, withoutName] variants
 type TimeBucket = 'morning' | 'afternoon' | 'evening' | 'latenight' | 'any'
 const GREETINGS: [TimeBucket, string, string][] = [
@@ -162,10 +190,73 @@ const fadeIn: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
 }
 
+// Shared class strings — command chips (minimal style)
+const OBSERVATION_HEALTH_DOT: Record<string, string> = {
+  green: 'bg-[#16A34A]',
+  yellow: 'bg-[#EAB308]',
+  red: 'bg-[#DC2626]',
+  gray: 'bg-foreground/20',
+}
+
+const CMD_CHIP = cn(
+  'inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/80 cursor-pointer',
+  'rounded-md px-1.5 py-0.5 -mx-0.5',
+  'hover:bg-foreground/[0.05] hover:text-foreground/80 transition-colors',
+)
+const FOCUSED_CMD_CHIP = cn(
+  'inline-flex items-center gap-1.5 text-[13px] text-foreground/70 cursor-pointer',
+  'rounded-lg px-3 py-1.5',
+  'border border-border/60 bg-foreground/[0.02]',
+  'hover:bg-foreground/[0.06] hover:border-foreground/20 hover:text-foreground/80 transition-colors',
+)
+const PATH_BADGE = cn(
+  'inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/70',
+  'rounded-md px-1.5 py-0.5 group/path',
+  'hover:text-muted-foreground/70 transition-colors',
+)
 const INPUT_CLS = cn(
   'w-full h-8 px-3 text-sm rounded-md bg-background border border-border/60',
   'placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring',
 )
+
+interface SkillSessionStats { sessionCount: number; lastUsedAt?: number }
+const ACTIVITY_DOT: Record<string, string> = { active: 'bg-success', recent: 'bg-info', idle: 'bg-foreground/20' }
+
+// Accent-tinted agent avatar for the dashboard list
+function AgentIcon({ skill, accent, workspaceId }: { skill: LoadedSkill; accent: string; workspaceId: string }) {
+  const icon = useEntityIcon({
+    workspaceId,
+    entityType: 'skill',
+    identifier: skill.slug,
+    iconPath: skill.iconPath,
+    iconValue: skill.metadata.icon,
+  })
+  const FallbackIcon = useMemo(
+    () => resolveIconComponent(skill.manifest?.icon, skill.metadata.name),
+    [skill.manifest?.icon, skill.metadata.name],
+  )
+
+  return (
+    <div
+      className="flex items-center justify-center h-9 w-9 rounded-xl shrink-0"
+      style={{ backgroundColor: `${accent}14` }}
+    >
+      {icon.kind === 'emoji' ? (
+        <span className="text-base leading-none">{icon.value}</span>
+      ) : icon.kind === 'file' && icon.colorable && icon.rawSvg ? (
+        <span className="[&>svg]:h-[18px] [&>svg]:w-[18px]" style={{ color: accent }}>
+          <InlineSvg svg={icon.rawSvg} />
+        </span>
+      ) : icon.kind === 'file' ? (
+        <img src={icon.value} alt={skill.metadata.name} className="h-[18px] w-[18px] rounded" />
+      ) : (
+        <span style={{ color: accent }}>
+          <FallbackIcon className="h-[18px] w-[18px]" />
+        </span>
+      )}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // SkillDashboard
@@ -174,7 +265,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const skills = useAtomValue(skillsAtom)
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
   const allAutomations = useAtomValue(automationsAtom)
-  const { activeWorkspaceId, onCreateSession, onSendMessage, onEnabledSkillSlugsChange, onTestAutomation, getAutomationHistory } = useAppShellContext()
+  const { activeWorkspaceId, onCreateSession, onSendMessage, onEnabledSkillSlugsChange, onTestAutomation, onToggleAutomation, onDeleteAutomation, getAutomationHistory } = useAppShellContext()
   const [searchQuery, setSearchQuery] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [enabledSlugs, setEnabledSlugs] = useState<string[] | undefined>(undefined)
@@ -186,8 +277,6 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
   const [agentStateMap, setAgentStateMap] = useState<Map<string, import('@depot/shared/skills').AgentState>>(new Map())
   const [knowledgeStatsMap, setKnowledgeStatsMap] = useState<Map<string, { entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: 'green' | 'yellow' | 'red' | 'gray' }>>(new Map())
-  const [observationsToday, setObservationsToday] = useState<number | null>(null)
-  const [statsLoaded, setStatsLoaded] = useState(false)
 
   // Load templates on mount
   useEffect(() => {
@@ -200,17 +289,9 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   // Load agent states for all agent skills + subscribe to changes
   useEffect(() => {
-    setStatsLoaded(false)
-    setAgentStateMap(new Map())
-    setKnowledgeStatsMap(new Map())
-    setObservationsToday(null)
     if (!activeWorkspaceId) return
     const agents = skills.filter(isAgent)
-    if (agents.length === 0) {
-      setStatsLoaded(true)
-      return
-    }
-    let stale = false
+    if (agents.length === 0) return
 
     // Batch-load agent states
     Promise.all(agents.map(async (s) => {
@@ -219,13 +300,11 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
         return [s.slug, state] as const
       } catch { return [s.slug, null] as const }
     })).then((entries) => {
-      if (stale) return
       const map = new Map<string, import('@depot/shared/skills').AgentState>()
       for (const [slug, state] of entries) {
         if (state) map.set(slug, state)
       }
       setAgentStateMap(map)
-      setStatsLoaded(true)
     })
 
     // Batch-load knowledge stats for knowledge-enabled agents
@@ -237,25 +316,11 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           return [s.slug, stats] as const
         } catch { return [s.slug, null] as const }
       })).then((entries) => {
-        if (stale) return
         const map = new Map<string, { entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: 'green' | 'yellow' | 'red' | 'gray' }>()
         for (const [slug, stats] of entries) {
           if (stats) map.set(slug, { ...stats, observationHealth: (stats.observationHealth ?? 'gray') as 'green' | 'yellow' | 'red' | 'gray' })
         }
         setKnowledgeStatsMap(map)
-      })
-
-      // Compute observations today from observation history
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-      const todayMs = todayStart.getTime()
-      Promise.all(knowledgeAgents.map(async (s) => {
-        try {
-          const history = await window.electronAPI.getObservationHistory(activeWorkspaceId, s.slug)
-          return history.filter(h => h.timestamp >= todayMs).length
-        } catch { return 0 }
-      })).then((counts) => {
-        if (!stale) setObservationsToday(counts.reduce((a, b) => a + b, 0))
       })
     }
 
@@ -284,7 +349,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
           }).catch(() => {})
       }
     })
-    return () => { stale = true; unsubscribe() }
+    return unsubscribe
   }, [activeWorkspaceId, skills])
 
   const handleCreateFromTemplate = useCallback(async (
@@ -372,35 +437,19 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     return counts
   }, [allAutomations])
 
-  const enabledSkills = useMemo(() => {
-    if (!enabledSlugs) return skills
-    const set = new Set(enabledSlugs)
-    return skills.filter((skill) => set.has(skill.slug))
-  }, [skills, enabledSlugs])
-
-  const enabledAgents = useMemo(() => enabledSkills.filter(isAgent), [enabledSkills])
-
   const filteredSkills = useMemo(() => {
-    const base = enabledSkills
+    let base = skills
+    if (enabledSlugs) {
+      const set = new Set(enabledSlugs)
+      base = skills.filter((s) => set.has(s.slug))
+    }
     if (!searchQuery.trim()) return base
     const q = searchQuery.toLowerCase()
     return base.filter((s) =>
       s.metadata.name.toLowerCase().includes(q) || s.metadata.description.toLowerCase().includes(q) || s.slug.toLowerCase().includes(q))
-  }, [enabledSkills, searchQuery])
+  }, [skills, enabledSlugs, searchQuery])
 
   const filteredAgents = useMemo(() => filteredSkills.filter(isAgent), [filteredSkills])
-
-  // Total enabled agents (before search filtering) — used for search visibility
-  const totalAgentCount = enabledAgents.length
-
-  // Sort agents by most recently used
-  const sortedAgents = useMemo(() => {
-    return [...filteredAgents].sort((a, b) => {
-      const aTime = skillStats.get(a.slug)?.lastUsedAt ?? 0
-      const bTime = skillStats.get(b.slug)?.lastUsedAt ?? 0
-      return bTime - aTime || a.slug.localeCompare(b.slug)
-    })
-  }, [filteredAgents, skillStats])
 
   const recentGlobalSessions = useMemo(() =>
     Array.from(sessionMetaMap.values()).filter((m) => m.skillSlug)
@@ -423,7 +472,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       name: cmd.name, skillSlug: skill.slug,
       enabledSourceSlugs: skill.manifest?.sources ?? skill.metadata.requiredSources,
     })
-    if (session?.id && cmd.prompt) onSendMessage(session.id, cmd.prompt, undefined, [skill.slug], undefined, cmd.model)
+    if (session?.id && cmd.prompt) onSendMessage(session.id, cmd.prompt, undefined, [skill.slug])
     if (session?.id) navigate(routes.view.skills(skill.slug, session.id))
   }, [activeWorkspaceId, onCreateSession, onSendMessage])
 
@@ -439,7 +488,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
         toast.error('Failed to create session')
         return
       }
-      if (resolvedPrompt) onSendMessage(session.id, resolvedPrompt, undefined, [skill.slug], undefined, cmd.model)
+      if (resolvedPrompt) onSendMessage(session.id, resolvedPrompt, undefined, [skill.slug])
       setPendingVarCommand(null)
       navigate(routes.view.skills(skill.slug, session.id))
     } catch (err) {
@@ -499,6 +548,14 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   const headerActions = (
     <div className="flex items-center gap-1">
+      <button type="button" onClick={() => setTemplateBrowserOpen(true)} aria-label="Browse Templates"
+        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Browse Templates">
+        <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+      </button>
+      <button type="button" onClick={handleCreateAgentSession} aria-label="Create Agent"
+        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Create Agent">
+        <Plus className="h-4 w-4 text-muted-foreground" />
+      </button>
       <button type="button" onClick={() => setPickerOpen(true)} aria-label="Manage Agents"
         className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Manage Agents">
         <Settings2 className="h-4 w-4 text-muted-foreground" />
@@ -506,33 +563,108 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     </div>
   )
 
-  const ACTION_BTN = cn(
-    'inline-flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground/60',
-    'rounded-md px-2.5 py-1.5',
-    'hover:bg-foreground/[0.05] hover:text-foreground/80 transition-colors cursor-pointer',
-    'focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:outline-none',
-  )
-
-  // --- Team Health Bar metrics (computed before conditional returns) ---
-  const activeCount = useMemo(() => {
-    return enabledAgents.filter(s => getActivityStatus(skillStats.get(s.slug)?.lastUsedAt) === 'active').length
-  }, [enabledAgents, skillStats])
-
-  const totalEntities = useMemo(() => {
-    let total = 0
-    for (const stats of knowledgeStatsMap.values()) total += stats.entityCount
-    return total
-  }, [knowledgeStatsMap])
-
-  const isStatsLoading = enabledAgents.length > 0 && !statsLoaded
-
-  const enabledSlugsSet = useMemo(() => new Set(enabledAgents.map(s => s.slug)), [enabledAgents])
-  const filteredRecentSessions = useMemo(() =>
-    recentGlobalSessions.filter(s => s.skillSlug && enabledSlugsSet.has(s.skillSlug)),
-  [recentGlobalSessions, enabledSlugsSet])
+  const gridCls = 'space-y-0 divide-y divide-border/30'
 
   // --- Focused Agent View ---
   const focusedSkill = focusedSkillSlug ? skills.find(s => s.slug === focusedSkillSlug) : null
+  const [iconOverride, setIconOverride] = useState<string | undefined>(undefined)
+  const [showIconPicker, setShowIconPicker] = useState(false)
+  const [focusedPaths, setFocusedPaths] = useState<string[]>([])
+  const [addingPath, setAddingPath] = useState(false)
+  const [newPathValue, setNewPathValue] = useState('')
+  const [savingPath, setSavingPath] = useState(false)
+  const latestManifestRef = React.useRef<DepotSkillManifest | null>(null)
+  // Reset override when focused skill changes (file watcher catches up)
+  // Skip sync if user is mid-edit to avoid clobbering in-flight changes
+  useEffect(() => { if (!showIconPicker) { setIconOverride(undefined) } }, [focusedSkill?.manifest?.icon])
+  useEffect(() => { if (!addingPath) { setFocusedPaths(focusedSkill?.manifest?.project_paths ?? []) } }, [focusedSkill?.manifest?.project_paths])
+  useEffect(() => { latestManifestRef.current = focusedSkill?.manifest ?? null }, [focusedSkill?.slug, focusedSkill?.manifest])
+
+  const iconEntries = useMemo(() => Object.entries(ICON_NAME_MAP), [])
+
+  const saveFocusedManifest = useCallback(async (updates: Partial<DepotSkillManifest>): Promise<boolean> => {
+    if (!focusedSkill?.manifest || !activeWorkspaceId) return false
+    setSavingPath(true)
+    try {
+      const baseManifest = latestManifestRef.current ?? focusedSkill.manifest
+      const updated: DepotSkillManifest = { ...baseManifest, ...updates }
+      await window.electronAPI.promoteSkillToAgent(activeWorkspaceId, focusedSkill.slug, updated)
+      latestManifestRef.current = updated
+      return true
+    } catch (err) {
+      toast.error('Failed to save', { description: err instanceof Error ? err.message : 'Unknown error' })
+      return false
+    } finally { setSavingPath(false) }
+  }, [focusedSkill, activeWorkspaceId])
+
+  const handleFocusedIconSelect = useCallback(async (iconName: string) => {
+    const previousIcon = iconOverride
+    setIconOverride(iconName)
+    setShowIconPicker(false)
+    const saved = await saveFocusedManifest({ icon: iconName })
+    if (!saved) setIconOverride(previousIcon)
+  }, [iconOverride, saveFocusedManifest])
+
+  const handleAddPath = useCallback(async () => {
+    const trimmed = newPathValue.trim()
+    if (!trimmed || focusedPaths.includes(trimmed)) return
+    const updated = [...focusedPaths, trimmed]
+    const saved = await saveFocusedManifest({ project_paths: updated })
+    if (!saved) return
+    setFocusedPaths(updated)
+    setNewPathValue('')
+    setAddingPath(false)
+  }, [newPathValue, focusedPaths, saveFocusedManifest])
+
+  const handleRemovePath = useCallback(async (index: number) => {
+    const updated = focusedPaths.filter((_, i) => i !== index)
+    const saved = await saveFocusedManifest({ project_paths: updated.length > 0 ? updated : undefined })
+    if (!saved) return
+    setFocusedPaths(updated)
+  }, [focusedPaths, saveFocusedManifest])
+
+  const handleImproveAgent = useCallback(async () => {
+    if (!activeWorkspaceId || !focusedSkill) return
+    const session = await onCreateSession(activeWorkspaceId, {
+      name: `Improve ${focusedSkill.metadata.name}`,
+      skillSlug: focusedSkill.slug,
+    })
+    if (session?.id) {
+      const prompt = `I want to improve the "${focusedSkill.metadata.name}" agent. Its SKILL.md is at: ${focusedSkill.path}/SKILL.md\n\nPlease read it, then help me refine it — better instructions, more useful quick commands, clearer description. Show me what you'd change and why.`
+      onSendMessage(session.id, prompt, undefined, [focusedSkill.slug])
+      navigate(routes.view.skills(focusedSkill.slug, session.id))
+    }
+  }, [activeWorkspaceId, focusedSkill, onCreateSession, onSendMessage])
+
+  // Delete focused agent
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+
+  const handleDeleteFocusedAgent = useCallback(async () => {
+    if (!activeWorkspaceId || !focusedSkill) return
+    setDeleteDialogOpen(false)
+    try {
+      await window.electronAPI.deleteSkill(activeWorkspaceId, focusedSkill.slug)
+      toast.success(`Deleted: ${focusedSkill.metadata.name}`)
+      navigate(routes.view.skills())
+    } catch (err) {
+      toast.error('Failed to delete', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+    }
+  }, [activeWorkspaceId, focusedSkill])
+
+  const handleDemoteFocusedAgent = useCallback(async () => {
+    if (!activeWorkspaceId || !focusedSkill) return
+    setDeleteDialogOpen(false)
+    try {
+      await window.electronAPI.demoteAgent(activeWorkspaceId, focusedSkill.slug)
+      toast.success(`Removed agent configuration: ${focusedSkill.metadata.name}`)
+    } catch (err) {
+      toast.error('Failed to remove agent configuration', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+    }
+  }, [activeWorkspaceId, focusedSkill])
 
   const handleAgentStateRefresh = useCallback((slug: string) => {
     if (!activeWorkspaceId) return
@@ -568,116 +700,206 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     )
   }
 
-  // --- Main Agents Dashboard (Team Overview) ---
-  const hasAgents = sortedAgents.length > 0
-
+  // --- Main Agents Dashboard (mission control) ---
   return (
     <div className="flex flex-col h-full">
       <PanelHeader title="Agents" actions={headerActions} />
       <Separator />
       <ScrollArea className="flex-1">
-        <div className="px-8 py-6 max-w-[960px] mx-auto space-y-6">
-
-          {/* Team Health Bar + Actions row — stays visible during search */}
-          {totalAgentCount > 0 && (
-            <div className="flex items-center justify-between gap-4">
-              <TeamHealthBar
-                agentCount={totalAgentCount}
-                activeCount={activeCount}
-                observationsToday={observationsToday}
-                totalEntities={totalEntities}
-                isLoading={isStatsLoading}
-              />
-              <div className="flex items-center gap-0.5 shrink-0">
-                <button type="button" onClick={() => setTemplateBrowserOpen(true)} className={ACTION_BTN}>
-                  <LayoutGrid className="h-3.5 w-3.5" />Templates
-                </button>
-                <button type="button" onClick={handleCreateAgentSession} className={ACTION_BTN}>
-                  <Sparkles className="h-3.5 w-3.5" />Create
-                </button>
-                <button type="button" onClick={() => setPickerOpen(true)} className={ACTION_BTN}>
-                  <Plus className="h-3.5 w-3.5" />Add
-                </button>
-              </div>
+        <div className="px-8 py-6 max-w-[640px] mx-auto space-y-6">
+          {/* Greeting + Search */}
+          <motion.div variants={fadeIn} initial="hidden" animate="visible" className="space-y-2.5">
+            <div className="flex items-baseline justify-between mb-6">
+              <h2 className="text-2xl tracking-tight text-foreground" style={{ fontFamily: 'ui-serif, Georgia, "Times New Roman", serif', fontWeight: 500 }}>
+                {getDynamicGreeting(userName || undefined)}
+              </h2>
+              <button type="button" onClick={() => navigate(routes.action.newSession())}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 decoration-foreground/20 hover:decoration-foreground/40 cursor-pointer">
+                + New Chat
+              </button>
             </div>
-          )}
-
-          {/* Search — only when more than 2 agents (uses pre-filter count so it stays visible during search) */}
-          {totalAgentCount > 2 && (
-            <motion.div variants={fadeIn} initial="hidden" animate="visible">
+            {filteredAgents.length > 2 && (
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
                 <input type="text" placeholder="Search agents..." value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)} className={cn(INPUT_CLS, 'pl-9')} />
               </div>
+            )}
+          </motion.div>
+
+          {/* Agent list */}
+          {filteredAgents.length > 0 && (
+            <motion.div className={gridCls} variants={containerVariants} initial="hidden" animate="visible">
+              {filteredAgents.map((skill) => {
+                const cmds = skill.manifest?.quick_commands ?? []
+                const stats = skillStats.get(skill.slug)
+                const count = stats?.sessionCount ?? 0
+                const activity = getActivityStatus(stats?.lastUsedAt)
+                const accent = getAccentColor(skill.slug)
+                return (
+                  <motion.div key={skill.slug} variants={itemVariants}
+                    className="group py-4 first:pt-0">
+                    <div className="flex items-start gap-3.5">
+                      <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className="shrink-0 mt-0.5 cursor-pointer">
+                        <AgentIcon skill={skill} accent={accent} workspaceId={activeWorkspaceId ?? ''} />
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))}
+                            className="flex items-center gap-2 text-left rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer group/title">
+                            <span className="text-[13px] font-display truncate">
+                              {skill.metadata.name}
+                            </span>
+                            <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
+                          </button>
+                          <div className="shrink-0 flex items-center gap-1.5 text-[10px] text-muted-foreground/55">
+                            {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
+                            {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
+                            {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
+                            {(() => {
+                              const factCount = agentStateMap.get(skill.slug)?.memory?.facts?.length ?? 0
+                              if (factCount === 0) return null
+                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Brain className="h-2.5 w-2.5" />{factCount}</span></>
+                            })()}
+                            {(() => {
+                              const kStats = knowledgeStatsMap.get(skill.slug)
+                              if (!kStats) return null
+                              const healthColor = kStats.observationHealth ?? 'gray'
+                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><span className={cn('inline-block h-1.5 w-1.5 rounded-full', OBSERVATION_HEALTH_DOT[healthColor])} /><Database className="h-2.5 w-2.5" />{kStats.entityCount}</span></>
+                            })()}
+                            {(() => {
+                              const autoCount = skillAutomationCounts.get(skill.slug) ?? 0
+                              if (autoCount === 0) return null
+                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Zap className="h-2.5 w-2.5" />{autoCount}</span></>
+                            })()}
+                          </div>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground/70 line-clamp-1 mt-0.5">{skill.metadata.description}</p>
+                        <div className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 mt-2">
+                          {cmds.slice(0, 4).map((cmd) => (
+                            <button key={cmd.name} type="button" onClick={() => handleQuickCommand(skill, cmd)} className={CMD_CHIP}>
+                              {getCommandIcon(cmd.name, 'h-3 w-3 opacity-70', cmd.icon)}{cmd.name}
+                            </button>
+                          ))}
+                          {cmds.length > 4 && (
+                            <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className={cn(CMD_CHIP, 'text-muted-foreground/60')}>
+                              +{cmds.length - 4} more
+                            </button>
+                          )}
+                          <button type="button" onClick={() => handleSkillClick(skill)} className={cn(CMD_CHIP, 'text-muted-foreground/60')}>
+                            <Plus className="h-3 w-3 opacity-70" />New Chat
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+              {/* Add Agent — last item in the list */}
+              <motion.div variants={itemVariants} className="py-3">
+                <button type="button" onClick={() => setPickerOpen(true)}
+                  className="flex items-center gap-3 rounded-md -mx-1.5 px-1.5 py-1.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer">
+                  <div className="shrink-0 flex items-center justify-center h-7 w-7 rounded-md border border-dashed border-foreground/[0.12]">
+                    <Plus className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  </div>
+                  <span className="text-[12px] text-muted-foreground/70">Add Agent</span>
+                </button>
+              </motion.div>
             </motion.div>
           )}
 
-          {/* Agent Grid */}
-          {(hasAgents || searchQuery.trim()) && (
-            <AgentGrid
-              agents={sortedAgents}
-              activeWorkspaceId={activeWorkspaceId ?? ''}
-              skillStats={skillStats}
-              agentStateMap={agentStateMap}
-              knowledgeStatsMap={knowledgeStatsMap}
-              skillAutomationCounts={skillAutomationCounts}
-              isStatsLoading={isStatsLoading}
-              searchQuery={searchQuery}
-              onNavigateToAgent={(slug) => navigate(routes.view.skills(slug))}
-              onQuickCommand={handleQuickCommand}
-              onNewChat={handleSkillClick}
-              onAddAgent={() => setPickerOpen(true)}
-            />
-          )}
-
           {/* Empty state — no agents configured */}
-          {filteredSkills.length === 0 && skills.length === 0 && !searchQuery.trim() && (
-            <motion.div variants={containerVariants} initial="hidden" animate="visible" className="py-8 space-y-8">
-              <motion.div variants={fadeIn} className="space-y-3">
-                <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-foreground/[0.04] border border-border/40">
+          {filteredSkills.length === 0 && skills.length === 0 && (
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="py-8 space-y-8"
+            >
+              {/* Hero section */}
+              <motion.div variants={fadeIn} className="text-center space-y-3">
+                <div className="flex items-center justify-center mx-auto h-14 w-14 rounded-2xl bg-foreground/[0.04] border border-border/40">
                   <Bot className="h-7 w-7 text-muted-foreground/60" />
                 </div>
                 <div className="space-y-1.5">
                   <h3 className="text-base font-medium text-foreground">Set up your first agent</h3>
-                  <p className="text-[13px] text-muted-foreground/60 max-w-[360px] leading-relaxed">
+                  <p className="text-[13px] text-muted-foreground/60 max-w-[360px] mx-auto leading-relaxed">
                     Agents are reusable instructions that give your AI specialized skills — like code review, writing docs, or debugging.
                   </p>
                 </div>
               </motion.div>
+
+              {/* Action cards */}
               <motion.div variants={itemVariants} className="space-y-2">
-                <button type="button" onClick={() => setPickerOpen(true)}
-                  className="w-full flex items-center gap-3.5 rounded-[10px] border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card">
-                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0"><Plus className="h-4.5 w-4.5 text-muted-foreground/70" /></div>
-                  <div className="flex-1 min-w-0"><span className="text-[13px] font-medium text-foreground">Browse agents</span><p className="text-[11px] text-muted-foreground/50 mt-0.5">Pick from agents already installed on your machine</p></div>
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="w-full flex items-center gap-3.5 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card"
+                >
+                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0">
+                    <Plus className="h-4.5 w-4.5 text-muted-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[13px] font-medium text-foreground">Browse agents</span>
+                    <p className="text-[11px] text-muted-foreground/50 mt-0.5">Pick from agents already installed on your machine</p>
+                  </div>
                   <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/card:text-muted-foreground/60 transition-colors shrink-0" />
                 </button>
-                <button type="button" onClick={() => setTemplateBrowserOpen(true)}
-                  className="w-full flex items-center gap-3.5 rounded-[10px] border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card">
-                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0"><LayoutGrid className="h-4.5 w-4.5 text-muted-foreground/70" /></div>
-                  <div className="flex-1 min-w-0"><span className="text-[13px] font-medium text-foreground">Start from a template</span><p className="text-[11px] text-muted-foreground/50 mt-0.5">Pick from curated agent templates and customize them</p></div>
+
+                <button
+                  type="button"
+                  onClick={() => setTemplateBrowserOpen(true)}
+                  className="w-full flex items-center gap-3.5 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card"
+                >
+                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0">
+                    <LayoutGrid className="h-4.5 w-4.5 text-muted-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[13px] font-medium text-foreground">Start from a template</span>
+                    <p className="text-[11px] text-muted-foreground/50 mt-0.5">Pick from curated agent templates and customize them</p>
+                  </div>
                   <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/card:text-muted-foreground/60 transition-colors shrink-0" />
                 </button>
-                <button type="button" onClick={handleCreateAgentSession}
-                  className="w-full flex items-center gap-3.5 rounded-[10px] border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card">
-                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0"><Sparkles className="h-4.5 w-4.5 text-muted-foreground/70" /></div>
-                  <div className="flex-1 min-w-0"><span className="text-[13px] font-medium text-foreground">Create a new agent</span><p className="text-[11px] text-muted-foreground/50 mt-0.5">Describe what you need and AI will build it for you</p></div>
+
+                <button
+                  type="button"
+                  onClick={handleCreateAgentSession}
+                  className="w-full flex items-center gap-3.5 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card"
+                >
+                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0">
+                    <Sparkles className="h-4.5 w-4.5 text-muted-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[13px] font-medium text-foreground">Create a new agent</span>
+                    <p className="text-[11px] text-muted-foreground/50 mt-0.5">Describe what you need and AI will build it for you</p>
+                  </div>
                   <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/card:text-muted-foreground/60 transition-colors shrink-0" />
                 </button>
-                <button type="button" onClick={() => navigate(routes.action.newSession())}
-                  className="w-full flex items-center gap-3.5 rounded-[10px] border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card">
-                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0"><MessageSquare className="h-4.5 w-4.5 text-muted-foreground/70" /></div>
-                  <div className="flex-1 min-w-0"><span className="text-[13px] font-medium text-foreground">Just start chatting</span><p className="text-[11px] text-muted-foreground/50 mt-0.5">Skip agents for now and open a free-form session</p></div>
+
+                <button
+                  type="button"
+                  onClick={() => navigate(routes.action.newSession())}
+                  className="w-full flex items-center gap-3.5 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card"
+                >
+                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0">
+                    <MessageSquare className="h-4.5 w-4.5 text-muted-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[13px] font-medium text-foreground">Just start chatting</span>
+                    <p className="text-[11px] text-muted-foreground/50 mt-0.5">Skip agents for now and open a free-form session</p>
+                  </div>
                   <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover/card:text-muted-foreground/60 transition-colors shrink-0" />
                 </button>
               </motion.div>
             </motion.div>
           )}
-
-          {/* No agents enabled (but skills exist) — don't show during active search */}
-          {filteredSkills.length === 0 && skills.length > 0 && !searchQuery.trim() && (
-            <motion.div variants={fadeIn} initial="hidden" animate="visible"
-              className="flex flex-col items-start gap-4 py-14">
+          {filteredSkills.length === 0 && skills.length > 0 && (
+            <motion.div
+              variants={fadeIn}
+              initial="hidden"
+              animate="visible"
+              className="flex flex-col items-center justify-center py-14 gap-4 text-center"
+            >
               <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-foreground/[0.04] border border-border/40">
                 <Settings2 className="h-5 w-5 text-muted-foreground/50" />
               </div>
@@ -701,13 +923,26 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             </motion.div>
           )}
 
-          {/* Activity Feed */}
-          {totalAgentCount > 0 && (
-            <ActivityFeed
-              sessions={filteredRecentSessions}
-              skillMap={skillBySlug}
-              onNavigate={(skillSlug, sessionId) => navigate(routes.view.skills(skillSlug, sessionId))}
-            />
+          {/* Recent Sessions */}
+          {recentGlobalSessions.length > 0 && filteredSkills.length > 0 && (
+            <motion.div variants={fadeIn} initial="hidden" animate="visible" className="pt-4">
+              <div className="border-t border-border/20 pt-4 mb-2" />
+              <h3 className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Recent</h3>
+              <div className="space-y-0">
+                {recentGlobalSessions.map((session) => {
+                  const sk = session.skillSlug ? skillBySlug.get(session.skillSlug) : null
+                  return (
+                    <button key={session.id} type="button"
+                      onClick={() => { if (session.skillSlug) navigate(routes.view.skills(session.skillSlug, session.id)) }}
+                      className="w-full flex items-center gap-3 px-0 py-1.5 text-left hover:text-foreground transition-colors cursor-pointer group/recent">
+                      {sk && <span className="shrink-0 text-[10px] text-muted-foreground/60 w-20 truncate">{sk.metadata.name}</span>}
+                      <span className="flex-1 min-w-0 text-[13px] text-foreground/80 truncate group-hover/recent:text-foreground transition-colors">{session.name || 'Untitled'}</span>
+                      {session.lastMessageAt && <span className="shrink-0 text-[10px] text-muted-foreground/50">{formatRelativeTime(session.lastMessageAt)}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </motion.div>
           )}
         </div>
       </ScrollArea>
@@ -732,5 +967,287 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
         onSubmit={handleVariableSubmit}
       />
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// AgentAutomationsSection — enhanced automation cards for the agent page
+// ---------------------------------------------------------------------------
+
+const STATUS_ICON: Record<string, { icon: typeof Check; cls: string }> = {
+  success: { icon: Check, cls: 'text-green-600' },
+  error: { icon: XCircle, cls: 'text-red-600' },
+  blocked: { icon: AlertTriangle, cls: 'text-yellow-600' },
+}
+
+interface AgentAutomationsSectionProps {
+  skillSlug: string
+  skillPath: string
+  automations: AutomationListItem[]
+  onTest?: (automationId: string) => void
+  onToggle?: (automationId: string) => void
+  onDelete?: (automationId: string) => void
+  getHistory?: (automationId: string) => Promise<ExecutionEntry[]>
+}
+
+function AgentAutomationsSection({
+  skillSlug,
+  skillPath,
+  automations,
+  onTest,
+  onToggle,
+  onDelete,
+  getHistory,
+}: AgentAutomationsSectionProps) {
+  const [historyMap, setHistoryMap] = useState<Record<string, ExecutionEntry[]>>({})
+  const [runningIds, setRunningIds] = useState<Set<string>>(new Set())
+
+  // Filter automations: skill-sourced + workspace automations that @mention this agent
+  const agentAutomations = useMemo(() => {
+    return automations.filter(a => {
+      // Skill-sourced automations belonging to this agent
+      if (a.skillSlug === skillSlug) return true
+      // Workspace automations that @mention this agent in a prompt action
+      if (a.source !== 'skill' && !a.skillSlug) {
+        return a.actions.some(action => {
+          if (action.type !== 'prompt') return false
+          const prompt = (action as PromptAction).prompt
+          const idx = prompt.indexOf(`@${skillSlug}`)
+          if (idx === -1) return false
+          const after = prompt[idx + skillSlug.length + 1]
+          return after === undefined || /\W/.test(after)
+        })
+      }
+      return false
+    })
+  }, [automations, skillSlug])
+
+  // Fetch execution history for each automation
+  // Uses a stable key to avoid double-fetching when atom identity changes
+  const autoIds = agentAutomations.map(a => a.id).join(',')
+  useEffect(() => {
+    if (!getHistory || agentAutomations.length === 0) return
+    let stale = false
+
+    const fetchAll = async () => {
+      const results = await Promise.allSettled(
+        agentAutomations.map(async (auto) => {
+          const history = await getHistory(auto.id)
+          return { id: auto.id, entries: history.slice(0, 2) }
+        }),
+      )
+      if (stale) return
+      const entries: Record<string, ExecutionEntry[]> = {}
+      for (const r of results) {
+        if (r.status === 'fulfilled') entries[r.value.id] = r.value.entries
+        else if (r.status === 'rejected') { /* graceful degradation — card renders without history */ }
+      }
+      setHistoryMap(entries)
+    }
+
+    fetchAll()
+
+    // Re-fetch when automations execute (event fires on toggle/test/execution)
+    const cleanup = window.electronAPI.onAutomationsChanged?.(() => {
+      if (!stale) fetchAll()
+    })
+
+    return () => {
+      stale = true
+      cleanup?.()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoIds, getHistory])
+
+  const handleRun = useCallback((automationId: string, name: string) => {
+    if (!onTest || runningIds.has(automationId)) return
+    setRunningIds(prev => new Set(prev).add(automationId))
+    try {
+      onTest(automationId)
+      toast(`Running: ${name}`, { description: 'Automation triggered' })
+    } catch {
+      toast.error(`Failed to trigger: ${name}`)
+    }
+    // Clear running state after a delay
+    setTimeout(() => {
+      setRunningIds(prev => {
+        const next = new Set(prev)
+        next.delete(automationId)
+        return next
+      })
+    }, 3000)
+  }, [onTest, runningIds])
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-2.5">
+        <h3 className="text-[11px] font-medium text-foreground/40 uppercase tracking-widest">
+          Automations{agentAutomations.length > 0 && ` (${agentAutomations.length})`}
+        </h3>
+        <EditPopover
+          trigger={
+            <button type="button" className="inline-flex items-center gap-1 text-[11px] text-foreground/40 hover:text-foreground/70 transition-colors cursor-pointer">
+              <Plus className="h-3 w-3" />Add
+            </button>
+          }
+          {...getEditConfig('skill-automation', skillPath)}
+        />
+      </div>
+
+      {agentAutomations.length === 0 ? (
+        <div className="flex items-center gap-2 text-[11px] text-foreground/30 italic">
+          <Zap className="h-3.5 w-3.5 text-foreground/15" />
+          No automations configured for this agent.
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {agentAutomations.map((auto) => {
+            const entries = historyMap[auto.id] ?? []
+            const isWorkspace = auto.source !== 'skill' && !auto.skillSlug
+            const isRunning = runningIds.has(auto.id)
+            const nextRuns = auto.cron ? computeNextRuns(auto.cron, 1) : []
+            const nextRun = nextRuns[0]
+
+            return (
+              <div key={auto.id} className="group">
+                {/* Main automation row — div+role to avoid nested <button> */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(routes.view.automations({ automationId: auto.id }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(routes.view.automations({ automationId: auto.id })) } }}
+                  aria-label={`View ${auto.name} automation`}
+                  className="w-full flex items-center gap-2 text-[12px] text-left rounded-md -mx-1 px-1 py-1 hover:bg-foreground/[0.03] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
+                >
+                  <span className={cn('min-w-0 truncate font-medium', !auto.enabled && 'text-foreground/40')}>
+                    {auto.name}
+                  </span>
+
+                  {/* Status tag */}
+                  {!auto.enabled ? (
+                    <span className="shrink-0 text-[9px] text-stone-500 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded-full leading-none">
+                      disabled
+                    </span>
+                  ) : isRunning ? (
+                    <span className="shrink-0 text-[9px] text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full leading-none">
+                      running
+                    </span>
+                  ) : null}
+
+                  {/* Last run */}
+                  {auto.lastExecutedAt && (
+                    <span className="shrink-0 text-[10px] text-foreground/30">
+                      {formatShortRelativeTime(auto.lastExecutedAt)}
+                    </span>
+                  )}
+
+                  {/* Next run */}
+                  {nextRun && (
+                    <span className="shrink-0 text-[10px] text-foreground/20">
+                      → {nextRun.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </span>
+                  )}
+
+                  {/* Spacer to push action buttons right */}
+                  <span className="flex-1" />
+
+                  {/* Action buttons — appear on hover */}
+                  <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    {/* Run */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRun(auto.id, auto.name)
+                      }}
+                      disabled={isRunning}
+                      aria-label={`Run ${auto.name}`}
+                      className="p-0.5 rounded hover:bg-foreground/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50 disabled:opacity-50"
+                    >
+                      {isRunning
+                        ? <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
+                        : <Play className="h-3 w-3 text-foreground/40" />
+                      }
+                    </button>
+
+                    {/* Toggle enabled/disabled */}
+                    {onToggle && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onToggle(auto.id)
+                        }}
+                        aria-label={auto.enabled ? `Disable ${auto.name}` : `Enable ${auto.name}`}
+                        title={auto.enabled ? 'Disable' : 'Enable'}
+                        className="p-0.5 rounded hover:bg-foreground/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
+                      >
+                        <Zap className={cn('h-3 w-3', auto.enabled ? 'text-amber-500' : 'text-foreground/25')} />
+                      </button>
+                    )}
+
+                    {/* Delete */}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDelete(auto.id)
+                        }}
+                        aria-label={`Delete ${auto.name}`}
+                        title="Delete"
+                        className="p-0.5 rounded hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/50"
+                      >
+                        <Trash2 className="h-3 w-3 text-foreground/30 hover:text-destructive" />
+                      </button>
+                    )}
+                  </span>
+                </div>
+
+                {/* Inline execution history */}
+                {entries.length > 0 && (
+                  <div className="ml-5 mt-0.5 space-y-0.5">
+                    {entries.map((entry) => {
+                      const statusCfg = STATUS_ICON[entry.status] ?? STATUS_ICON.error
+                      const StatusIcon = statusCfg.icon
+                      return (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          onClick={() => {
+                            if (entry.sessionId) {
+                              navigate(routes.view.skills(skillSlug, entry.sessionId))
+                            }
+                          }}
+                          disabled={!entry.sessionId}
+                          className={cn(
+                            'flex items-center gap-1.5 text-[11px] w-full text-left rounded py-0.5 px-1 -mx-1',
+                            entry.sessionId && 'hover:bg-foreground/[0.03] cursor-pointer',
+                            !entry.sessionId && 'cursor-default',
+                            'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50',
+                          )}
+                          aria-label={entry.sessionId ? `Open session for ${auto.name} execution` : undefined}
+                        >
+                          <StatusIcon className={cn('h-2.5 w-2.5 shrink-0', statusCfg.cls)} />
+                          <span className="text-foreground/35">{formatShortRelativeTime(entry.timestamp)}</span>
+                          {entry.actionSummary && (
+                            <span className={cn(
+                              'flex-1 min-w-0 truncate',
+                              entry.status === 'error' ? 'text-red-500/70' : 'text-foreground/25',
+                            )}>
+                              {entry.actionSummary.length > 50 ? entry.actionSummary.slice(0, 50) + '…' : entry.actionSummary}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </>
   )
 }
