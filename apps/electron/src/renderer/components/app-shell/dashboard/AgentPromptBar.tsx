@@ -68,7 +68,7 @@ export function AgentPromptBar({ skill, onSubmitPrompt, onQuickCommand }: AgentP
     <div className={cn(
       'rounded-xl border bg-background transition-all',
       focused
-        ? 'border-foreground/20 shadow-sm'
+        ? 'border-foreground/20 shadow-minimal'
         : 'border-border/40 hover:border-border/60',
     )}>
       {/* Input row with animated placeholder */}
