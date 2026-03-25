@@ -85,6 +85,8 @@ export interface ObservationRun {
   timestamp: number;
   durationMs: number;
   entitiesAdded: number;
+  /** Number of patterns added during this observation (optional for backward compat) */
+  patternsAdded?: number;
   tokensUsed: number;
   outcome: 'success' | 'failure' | 'partial';
 }

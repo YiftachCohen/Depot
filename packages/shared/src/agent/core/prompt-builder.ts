@@ -112,6 +112,11 @@ export class PromptBuilder {
       parts.push(this.config.agentBriefingContext);
     }
 
+    // Add agent automation context if provided (from automation system)
+    if (this.config.agentAutomationContext) {
+      parts.push(this.config.agentAutomationContext);
+    }
+
     // When knowledge tools are available, instruct the agent to prefer them
     if (this.config.knowledgeEnabled) {
       parts.push(

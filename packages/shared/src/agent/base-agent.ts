@@ -72,6 +72,29 @@ import type { LoadedSkill } from '../skills/types.ts';
 import { findProjectContextFile } from '../prompts/system.ts';
 
 // ============================================================
+// Automation Context Formatting
+// ============================================================
+
+/**
+ * Format automation info for injection into agent system prompt.
+ * Sanitizes names to prevent prompt injection via automation names.
+ */
+function formatAutomationContextForPrompt(
+  automations: Array<{ id: string; name: string; event: string; enabled: boolean; cron?: string; source: string }>
+): string {
+  const lines = automations.map((a, i) => {
+    // Sanitize name: strip XML-like tags, limit length
+    const safeName = a.name.replace(/<[^>]*>/g, '').slice(0, 200);
+    const status = a.enabled ? 'enabled' : 'disabled';
+    const schedule = a.cron ? ` (cron: ${a.cron})` : '';
+    const source = a.source === 'skill' ? 'skill manifest' : 'workspace config';
+    return `${i + 1}. "${safeName}" [${status}]${schedule}\n   Trigger: ${a.event} | Source: ${source} | ID: ${a.id}`;
+  });
+
+  return `<agent_automations>\nYou have the following automations configured:\n\n${lines.join('\n\n')}\n\nYou can manage these using the manage_automations tool (list, enable, disable, status).\n</agent_automations>`;
+}
+
+// ============================================================
 // Mini Agent Configuration
 // ============================================================
 
@@ -329,6 +352,19 @@ export abstract class BaseAgent implements AgentBackend {
       }
     }
 
+    // Build automation context from the automation system
+    let agentAutomationContext: string | undefined;
+    if (this.automationSystem && this.config.session?.skillSlug) {
+      try {
+        const automations = this.automationSystem.getAutomationsForSkill(this.config.session.skillSlug);
+        if (automations.length > 0) {
+          agentAutomationContext = formatAutomationContextForPrompt(automations);
+        }
+      } catch (err) {
+        this.debug(`Automation context build failed: ${err}`);
+      }
+    }
+
     return new PromptBuilder({
       workspace: this.config.workspace,
       session: this.config.session,
@@ -340,6 +376,7 @@ export abstract class BaseAgent implements AgentBackend {
       agentKnowledgeContext,
       agentBriefingContext,
       knowledgeEnabled,
+      agentAutomationContext,
     });
   }
 

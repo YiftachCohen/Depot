@@ -104,6 +104,8 @@ export interface PromptBuilderConfig {
   agentBriefingContext?: string;
   /** Whether this agent has knowledge tools enabled (controls prompt instructions) */
   knowledgeEnabled?: boolean;
+  /** Pre-formatted agent automation context (injected into system prompt) */
+  agentAutomationContext?: string;
 }
 
 /**

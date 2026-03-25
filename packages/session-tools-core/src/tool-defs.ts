@@ -38,6 +38,7 @@ import { handleSaveAgentMemory } from './handlers/save-agent-memory.ts';
 import { handleSaveKnowledge } from './handlers/save-knowledge.ts';
 import { handleQueryKnowledge } from './handlers/query-knowledge.ts';
 import { handleResetKnowledge } from './handlers/reset-knowledge.ts';
+import { handleManageAutomations } from './handlers/manage-automations.ts';
 
 // ============================================================
 // Canonical Zod Schemas
@@ -184,6 +185,17 @@ export const QueryKnowledgeSchema = z.object({
 export const ResetKnowledgeSchema = z.object({
   confirm: z.literal(true).describe('Must be true to confirm the reset'),
   domain: z.string().optional().describe('Only reset a specific domain (omit to reset all)'),
+});
+
+export const ManageAutomationsSchema = z.object({
+  action: z.enum(['list', 'enable', 'disable', 'status', 'edit']).describe('Action to perform'),
+  automation_id: z.string().optional().describe('Automation ID (required for enable/disable/status/edit). Use action "list" to see IDs.'),
+  updates: z.object({
+    name: z.string().optional().describe('New display name'),
+    cron: z.string().optional().describe('New cron schedule (5-field format, e.g. "0 */2 * * *")'),
+    prompt: z.string().optional().describe('New prompt text for prompt actions'),
+    enabled: z.boolean().optional().describe('Enable or disable'),
+  }).optional().describe('Fields to update (required for edit action)'),
 });
 
 // Browser tool schema (single CLI-like tool for all browser actions)
@@ -459,6 +471,18 @@ Use this to recall what you've learned about the domain — entities, their rela
   reset_knowledge: `Reset this agent's knowledge store. Requires confirm: true as a safety gate. Optionally scope to a specific domain to only clear knowledge about that domain.
 
 WARNING: This permanently deletes knowledge. The agent will need to re-learn everything through observation loops and conversations.`,
+
+  manage_automations: `Manage this agent's automations — list, enable, disable, edit, or check status.
+
+**Actions:**
+- \`list\`: Show all automations for this agent (name, schedule, status, last run)
+- \`enable\`: Re-enable a previously disabled automation (requires automation_id)
+- \`disable\`: Disable an automation so it stops running (requires automation_id)
+- \`edit\`: Update an automation's properties (requires automation_id + updates object). Editable fields: name, cron schedule, prompt text, enabled state. Only workspace automations can be edited — skill manifest automations are read-only.
+- \`status\`: Get detailed status and recent execution history (requires automation_id)
+
+Use \`list\` first to discover automation IDs, then use other actions with the ID.
+Skill-sourced automations can be overridden (disabled) without editing the skill manifest.`,
 } as const;
 
 // ============================================================
@@ -521,6 +545,7 @@ export const SESSION_TOOL_DEFS: SessionToolDef[] = [
   { name: 'save_knowledge', description: TOOL_DESCRIPTIONS.save_knowledge, inputSchema: SaveKnowledgeSchema, executionMode: 'registry', safeMode: 'block', handler: handleSaveKnowledge },
   { name: 'query_knowledge', description: TOOL_DESCRIPTIONS.query_knowledge, inputSchema: QueryKnowledgeSchema, executionMode: 'registry', safeMode: 'allow', handler: handleQueryKnowledge },
   { name: 'reset_knowledge', description: TOOL_DESCRIPTIONS.reset_knowledge, inputSchema: ResetKnowledgeSchema, executionMode: 'registry', safeMode: 'block', handler: handleResetKnowledge },
+  { name: 'manage_automations', description: TOOL_DESCRIPTIONS.manage_automations, inputSchema: ManageAutomationsSchema, executionMode: 'registry', safeMode: 'block', handler: handleManageAutomations },
   { name: 'call_llm', description: TOOL_DESCRIPTIONS.call_llm, inputSchema: CallLlmSchema, executionMode: 'backend', safeMode: 'allow', handler: null },
   { name: 'spawn_session', description: TOOL_DESCRIPTIONS.spawn_session, inputSchema: SpawnSessionSchema, executionMode: 'backend', safeMode: 'block', handler: null },
   // Browser tool (backend-specific — requires BrowserPaneManager in Electron)
@@ -533,6 +558,8 @@ export interface SessionToolFilterOptions {
   includeDeveloperFeedback?: boolean;
   /** Include knowledge tools (save_knowledge, query_knowledge, reset_knowledge). Only for knowledge-enabled agents. */
   includeKnowledgeTools?: boolean;
+  /** Include automation management tool (manage_automations). Only for skill-bound sessions. */
+  includeAutomationTools?: boolean;
 }
 
 /**
@@ -545,6 +572,7 @@ export function getSessionToolDefs(options?: SessionToolFilterOptions): SessionT
   const includeDeveloperFeedback = options?.includeDeveloperFeedback ?? true;
 
   const includeKnowledgeTools = options?.includeKnowledgeTools ?? false;
+  const includeAutomationTools = options?.includeAutomationTools ?? false;
   const KNOWLEDGE_TOOL_NAMES = new Set(['save_knowledge', 'query_knowledge', 'reset_knowledge']);
 
   return SESSION_TOOL_DEFS.filter(def => {
@@ -552,6 +580,9 @@ export function getSessionToolDefs(options?: SessionToolFilterOptions): SessionT
       return false;
     }
     if (!includeKnowledgeTools && KNOWLEDGE_TOOL_NAMES.has(def.name)) {
+      return false;
+    }
+    if (!includeAutomationTools && def.name === 'manage_automations') {
       return false;
     }
     return true;

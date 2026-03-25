@@ -247,7 +247,187 @@ export class AutomationSystem implements AutomationsConfigProvider {
   getMatchersForEvent(event: AutomationEvent): AutomationMatcher[] {
     const workspace = this.config?.automations[event] ?? [];
     const skill = this.skillConfig?.automations[event] ?? [];
-    return [...workspace, ...skill];
+    // Filter out skill automations that have been overridden (disabled) in workspace config
+    const disabledIds = this.getDisabledSkillAutomationIds();
+    const filteredSkill = disabledIds.size > 0
+      ? skill.filter(m => !disabledIds.has(m.id ?? ''))
+      : skill;
+    return [...workspace, ...filteredSkill];
+  }
+
+  /**
+   * Get all automations linked to a specific skill (by skillSlug or @mention).
+   * Used for injecting automation context into agent system prompts and for
+   * the manage_automations session tool.
+   */
+  getAutomationsForSkill(skillSlug: string): Array<{ id: string; name: string; event: string; enabled: boolean; cron?: string; source: string }> {
+    if (!skillSlug?.trim()) return [];
+    const disabledIds = this.getDisabledSkillAutomationIds();
+    const results: Array<{ id: string; name: string; event: string; enabled: boolean; cron?: string; source: string }> = [];
+
+    const allAutomations: Record<string, AutomationMatcher[]> = {
+      ...(this.config?.automations ?? {}),
+    };
+    // Merge skill config on top
+    if (this.skillConfig?.automations) {
+      for (const [event, matchers] of Object.entries(this.skillConfig.automations)) {
+        if (allAutomations[event]) {
+          allAutomations[event] = [...allAutomations[event]!, ...matchers];
+        } else {
+          allAutomations[event] = matchers;
+        }
+      }
+    }
+
+    for (const [event, matchers] of Object.entries(allAutomations)) {
+      if (!matchers) continue;
+      for (const matcher of matchers) {
+        const isSkillSourced = matcher.actions?.some(a => (a as { skillSlug?: string }).skillSlug === skillSlug);
+        const isMentioned = !isSkillSourced && matcher.actions?.some(a =>
+          a.type === 'prompt' && (a as { prompt?: string }).prompt?.includes(`@${skillSlug}`)
+        );
+        if (isSkillSourced || isMentioned) {
+          const isOverridden = disabledIds.has(matcher.id ?? '');
+          results.push({
+            id: matcher.id ?? '',
+            name: matcher.name ?? `${event} automation`,
+            event,
+            enabled: isOverridden ? false : matcher.enabled !== false,
+            cron: matcher.cron,
+            source: isSkillSourced ? 'skill' : 'workspace',
+          });
+        }
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Get the set of skill automation IDs that have been disabled via workspace override.
+   * Reads from `disabledSkillAutomations` key in automations.json.
+   */
+  private getDisabledSkillAutomationIds(): Set<string> {
+    try {
+      const configPath = resolveAutomationsConfigPath(this.options.workspaceRootPath);
+      if (!existsSync(configPath)) return new Set();
+      const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+      const disabled = raw?.disabledSkillAutomations;
+      if (Array.isArray(disabled)) return new Set(disabled as string[]);
+    } catch { /* graceful degradation */ }
+    return new Set();
+  }
+
+  /**
+   * Override a skill automation's enabled state by storing the override in workspace config.
+   * Does not modify the skill manifest — stores the override in automations.json.
+   */
+  setSkillAutomationOverride(automationId: string, enabled: boolean): void {
+    const configPath = resolveAutomationsConfigPath(this.options.workspaceRootPath);
+    let raw: Record<string, unknown> = {};
+    try {
+      if (existsSync(configPath)) {
+        raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+      }
+    } catch { /* start fresh */ }
+
+    const disabled: string[] = Array.isArray(raw.disabledSkillAutomations)
+      ? [...raw.disabledSkillAutomations as string[]]
+      : [];
+
+    if (!enabled && !disabled.includes(automationId)) {
+      disabled.push(automationId);
+    } else if (enabled) {
+      const idx = disabled.indexOf(automationId);
+      if (idx >= 0) disabled.splice(idx, 1);
+    }
+
+    raw.disabledSkillAutomations = disabled;
+    writeFileSync(configPath, JSON.stringify(raw, null, 2) + '\n', 'utf-8');
+    log.debug(`[AutomationSystem] Skill automation override: ${automationId} → ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Update a workspace automation's properties (name, cron, prompt, enabled).
+   * Only workspace automations (stored in automations.json) can be edited.
+   * Skill-sourced automations are read-only.
+   */
+  updateWorkspaceAutomation(automationId: string, updates: { name?: string; cron?: string; prompt?: string; enabled?: boolean }): { ok: boolean; error?: string } {
+    const configPath = resolveAutomationsConfigPath(this.options.workspaceRootPath);
+    try {
+      if (!existsSync(configPath)) {
+        return { ok: false, error: 'No automations config found.' };
+      }
+
+      const raw = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
+      const automations = (raw.automations ?? {}) as Record<string, Array<Record<string, unknown>>>;
+
+      // Find the matcher by ID across all events
+      let found = false;
+      for (const [_event, matchers] of Object.entries(automations)) {
+        if (!Array.isArray(matchers)) continue;
+        for (const matcher of matchers) {
+          if (matcher.id === automationId) {
+            found = true;
+
+            if (updates.name !== undefined) {
+              matcher.name = updates.name;
+            }
+            if (updates.cron !== undefined) {
+              matcher.cron = updates.cron;
+            }
+            if (updates.enabled !== undefined) {
+              if (updates.enabled) {
+                delete matcher.enabled;
+              } else {
+                matcher.enabled = false;
+              }
+            }
+            if (updates.prompt !== undefined) {
+              // Update prompt on the first prompt action
+              const actions = matcher.actions as Array<Record<string, unknown>> | undefined;
+              if (actions) {
+                const promptAction = actions.find(a => a.type === 'prompt');
+                if (promptAction) {
+                  promptAction.prompt = updates.prompt;
+                }
+              }
+            }
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      if (!found) {
+        return { ok: false, error: `Automation "${automationId}" not found in workspace config.` };
+      }
+
+      writeFileSync(configPath, JSON.stringify(raw, null, 2) + '\n', 'utf-8');
+      this.reloadConfig();
+      log.debug(`[AutomationSystem] Updated workspace automation: ${automationId}`);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    }
+  }
+
+  /**
+   * Get execution history for a specific automation from history file.
+   */
+  getAutomationHistory(automationId: string, limit = 20): Array<{ ts: number; ok: boolean; prompt?: string; error?: string }> {
+    const historyPath = join(this.options.workspaceRootPath, AUTOMATIONS_HISTORY_FILE);
+    try {
+      if (!existsSync(historyPath)) return [];
+      const content = readFileSync(historyPath, 'utf-8');
+      const lines = content.trim().split('\n').filter(Boolean);
+      return lines
+        .map(line => { try { return JSON.parse(line) as { id: string; ts: number; ok: boolean; prompt?: string; error?: string }; } catch { return null; } })
+        .filter((e): e is { id: string; ts: number; ok: boolean; prompt?: string; error?: string } => e?.id === automationId)
+        .slice(-limit)
+        .reverse();
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -268,7 +448,8 @@ export class AutomationSystem implements AutomationsConfigProvider {
         if (!merged[event as AutomationEvent]) {
           merged[event as AutomationEvent] = [];
         }
-        for (const matcher of matchers) {
+        for (let matcherIdx = 0; matcherIdx < matchers.length; matcherIdx++) {
+          const matcher = matchers[matcherIdx]!;
           // Stamp each prompt action with skillSlug
           const stampedActions = matcher.actions.map(action => {
             if (action.type === 'prompt') {
@@ -279,8 +460,8 @@ export class AutomationSystem implements AutomationsConfigProvider {
 
           merged[event as AutomationEvent]!.push({
             ...matcher,
-            // Auto-generate ID from skill slug if missing
-            id: matcher.id ?? generateShortId(),
+            // Deterministic ID from skill slug — must match renderer's parseSkillAutomations format
+            id: matcher.id ?? `skill:${skill.slug}:${event}-${matcherIdx}`,
             // Inherit skill's permission_mode if matcher doesn't define its own
             permissionMode: matcher.permissionMode ?? skillPermMode,
             actions: stampedActions,

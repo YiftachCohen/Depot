@@ -112,6 +112,8 @@ export interface AutomationListItem {
   source?: AutomationSource
   /** Skill slug that owns this automation (only for source: 'skill') */
   skillSlug?: string
+  /** Absolute path to the skill directory (only for source: 'skill') */
+  skillDir?: string
 }
 
 // ============================================================================
@@ -365,7 +367,7 @@ export function parseAutomationsConfig(json: unknown): AutomationListItem[] {
  * Derive AutomationListItem[] from loaded skills that have automations in their depot.yaml.
  * Each matcher in each skill's automations block becomes one item with source: 'skill'.
  */
-export function parseSkillAutomations(skills: Array<{ slug: string; manifest?: { automations?: Record<string, unknown[]>; permission_mode?: string } }>): AutomationListItem[] {
+export function parseSkillAutomations(skills: Array<{ slug: string; path?: string; manifest?: { automations?: Record<string, unknown[]>; permission_mode?: string } }>): AutomationListItem[] {
   const items: AutomationListItem[] = []
   const allEvents = [...APP_EVENTS, ...AGENT_EVENTS] as string[]
 
@@ -402,6 +404,7 @@ export function parseSkillAutomations(skills: Array<{ slug: string; manifest?: {
           actions,
           source: 'skill',
           skillSlug: skill.slug,
+          skillDir: skill.path,
         })
       }
     }
