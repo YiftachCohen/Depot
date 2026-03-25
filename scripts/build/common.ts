@@ -108,7 +108,12 @@ export async function downloadBun(config: BuildConfig): Promise<void> {
   const bunDownload = getBunDownloadName(platform, arch);
   const vendorDir = join(electronDir, 'vendor', 'bun');
 
-  console.log(`Downloading Bun ${BUN_VERSION} for ${platform}-${arch}...`);
+  // Check cache first
+  const cacheDir = process.env.BIN_CACHE_DIR;
+  const cachedZip = cacheDir ? join(cacheDir, `${BUN_VERSION}-${bunDownload}.zip`) : null;
+  const cachedShasums = cacheDir ? join(cacheDir, `${BUN_VERSION}-SHASUMS256.txt`) : null;
+
+  console.log(`Getting Bun ${BUN_VERSION} for ${platform}-${arch}...`);
 
   // Create vendor directory
   mkdirSync(vendorDir, { recursive: true });
@@ -118,19 +123,31 @@ export async function downloadBun(config: BuildConfig): Promise<void> {
   mkdirSync(tempDir, { recursive: true });
 
   try {
-    const zipUrl = `https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/${bunDownload}.zip`;
-    const checksumUrl = `https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/SHASUMS256.txt`;
-
-    // Download files using curl (more reliable in CI than fetch + Bun.write)
     const zipPath = join(tempDir, `${bunDownload}.zip`);
     const checksumPath = join(tempDir, 'SHASUMS256.txt');
 
-    console.log(`  Downloading ${zipUrl}...`);
-    await $`curl -fsSL --retry 3 --retry-delay 2 -o ${zipPath} ${zipUrl}`;
-    console.log('  Download complete');
+    if (cachedZip && existsSync(cachedZip) && cachedShasums && existsSync(cachedShasums)) {
+      console.log(`  Using cached Bun from ${cachedZip}`);
+      copyFileSync(cachedZip, zipPath);
+      copyFileSync(cachedShasums, checksumPath);
+    } else {
+      const zipUrl = `https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/${bunDownload}.zip`;
+      const checksumUrl = `https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/SHASUMS256.txt`;
 
-    console.log('  Downloading checksums...');
-    await $`curl -fsSL --retry 3 --retry-delay 2 -o ${checksumPath} ${checksumUrl}`;
+      console.log(`  Downloading ${zipUrl}...`);
+      await $`curl -fsSL --retry 3 --retry-delay 2 -o ${zipPath} ${zipUrl}`;
+      
+      console.log('  Downloading checksums...');
+      await $`curl -fsSL --retry 3 --retry-delay 2 -o ${checksumPath} ${checksumUrl}`;
+
+      // Populate cache if available
+      if (cacheDir) {
+        mkdirSync(cacheDir, { recursive: true });
+        copyFileSync(zipPath, cachedZip!);
+        copyFileSync(checksumPath, cachedShasums!);
+        console.log(`  Cached Bun to ${cachedZip}`);
+      }
+    }
 
     // Verify checksum
     console.log('  Verifying checksum...');
@@ -209,7 +226,7 @@ export async function downloadUv(config: BuildConfig): Promise<void> {
     return;
   }
 
-  console.log(`Downloading uv ${UV_VERSION} for ${platformKey}...`);
+  console.log(`Getting uv ${UV_VERSION} for ${platformKey}...`);
 
   mkdirSync(targetDir, { recursive: true });
   const tempDir = join(electronDir, '.uv-download-temp');
@@ -217,18 +234,37 @@ export async function downloadUv(config: BuildConfig): Promise<void> {
   mkdirSync(tempDir, { recursive: true });
 
   try {
-    const assetUrl = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${uvDownload}`;
-    const checksumUrl = `${assetUrl}.sha256`;
-
     const assetPath = join(tempDir, uvDownload);
     const checksumPath = join(tempDir, `${uvDownload}.sha256`);
     const extractDir = join(tempDir, 'extract');
 
-    console.log(`  Downloading ${assetUrl}...`);
-    await $`curl -fsSL --retry 3 --retry-delay 2 -o ${assetPath} ${assetUrl}`;
+    // Check cache first
+    const cacheDir = process.env.BIN_CACHE_DIR;
+    const cachedAsset = cacheDir ? join(cacheDir, `${UV_VERSION}-${uvDownload}`) : null;
+    const cachedChecksum = cacheDir ? join(cacheDir, `${UV_VERSION}-${uvDownload}.sha256`) : null;
 
-    console.log('  Downloading checksum...');
-    await $`curl -fsSL --retry 3 --retry-delay 2 -o ${checksumPath} ${checksumUrl}`;
+    if (cachedAsset && existsSync(cachedAsset) && cachedChecksum && existsSync(cachedChecksum)) {
+      console.log(`  Using cached uv from ${cachedAsset}`);
+      copyFileSync(cachedAsset, assetPath);
+      copyFileSync(cachedChecksum, checksumPath);
+    } else {
+      const assetUrl = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${uvDownload}`;
+      const checksumUrl = `${assetUrl}.sha256`;
+
+      console.log(`  Downloading ${assetUrl}...`);
+      await $`curl -fsSL --retry 3 --retry-delay 2 -o ${assetPath} ${assetUrl}`;
+
+      console.log('  Downloading checksum...');
+      await $`curl -fsSL --retry 3 --retry-delay 2 -o ${checksumPath} ${checksumUrl}`;
+
+      // Populate cache if available
+      if (cacheDir) {
+        mkdirSync(cacheDir, { recursive: true });
+        copyFileSync(assetPath, cachedAsset!);
+        copyFileSync(checksumPath, cachedChecksum!);
+        console.log(`  Cached uv to ${cachedAsset}`);
+      }
+    }
 
     console.log('  Verifying checksum...');
     const checksumContent = await Bun.file(checksumPath).text();

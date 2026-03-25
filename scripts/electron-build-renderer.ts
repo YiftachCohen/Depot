@@ -9,10 +9,12 @@ import { join } from "path";
 const ROOT_DIR = join(import.meta.dir, "..");
 const ELECTRON_DIR = join(ROOT_DIR, "apps/electron");
 
-// Clean renderer dist first
-const rendererDir = join(ELECTRON_DIR, "dist/renderer");
-if (existsSync(rendererDir)) {
-  rmSync(rendererDir, { recursive: true, force: true });
+// Clean renderer dist first (skip in fast mode to allow incremental build potential)
+if (process.env.FAST_BUILD !== "true") {
+  const rendererDir = join(ELECTRON_DIR, "dist/renderer");
+  if (existsSync(rendererDir)) {
+    rmSync(rendererDir, { recursive: true, force: true });
+  }
 }
 
 const proc = spawn({
