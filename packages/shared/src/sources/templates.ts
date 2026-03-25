@@ -19,6 +19,10 @@ export interface PreAuthField {
   key: string
   label: string
   placeholder?: string
+  /** If true, validates as URL-safe domain (alphanumeric + hyphens only). Default: false (required only). */
+  domainValidation?: boolean
+  /** If true, masks the input like a password field. */
+  secret?: boolean
 }
 
 /**
@@ -44,15 +48,16 @@ export interface SourceTemplate {
 const SAFE_DOMAIN_PATTERN = /^[a-zA-Z0-9-]+$/
 
 /**
- * Validate a pre-auth field value for URL safety.
- * Rejects characters that could cause URL injection.
+ * Validate a pre-auth field value.
+ * If the field has domainValidation, rejects characters unsafe for URL construction.
+ * Otherwise, just checks for non-empty.
  */
-export function validatePreAuthField(key: string, value: string): string | null {
+export function validatePreAuthField(field: PreAuthField, value: string): string | null {
   if (!value.trim()) {
-    return `${key} is required`
+    return `${field.label} is required`
   }
-  if (!SAFE_DOMAIN_PATTERN.test(value)) {
-    return `${key} may only contain letters, numbers, and hyphens`
+  if (field.domainValidation && !SAFE_DOMAIN_PATTERN.test(value)) {
+    return `${field.label} may only contain letters, numbers, and hyphens`
   }
   return null
 }
@@ -159,7 +164,7 @@ export const SOURCE_TEMPLATES: SourceTemplate[] = [
       type: 'api',
       icon: '✅',
       api: {
-        baseUrl: 'https://api.todoist.com/rest/v2',
+        baseUrl: 'https://api.todoist.com/api/v1',
         authType: 'bearer',
         testEndpoint: { method: 'GET', path: '/projects' },
       },
@@ -174,7 +179,7 @@ export const SOURCE_TEMPLATES: SourceTemplate[] = [
     credentialLabel: 'API Token',
     credentialHelpUrl: 'https://id.atlassian.com/manage-profile/security/api-tokens',
     preAuthFields: [
-      { key: 'domain', label: 'Atlassian Domain', placeholder: 'your-company' },
+      { key: 'domain', label: 'Atlassian Domain', placeholder: 'your-company', domainValidation: true },
     ],
     category: 'development',
     sourceInput: {
@@ -275,6 +280,11 @@ export const SOURCE_TEMPLATES: SourceTemplate[] = [
     tagline: 'Calendar & scheduling',
     icon: '📅',
     authMethod: 'oauth',
+    credentialHelpUrl: 'https://console.cloud.google.com/apis/credentials',
+    preAuthFields: [
+      { key: 'googleOAuthClientId', label: 'Google OAuth Client ID', placeholder: 'xxxx.apps.googleusercontent.com' },
+      { key: 'googleOAuthClientSecret', label: 'Google OAuth Client Secret', placeholder: 'GOCSPX-...', secret: true },
+    ],
     category: 'productivity',
     sourceInput: {
       name: 'Google Calendar',
@@ -285,6 +295,8 @@ export const SOURCE_TEMPLATES: SourceTemplate[] = [
         baseUrl: 'https://www.googleapis.com/calendar/v3',
         authType: 'oauth',
         googleService: 'calendar',
+        googleOAuthClientId: '{{googleOAuthClientId}}',
+        googleOAuthClientSecret: '{{googleOAuthClientSecret}}',
       },
     },
   },
@@ -294,6 +306,11 @@ export const SOURCE_TEMPLATES: SourceTemplate[] = [
     tagline: 'Cloud file storage & sharing',
     icon: '📂',
     authMethod: 'oauth',
+    credentialHelpUrl: 'https://console.cloud.google.com/apis/credentials',
+    preAuthFields: [
+      { key: 'googleOAuthClientId', label: 'Google OAuth Client ID', placeholder: 'xxxx.apps.googleusercontent.com' },
+      { key: 'googleOAuthClientSecret', label: 'Google OAuth Client Secret', placeholder: 'GOCSPX-...', secret: true },
+    ],
     category: 'storage',
     sourceInput: {
       name: 'Google Drive',
@@ -304,6 +321,8 @@ export const SOURCE_TEMPLATES: SourceTemplate[] = [
         baseUrl: 'https://www.googleapis.com/drive/v3',
         authType: 'oauth',
         googleService: 'drive',
+        googleOAuthClientId: '{{googleOAuthClientId}}',
+        googleOAuthClientSecret: '{{googleOAuthClientSecret}}',
       },
     },
   },
@@ -313,6 +332,11 @@ export const SOURCE_TEMPLATES: SourceTemplate[] = [
     tagline: 'Email access & management',
     icon: '✉️',
     authMethod: 'oauth',
+    credentialHelpUrl: 'https://console.cloud.google.com/apis/credentials',
+    preAuthFields: [
+      { key: 'googleOAuthClientId', label: 'Google OAuth Client ID', placeholder: 'xxxx.apps.googleusercontent.com' },
+      { key: 'googleOAuthClientSecret', label: 'Google OAuth Client Secret', placeholder: 'GOCSPX-...', secret: true },
+    ],
     category: 'communication',
     sourceInput: {
       name: 'Gmail',
@@ -323,6 +347,8 @@ export const SOURCE_TEMPLATES: SourceTemplate[] = [
         baseUrl: 'https://gmail.googleapis.com/gmail/v1',
         authType: 'oauth',
         googleService: 'gmail',
+        googleOAuthClientId: '{{googleOAuthClientId}}',
+        googleOAuthClientSecret: '{{googleOAuthClientSecret}}',
       },
     },
   },
