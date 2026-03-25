@@ -14,6 +14,7 @@ import { mainLog } from './logger'
 import { RPC_CHANNELS } from '../shared/types'
 import type { WindowManager } from './window-manager'
 import type { EventSink } from '@depot/server-core/transport'
+import { persistDockIconDataUrl } from './dock-icon-storage'
 
 type ClientResolver = (webContentsId: number) => string | undefined
 
@@ -142,7 +143,7 @@ export function initBadgeIcon(iconPath: string): void {
 
 export function setBaseDockIcon(dataUrl: string): void {
   try {
-    baseIconPath = null
+    baseIconPath = persistDockIconDataUrl(dataUrl)
     baseIconDataUrl = dataUrl
 
     if (process.platform !== 'darwin') return
@@ -157,9 +158,13 @@ export function setBaseDockIcon(dataUrl: string): void {
     const icon = nativeImage.createFromDataURL(dataUrl)
     if (!icon.isEmpty()) {
       app.dock?.setIcon(icon)
+    } else {
+      mainLog.warn('Dock icon image was empty after PNG validation')
+      throw new Error('Dock icon image was empty after PNG validation')
     }
   } catch (error) {
     mainLog.error('Failed to set base dock icon:', error)
+    throw error
   }
 }
 

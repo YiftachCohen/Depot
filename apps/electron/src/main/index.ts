@@ -42,6 +42,7 @@ import { initNotificationService, initBadgeIcon, initInstanceBadge, updateBadgeC
 import { checkForUpdatesOnLaunch, setAutoUpdateEventSink, isUpdating } from './auto-update'
 import type { EventSink } from '@depot/server-core/transport'
 import { validateGitBashPath } from '@depot/server-core/services'
+import { resolveStartupDockIconPath } from './dock-icon-storage'
 
 // Initialize electron-log for renderer process support
 log.initialize()
@@ -339,16 +340,13 @@ app.whenReady().then(async () => {
 
   // Set dock icon on macOS (required for dev mode, bundled apps use Info.plist)
   if (process.platform === 'darwin' && app.dock) {
-    // In packaged app, resources are at dist/resources/ (same level as __dirname)
-    // In dev, resources are at ../resources/ (sibling of dist/)
-    const dockIconPath = [
+    const dockIconPath = resolveStartupDockIconPath([
       join(__dirname, 'resources/icon.png'),
       join(__dirname, '../resources/icon.png'),
-    ].find(p => existsSync(p))
+    ])
 
     if (dockIconPath) {
       app.dock.setIcon(dockIconPath)
-      // Initialize badge icon for canvas-based badge overlay
       initBadgeIcon(dockIconPath)
     }
 

@@ -1,6 +1,7 @@
 {
   "name": "@depot/ui",
-  "version": "1.2.8",
+
+  "version": "1.2.9",
   "license": "Apache-2.0",
   "description": "Shared React UI components for Depot - session viewer, chat display, markdown rendering",
   "type": "module",

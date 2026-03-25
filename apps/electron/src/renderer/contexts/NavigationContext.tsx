@@ -557,6 +557,8 @@ export function NavigationProvider({
         switch (filter.kind) {
           case 'allSessions':
             return session.isArchived !== true
+          case 'quickChats':
+            return session.isArchived !== true && !session.skillSlug
           case 'flagged':
             return session.isFlagged === true && session.isArchived !== true
           case 'archived':
@@ -941,7 +943,7 @@ export function NavigationProvider({
       return
     }
     if (isSessionsNavigation(navigationState) && navigationState.details) {
-      navigate(routes.view.allSessions())
+      navigate(buildRouteFromNavigationState({ ...navigationState, details: null }) as ViewRoute)
       return
     }
     if (isSourcesNavigation(navigationState) && navigationState.details) {
@@ -1229,7 +1231,7 @@ export function NavigationProvider({
         navigate(routes.view.skills(meta.skillSlug, sessionId))
         return
       }
-      navigate(routes.view.allSessions(sessionId))
+      navigate(routes.view.quickChats(sessionId))
       return
     }
 
@@ -1237,6 +1239,9 @@ export function NavigationProvider({
     switch (filter.kind) {
       case 'allSessions':
         navigate(routes.view.allSessions(sessionId))
+        break
+      case 'quickChats':
+        navigate(routes.view.quickChats(sessionId))
         break
       case 'flagged':
         navigate(routes.view.flagged(sessionId))
@@ -1254,7 +1259,7 @@ export function NavigationProvider({
         navigate(routes.view.view(filter.viewId, sessionId))
         break
       default:
-        navigate(routes.view.allSessions(sessionId))
+        navigate(routes.view.quickChats(sessionId))
     }
   }, [navigationState, navigate, store])
 

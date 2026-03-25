@@ -399,7 +399,7 @@ html[data-scenic] {
   /* === SEMANTIC SURFACE COLORS === */
   /* Subtle hover background for sidebar list items (2% foreground opacity) */
   --color-sidebar-hover: oklch(from var(--foreground) l c h / 0.06);
-  --color-sidebar-active: oklch(from var(--accent) l c h / 0.10);
+  --color-sidebar-active: oklch(from var(--accent) l c h / 0.14);
   --color-sidebar-section: oklch(from var(--foreground) l c h / 0.45);
   --color-sidebar-indent: oklch(from var(--foreground) l c h / 0.10);
   /* User message bubble background (overridden on unfocused panels) */
@@ -1072,6 +1072,11 @@ html.dark[data-scenic] .fullscreen-overlay-background {
 }
 
 @keyframes shimmer-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes sidebar-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
