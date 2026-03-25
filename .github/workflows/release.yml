@@ -40,7 +40,15 @@ jobs:
           restore-keys: |
             bun-${{ runner.os }}-
 
+      - name: Cache build binaries
+        uses: actions/cache@v4
+        with:
+          path: .build-cache
+          key: build-bins-${{ runner.os }}-${{ env.BUN_VERSION }}-${{ env.UV_VERSION }}
+
       - name: Install dependencies
+        env:
+          BIN_CACHE_DIR: ${{ github.workspace }}/.build-cache
         run: bun install --frozen-lockfile
 
       - name: Build Electron bundles
@@ -135,7 +143,7 @@ jobs:
           path: |
             ~/Library/Caches/electron-builder
             ~/.cache/electron-builder
-            **/AppData/Local/electron-builder/Cache
+            ~/AppData/Local/electron-builder/Cache
           key: electron-builder-${{ runner.os }}-${{ hashFiles('apps/electron/electron-builder.yml') }}
 
       - name: Install dependencies

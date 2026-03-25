@@ -22,7 +22,7 @@ export default defineConfig({
   base: './',
   build: {
     outDir: resolve(__dirname, 'dist/renderer'),
-    emptyDirBeforeWrite: true,
+    emptyOutDir: true,
     sourcemap: process.env.FAST_BUILD !== 'true',
     rollupOptions: {
       input: {

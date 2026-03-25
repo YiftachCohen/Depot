@@ -178,7 +178,7 @@ jobs:
           path: |
             ~/Library/Caches/electron-builder
             ~/.cache/electron-builder
-            **/AppData/Local/electron-builder/Cache
+            ~/AppData/Local/electron-builder/Cache
           key: electron-builder-${{ runner.os }}-${{ hashFiles('apps/electron/electron-builder.yml') }}
 
       - name: Install dependencies
@@ -250,7 +250,7 @@ jobs:
           path: |
             ~/Library/Caches/electron-builder
             ~/.cache/electron-builder
-            **/AppData/Local/electron-builder/Cache
+            ~/AppData/Local/electron-builder/Cache
           key: electron-builder-${{ runner.os }}-${{ hashFiles('apps/electron/electron-builder.yml') }}
 
       - name: Install dependencies
