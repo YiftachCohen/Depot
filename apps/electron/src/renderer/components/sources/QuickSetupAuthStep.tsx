@@ -97,14 +97,14 @@ export function QuickSetupAuthStep({
   if (step === 'success') {
     return (
       <div className="flex flex-col items-center py-6 text-center">
-        <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+        <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-success/10 text-success">
           <Check className="size-8" strokeWidth={2.5} />
         </div>
-        <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100">
+        <h3 className="text-xl font-semibold text-foreground">
           {template.name} Connected
         </h3>
         {toolCount !== undefined && toolCount > 0 && (
-          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             {toolCount} tool{toolCount !== 1 ? 's' : ''} available
           </p>
         )}
@@ -112,14 +112,14 @@ export function QuickSetupAuthStep({
           <button
             type="button"
             onClick={onDone}
-            className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-amber-600 px-4 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
+            className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-accent px-4 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
           >
             Done
           </button>
           <button
             type="button"
             onClick={onConnectAnother}
-            className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+            className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-foreground/[0.03] transition-colors"
           >
             Connect another
           </button>
@@ -131,13 +131,13 @@ export function QuickSetupAuthStep({
   if (step === 'error') {
     return (
       <div className="flex flex-col items-center py-6 text-center">
-        <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+        <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-destructive/10 text-destructive">
           <AlertCircle className="size-8" />
         </div>
-        <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100">
+        <h3 className="text-xl font-semibold text-foreground">
           Connection Failed
         </h3>
-        <p className="mt-2 max-w-xs text-sm text-stone-500 dark:text-stone-400">
+        <p className="mt-2 max-w-xs text-sm text-muted-foreground">
           {error}
         </p>
         {template.id === 'exa' && error?.includes('Node.js') && (
@@ -145,7 +145,7 @@ export function QuickSetupAuthStep({
             href="https://nodejs.org"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700"
+            className="mt-2 inline-flex items-center gap-1 text-sm text-accent hover:text-accent/80"
             onClick={(e) => {
               e.preventDefault()
               window.electronAPI.openUrl('https://nodejs.org')
@@ -157,7 +157,7 @@ export function QuickSetupAuthStep({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-6 inline-flex h-9 items-center gap-2 rounded-[8px] bg-amber-600 px-4 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
+          className="mt-6 inline-flex h-9 items-center gap-2 rounded-[8px] bg-accent px-4 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
         >
           Try again
         </button>
@@ -168,8 +168,8 @@ export function QuickSetupAuthStep({
   if (step === 'testing' || step === 'creating') {
     return (
       <div className="flex flex-col items-center py-10 text-center">
-        <Loader2 className="size-8 animate-spin text-amber-600" />
-        <p className="mt-4 text-sm text-stone-500 dark:text-stone-400">
+        <Loader2 className="size-8 animate-spin text-accent" />
+        <p className="mt-4 text-sm text-muted-foreground">
           {step === 'creating' ? 'Creating source...' : 'Testing connection...'}
         </p>
       </div>
@@ -181,13 +181,13 @@ export function QuickSetupAuthStep({
     <div className="mx-auto w-full max-w-[400px] py-4">
       {/* Header */}
       <div className="mb-6 flex flex-col items-center text-center">
-        <div className="mb-3 flex size-16 items-center justify-center rounded-full bg-amber-50 text-3xl dark:bg-amber-900/30">
+        <div className="mb-3 flex size-16 items-center justify-center rounded-full bg-muted text-3xl">
           {template.icon}
         </div>
-        <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100">
+        <h3 className="text-xl font-semibold text-foreground">
           {template.name}
         </h3>
-        <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+        <p className="mt-1 text-sm text-muted-foreground">
           Connect your {template.name} to access {template.tagline.toLowerCase()}
         </p>
       </div>
@@ -198,7 +198,7 @@ export function QuickSetupAuthStep({
           type="button"
           onClick={handleFolderPick}
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 transition-colors disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
         >
           <FolderOpen className="size-4" />
           Choose Folder
@@ -210,15 +210,15 @@ export function QuickSetupAuthStep({
         <div className="space-y-4">
           {loading ? (
             <div className="flex flex-col items-center gap-3 py-4" aria-live="polite">
-              <Loader2 className="size-6 animate-spin text-amber-600" />
-              <p className="text-sm text-stone-500 dark:text-stone-400">
+              <Loader2 className="size-6 animate-spin text-accent" />
+              <p className="text-sm text-muted-foreground">
                 Waiting for {template.name} authorization...
               </p>
               {oauthTimeout && (
                 <button
                   type="button"
                   onClick={handleOAuthClick}
-                  className="text-sm text-amber-600 hover:text-amber-700 underline"
+                  className="text-sm text-accent hover:text-accent/80 underline"
                 >
                   Taking too long? Try again
                 </button>
@@ -228,7 +228,7 @@ export function QuickSetupAuthStep({
             <button
               type="button"
               onClick={handleOAuthClick}
-              className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
               aria-label={`Connect with ${template.name} via OAuth`}
             >
               Connect with {template.name}
@@ -245,7 +245,7 @@ export function QuickSetupAuthStep({
             <div key={field.key}>
               <label
                 htmlFor={`preauth-${field.key}`}
-                className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300"
+                className="mb-1.5 block text-sm font-medium text-foreground"
               >
                 {field.label}
               </label>
@@ -256,15 +256,15 @@ export function QuickSetupAuthStep({
                 onChange={(e) => handleFieldChange(field.key, e.target.value)}
                 placeholder={field.placeholder}
                 className={cn(
-                  'w-full rounded-[8px] border bg-white px-3 py-2 text-sm transition-colors dark:bg-stone-900',
-                  'focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400',
+                  'w-full rounded-[8px] border bg-background px-3 py-2 text-sm text-foreground transition-colors',
+                  'focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent',
                   fieldErrors[field.key]
-                    ? 'border-red-300 dark:border-red-700'
-                    : 'border-stone-200 dark:border-stone-700',
+                    ? 'border-destructive'
+                    : 'border-border',
                 )}
               />
               {fieldErrors[field.key] && (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors[field.key]}</p>
+                <p className="mt-1 text-xs text-destructive">{fieldErrors[field.key]}</p>
               )}
             </div>
           ))}
@@ -273,7 +273,7 @@ export function QuickSetupAuthStep({
           <div>
             <label
               htmlFor="credential-input"
-              className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300"
+              className="mb-1.5 block text-sm font-medium text-foreground"
             >
               {template.credentialLabel || 'API Key'}
             </label>
@@ -284,12 +284,12 @@ export function QuickSetupAuthStep({
                 value={credential}
                 onChange={(e) => setCredential(e.target.value)}
                 placeholder={`Enter your ${(template.credentialLabel || 'API key').toLowerCase()}`}
-                className="w-full rounded-[8px] border border-stone-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 dark:border-stone-700 dark:bg-stone-900"
+                className="w-full rounded-[8px] border border-border bg-background px-3 py-2 pr-10 text-sm text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
                 aria-label={showPassword ? 'Hide credential' : 'Show credential'}
               >
                 {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -300,7 +300,7 @@ export function QuickSetupAuthStep({
                 href={template.credentialHelpUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-1.5 inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700"
+                className="mt-1.5 inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80"
                 onClick={(e) => {
                   e.preventDefault()
                   window.electronAPI.openUrl(template.credentialHelpUrl!)
@@ -314,7 +314,7 @@ export function QuickSetupAuthStep({
           <button
             type="submit"
             disabled={loading || !credential.trim()}
-            className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 transition-colors disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
           >
             {loading ? (
               <>

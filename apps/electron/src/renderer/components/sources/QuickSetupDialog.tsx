@@ -141,7 +141,7 @@ export function QuickSetupDialog({
               <button
                 type="button"
                 onClick={handleBack}
-                className="inline-flex size-7 items-center justify-center rounded-[6px] text-stone-500 hover:text-stone-700 hover:bg-stone-100 transition-colors dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-800"
+                className="inline-flex size-7 items-center justify-center rounded-[6px] text-muted-foreground hover:text-foreground hover:bg-foreground/[0.05] transition-colors"
                 aria-label="Back to integrations"
               >
                 <ArrowLeft className="size-4" />
@@ -163,12 +163,12 @@ export function QuickSetupDialog({
                 onSelect={handleSelect}
                 onConnectedClick={handleConnectedClick}
               />
-              <p className="mt-4 text-center text-xs text-stone-400 dark:text-stone-500">
+              <p className="mt-4 text-center text-xs text-muted-foreground">
                 Need a different integration?{' '}
                 <button
                   type="button"
                   onClick={handleDone}
-                  className="text-amber-600 hover:text-amber-700 underline"
+                  className="text-accent hover:text-accent/80 underline"
                 >
                   Manual setup
                 </button>
