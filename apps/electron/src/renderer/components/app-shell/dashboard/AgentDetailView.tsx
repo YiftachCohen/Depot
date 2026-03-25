@@ -52,7 +52,7 @@ const noMotionVariants: Variants = {
 // ---------------------------------------------------------------------------
 interface AgentDetailViewProps {
   focusedSkill: LoadedSkill
-  activeWorkspaceId: string | null
+  activeWorkspaceId: string
   skillStats: Map<string, SkillSessionStats>
   agentStateMap: Map<string, AgentState>
   setAgentStateMap?: React.Dispatch<React.SetStateAction<Map<string, AgentState>>>

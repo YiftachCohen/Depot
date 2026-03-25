@@ -547,7 +547,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       }).catch(() => {})
   }, [activeWorkspaceId])
 
-  if (focusedSkill) {
+  if (focusedSkill && activeWorkspaceId) {
     return (
       <AgentDetailView
         focusedSkill={focusedSkill}
