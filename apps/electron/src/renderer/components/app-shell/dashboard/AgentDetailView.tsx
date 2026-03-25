@@ -215,6 +215,10 @@ export function AgentDetailView({
   }, [focusedSkill, activeWorkspaceId])
 
   // --- Handlers ---
+  const handleSourcesChange = useCallback(async (slugs: string[]) => {
+    await saveFocusedManifest({ sources: slugs })
+  }, [saveFocusedManifest])
+
   const handleFocusedIconSelect = useCallback(async (iconName: string) => {
     const previousIcon = iconOverride
     setIconOverride(iconName)
@@ -363,8 +367,8 @@ export function AgentDetailView({
 
       <ScrollArea className="flex-1">
         <div className="max-w-[960px] mx-auto">
-          {/* Full-width Prompt Bar — above the two-column split */}
-          <div className={cn('px-4 pt-4', isNarrow ? 'pb-3' : 'px-6 pb-4')}>
+          {/* Full-width Prompt Bar — above both columns */}
+          <div className={cn('pl-4 pt-4', isNarrow ? 'pr-4 pb-3' : 'pr-[calc((100%_-_260px_-_580px)_/_2_+_24px)] pb-4')}>
             <AgentPromptBar
               skill={focusedSkill}
               onSubmitPrompt={handlePromptSubmit}
@@ -404,13 +408,15 @@ export function AgentDetailView({
                 onNewChat={handleNewChat}
                 onImprove={handleImproveAgent}
                 onDelete={() => setDeleteDialogOpen(true)}
+                onPermissionModeChange={(mode) => void saveFocusedManifest({ permission_mode: mode as 'safe' | 'ask' | 'allow-all' })}
+                onSourcesChange={handleSourcesChange}
                 agentAutomations={agentAutomations}
                 lastSession={recentSessions[0] ?? null}
                 skillSlug={focusedSkill.slug}
               />
             </div>
 
-            {/* Right Column — Content Cards (focused: work history only) */}
+            {/* Right Column — Content Cards */}
             <div className={cn(
               'flex-1 min-w-0 flex justify-center',
               isNarrow ? 'px-4 py-4' : 'py-4',

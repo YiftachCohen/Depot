@@ -4,7 +4,7 @@
  * Three zones: Identity, Vital Signs, Quick Commands + Actions Footer.
  */
 import * as React from 'react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import {
   Brain, Database, FolderOpen, X, Pencil, Sparkles,
@@ -20,7 +20,11 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
+import { useAtomValue } from 'jotai'
 import { navigate, routes } from '@/lib/navigate'
+import { SourceSelectorPopover } from '@/components/ui/SourceSelectorPopover'
+import { SourceAvatar } from '@/components/ui/source-avatar'
+import { sourcesAtom } from '@/atoms/sources'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../../shared/types'
 import type { AgentState } from '@depot/shared/skills'
 import type { AgentPageMode, KnowledgeStatsData, SkillSessionStats } from './types'
@@ -154,6 +158,10 @@ interface AgentProfileColumnProps {
   onNewChat: (skill: LoadedSkill) => void
   onImprove: () => void
   onDelete: () => void
+  onPermissionModeChange?: (mode: string) => void
+
+  // Sources
+  onSourcesChange?: (slugs: string[]) => void
 
   // Aliveness features (rendered in left rail)
   agentAutomations?: AutomationListItem[]
@@ -185,6 +193,8 @@ export function AgentProfileColumn({
   onNewChat,
   onImprove,
   onDelete,
+  onPermissionModeChange,
+  onSourcesChange,
   agentAutomations,
   lastSession,
   skillSlug,
@@ -193,8 +203,14 @@ export function AgentProfileColumn({
   const activity = getActivityStatus(stats?.lastUsedAt)
   const count = stats?.sessionCount ?? 0
   const cmds = skill.manifest?.quick_commands ?? []
-  const factCount = agentState?.memory?.facts?.length ?? 0
   const iconEntries = useMemo(() => Object.entries(ICON_NAME_MAP), [])
+  const [descExpanded, setDescExpanded] = useState(false)
+
+  // Sources
+  const allSources = useAtomValue(sourcesAtom)
+  const selectedSourceSlugs = skill.manifest?.sources ?? skill.metadata.requiredSources ?? []
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false)
+  const sourcePickerRef = useRef<HTMLButtonElement>(null)
 
   // Collapsed mode: compact horizontal header
   if (collapsed) {
@@ -240,36 +256,21 @@ export function AgentProfileColumn({
           <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
         </div>
 
-        {/* Description */}
-        <p className="text-[12px] leading-relaxed text-foreground/55 line-clamp-3">
-          {skill.metadata.description}
-        </p>
+        {/* Description — click to expand */}
+        <button
+          type="button"
+          onClick={() => setDescExpanded(v => !v)}
+          className="text-left text-[12px] leading-relaxed text-foreground/55 cursor-pointer hover:text-foreground/70 transition-colors"
+        >
+          <span className={descExpanded ? undefined : 'line-clamp-3'}>{skill.metadata.description}</span>
+        </button>
 
-        {/* Badges: personality, memory, knowledge, permission */}
-        {skill.manifest && (
+        {/* Personality badge */}
+        {skill.manifest?.personality && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-foreground/40">
-            {skill.manifest.personality && (
-              <span className="inline-flex items-center gap-1 italic line-clamp-1 max-w-full">
-                <Brain className="h-2.5 w-2.5 shrink-0" /><span className="truncate">{skill.manifest.personality}</span>
-              </span>
-            )}
-            {skill.manifest.memory?.enabled && (
-              <span className="inline-flex items-center gap-1">
-                <Brain className="h-2.5 w-2.5 shrink-0" />
-                {factCount > 0 ? `${factCount} fact${factCount !== 1 ? 's' : ''}` : 'No memory'}
-              </span>
-            )}
-            {/* Knowledge badge removed — visible in right rail cards */}
-            {skill.manifest.permission_mode && (
-              <span className={cn(
-                'inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium',
-                skill.manifest.permission_mode === 'safe' && 'bg-emerald-500/10 text-emerald-600',
-                skill.manifest.permission_mode === 'ask' && 'bg-amber-500/10 text-amber-600',
-                skill.manifest.permission_mode === 'allow-all' && 'bg-red-500/10 text-red-600',
-              )}>
-                {skill.manifest.permission_mode}
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1 italic line-clamp-1 max-w-full">
+              <Brain className="h-2.5 w-2.5 shrink-0" /><span className="truncate">{skill.manifest.personality}</span>
+            </span>
           </div>
         )}
 
@@ -365,33 +366,114 @@ export function AgentProfileColumn({
             </div>
           )}
           {/* Entity/pattern counts removed — shown in Knowledge Story card to avoid duplication */}
+          {skill.manifest && (
+            <div>
+              <div className="text-[10px] text-foreground/35">Permissions</div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className={cn(
+                    'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium cursor-pointer transition-colors',
+                    (skill.manifest.permission_mode ?? 'ask') === 'safe' && 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20',
+                    (skill.manifest.permission_mode ?? 'ask') === 'ask' && 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20',
+                    (skill.manifest.permission_mode ?? 'ask') === 'allow-all' && 'bg-red-500/10 text-red-600 hover:bg-red-500/20',
+                  )}>
+                    {skill.manifest.permission_mode ?? 'ask'}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[140px]">
+                  {(['safe', 'ask', 'allow-all'] as const).map((mode) => (
+                    <DropdownMenuItem
+                      key={mode}
+                      onClick={() => onPermissionModeChange?.(mode)}
+                      className={cn(
+                        'text-xs',
+                        (skill.manifest?.permission_mode ?? 'ask') === mode && 'font-semibold',
+                      )}
+                    >
+                      <span className={cn(
+                        'inline-block h-2 w-2 rounded-full mr-2 shrink-0',
+                        mode === 'safe' && 'bg-emerald-500',
+                        mode === 'ask' && 'bg-amber-500',
+                        mode === 'allow-all' && 'bg-red-500',
+                      )} />
+                      {mode}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Live Pulse Strip — automation heartbeat */}
-      {agentAutomations && agentAutomations.some(a => a.enabled && a.cron) && (
+      {/* Sources */}
+      {skill.manifest && (
         <div className="px-4 py-3 border-t border-border/20">
-          <AgentPulseStrip automations={agentAutomations} />
+          <div className="flex items-center justify-between mb-2.5">
+            <h4 className="text-[10px] font-medium text-foreground/30 uppercase tracking-widest">Sources</h4>
+            <button
+              ref={sourcePickerRef}
+              type="button"
+              onClick={() => setSourcePickerOpen(true)}
+              className="text-foreground/40 hover:text-foreground/70 transition-colors cursor-pointer"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          </div>
+          {selectedSourceSlugs.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              {selectedSourceSlugs.map((slug) => {
+                const source = allSources.find((s) => s.config.slug === slug)
+                return (
+                  <div key={slug} className="flex items-center gap-2 group rounded-md hover:bg-foreground/[0.04] px-1.5 py-1 -mx-1.5 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => setSourcePickerOpen(true)}
+                      className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+                    >
+                      {source ? <SourceAvatar source={source} size="sm" /> : <Database className="h-3.5 w-3.5 text-foreground/40" />}
+                      <span className="text-[12px] text-foreground/70 truncate">{source?.config.name ?? slug}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = selectedSourceSlugs.filter((s) => s !== slug)
+                        onSourcesChange?.(next)
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-foreground/30 hover:text-foreground/60 transition-all cursor-pointer shrink-0"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSourcePickerOpen(true)}
+              className="text-[11px] text-foreground/30 hover:text-foreground/50 transition-colors cursor-pointer"
+            >
+              No sources connected — click to add
+            </button>
+          )}
+          <SourceSelectorPopover
+            open={sourcePickerOpen}
+            onOpenChange={setSourcePickerOpen}
+            anchorRef={sourcePickerRef}
+            sources={allSources}
+            selectedSlugs={selectedSourceSlugs}
+            onToggleSlug={(slug) => {
+              const next = selectedSourceSlugs.includes(slug)
+                ? selectedSourceSlugs.filter((s) => s !== slug)
+                : [...selectedSourceSlugs, slug]
+              onSourcesChange?.(next)
+            }}
+          />
         </div>
       )}
 
-      {/* Last Chat Teaser — "still here" signal */}
-      {lastSession && skillSlug && (
-        <div className="px-4 py-3 border-t border-border/20">
-          <h4 className="text-[10px] font-medium text-foreground/30 uppercase tracking-widest mb-2">Continue where you left off</h4>
-          <AgentLastChatTeaser skillSlug={skillSlug} session={lastSession} />
-        </div>
-      )}
-
-      {/* New Chat button (quick commands are now in the prompt bar) */}
-      <div className="px-4 py-3 border-t border-border/20 flex-1">
-        <button type="button" onClick={() => onNewChat(skill)} className={cn(FOCUSED_CMD_CHIP, 'text-foreground/40')}>
-          <Plus className="h-3.5 w-3.5 opacity-70 shrink-0" />
-          <span>New Chat</span>
-        </button>
-      </div>
-
-      {/* Actions Footer */}
+      {/* Actions — always visible right after stats */}
       <div className="px-4 py-3 border-t border-border/20">
         <div className="flex items-center gap-1.5 text-xs text-foreground/45">
           {skill.manifest && !addingPath && (
@@ -412,6 +494,7 @@ export function AgentProfileColumn({
             }
             {...getEditConfig('skill-metadata', skill.path)}
             secondaryAction={{ label: 'Edit File', filePath: `${skill.path}/SKILL.md` }}
+            skillSlug={skill.slug}
           />
           <span aria-hidden>{'·'}</span>
           <button
@@ -450,6 +533,29 @@ export function AgentProfileColumn({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      </div>
+
+      {/* Live Pulse Strip — automation heartbeat */}
+      {agentAutomations && agentAutomations.some(a => a.enabled && a.cron) && (
+        <div className="px-4 py-3 border-t border-border/20">
+          <AgentPulseStrip automations={agentAutomations} />
+        </div>
+      )}
+
+      {/* Last Chat Teaser — "still here" signal */}
+      {lastSession && skillSlug && (
+        <div className="px-4 py-3 border-t border-border/20">
+          <h4 className="text-[10px] font-medium text-foreground/30 uppercase tracking-widest mb-2">Continue where you left off</h4>
+          <AgentLastChatTeaser skillSlug={skillSlug} session={lastSession} />
+        </div>
+      )}
+
+      {/* New Chat button (quick commands are now in the prompt bar) */}
+      <div className="px-4 py-3 border-t border-border/20 flex-1">
+        <button type="button" onClick={() => onNewChat(skill)} className={cn(FOCUSED_CMD_CHIP, 'text-foreground/40')}>
+          <Plus className="h-3.5 w-3.5 opacity-70 shrink-0" />
+          <span>New Chat</span>
+        </button>
       </div>
     </div>
   )

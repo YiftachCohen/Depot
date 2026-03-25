@@ -7,7 +7,7 @@
 
 import * as React from 'react'
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { AlertCircle, LogIn, Key, Eye, EyeOff } from 'lucide-react'
+import { AlertCircle, LogIn, Key, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@depot/ui'
@@ -405,6 +405,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
   const [showTokenInput, setShowTokenInput] = useState(false)
   const [tokenValue, setTokenValue] = useState('')
   const [showTokenPassword, setShowTokenPassword] = useState(false)
+  const [oauthMisconfigured, setOauthMisconfigured] = useState(false)
 
   const isAuthError = mcpToolsError != null && (
     mcpToolsError.includes('re-authenticate') ||
@@ -412,12 +413,15 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
     mcpToolsError.includes('Authentication failed')
   )
 
-  const sourceAuthType = source?.config.mcp?.authType
+  const sourceAuthType = source?.config.mcp?.authType ?? source?.config.api?.authType
+
+  // Check if source needs authentication (API or MCP sources with non-none auth)
+  const needsAuth = source != null && !source.config.isAuthenticated && sourceAuthType != null && sourceAuthType !== 'none'
 
   const handleReauthenticate = useCallback(async () => {
     if (!source) return
 
-    // For OAuth sources, try OAuth first — fall back to token input on failure
+    // For OAuth sources, try OAuth first
     if (sourceAuthType === 'oauth') {
       setIsReauthenticating(true)
       try {
@@ -427,11 +431,17 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
           await reloadTools()
           return
         }
-        // OAuth failed — fall back to manual token entry
-        setShowTokenInput(true)
-      } catch {
-        // OAuth unavailable — fall back to manual token entry
-        setShowTokenInput(true)
+        // OAuth failed — check if it's a credentials-missing issue
+        const errorMsg = result.error ?? 'OAuth authentication failed'
+        if (errorMsg.includes('OAuth not configured') || errorMsg.includes('clientId')) {
+          setOauthMisconfigured(true)
+        } else {
+          toast.error('Authentication failed', { description: errorMsg })
+        }
+      } catch (err) {
+        toast.error('Authentication failed', {
+          description: err instanceof Error ? err.message : 'OAuth flow could not be started',
+        })
       } finally {
         setIsReauthenticating(false)
       }
@@ -557,6 +567,79 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
               </Info_Table.Row>
             </Info_Table>
           </Info_Section>
+
+          {/* Auth Required Alert */}
+          {needsAuth && !showTokenInput && (
+            <Info_Alert variant="warning" icon={<LogIn className="h-4 w-4" />}>
+              <Info_Alert.Title>{oauthMisconfigured ? 'OAuth Credentials Missing' : 'Authentication Required'}</Info_Alert.Title>
+              <Info_Alert.Description>
+                {oauthMisconfigured ? (
+                  <>
+                    <span>This source is missing OAuth credentials. Delete it and re-add via Quick Setup to provide them.</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-3 h-7 px-3 text-xs text-destructive hover:text-destructive"
+                      onClick={handleDelete}
+                    >
+                      <Trash2 className="h-3 w-3 mr-1.5" />
+                      Delete & re-add
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span>This source needs authentication before it can be used.</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-3 h-7 px-3 text-xs"
+                      onClick={handleReauthenticate}
+                      disabled={isReauthenticating}
+                    >
+                      {isReauthenticating ? <Spinner className="text-[10px] mr-1.5" /> : <LogIn className="h-3 w-3 mr-1.5" />}
+                      {sourceAuthType === 'oauth' ? 'Sign in' : 'Add credentials'}
+                    </Button>
+                  </>
+                )}
+              </Info_Alert.Description>
+            </Info_Alert>
+          )}
+
+          {/* Token Input (shown after clicking "Add credentials" for non-OAuth sources) */}
+          {needsAuth && showTokenInput && (
+            <Info_Alert variant="warning" icon={<Key className="h-4 w-4" />}>
+              <Info_Alert.Title>Enter Credentials</Info_Alert.Title>
+              <Info_Alert.Description>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="relative flex-1">
+                    <Input
+                      type={showTokenPassword ? 'text' : 'password'}
+                      value={tokenValue}
+                      onChange={(e) => setTokenValue(e.target.value)}
+                      placeholder="Enter API token or key"
+                      className="h-8 text-xs pr-8"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTokenPassword(!showTokenPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showTokenPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    </button>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-3 text-xs"
+                    onClick={handleTokenSave}
+                    disabled={isReauthenticating || !tokenValue.trim()}
+                  >
+                    {isReauthenticating ? <Spinner className="text-[10px]" /> : 'Save'}
+                  </Button>
+                </div>
+              </Info_Alert.Description>
+            </Info_Alert>
+          )}
 
           {/* Permissions - for API and local sources */}
           {source.config.type !== 'mcp' && permissionsConfig && apiPermissionsData.length > 0 && (

@@ -74,7 +74,7 @@ export function AgentHandoffCard({
     switch (mode) {
       case 'knowledge-enabled': {
         if (!observationSummary) {
-          // Even without observations since last session, show current knowledge stats if available
+          // Show knowledge stats if available
           if (knowledgeStats && knowledgeStats.entityCount > 0) {
             return {
               icon: Sparkles,
@@ -83,10 +83,31 @@ export function AgentHandoffCard({
               expandable: false,
             }
           }
+          // Fall back to observation history count
+          if (observationHistory.length > 0) {
+            return {
+              icon: Sparkles,
+              title: 'Knowledge agent active',
+              body: `${observationHistory.length} observation${observationHistory.length !== 1 ? 's' : ''} completed`,
+              expandable: false,
+            }
+          }
+          // Check if any recent sessions look like observations (data may still be loading)
+          const obsSessionCount = recentSessions.filter(s =>
+            s.name && /observ/i.test(s.name),
+          ).length
+          if (obsSessionCount > 0) {
+            return {
+              icon: Sparkles,
+              title: 'Knowledge agent active',
+              body: `${obsSessionCount} observation${obsSessionCount !== 1 ? 's' : ''} completed`,
+              expandable: false,
+            }
+          }
           return {
             icon: Sparkles,
             title: 'Knowledge agent ready',
-            body: 'No observations yet. Run one to start learning.',
+            body: 'Run an observation to start learning.',
             expandable: false,
           }
         }

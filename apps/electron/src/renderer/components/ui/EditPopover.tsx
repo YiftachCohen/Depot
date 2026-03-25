@@ -610,6 +610,8 @@ export interface EditPopoverProps {
    * opening a new window. Best for quick config edits with mini agents.
    */
   inlineExecution?: boolean
+  /** Optional skill slug to associate the inline edit session with a specific skill */
+  skillSlug?: string
 }
 
 /**
@@ -688,6 +690,7 @@ export function EditPopover({
   modal = false,
   defaultValue = '',
   inlineExecution = false,
+  skillSlug,
 }: EditPopoverProps) {
   const { onOpenFile, onOpenUrl } = usePlatform()
   const workspace = useActiveWorkspace()
@@ -920,6 +923,7 @@ export function EditPopover({
         permissionMode,
         workingDirectory,
         hidden: true, // Hidden sessions use same App code path but don't appear in list
+        skillSlug,
       }
       const newSession = await onCreateSession(workspace.id, createOptions)
       sessionId = newSession.id
@@ -931,7 +935,7 @@ export function EditPopover({
     if (sessionId) {
       onSendMessage(sessionId, prompt, undefined, undefined, badges)
     }
-  }, [context, inlineSessionId, workspace?.id, model, systemPromptPreset, permissionMode, workingDirectory, onCreateSession, onSendMessage])
+  }, [context, inlineSessionId, workspace?.id, model, systemPromptPreset, permissionMode, workingDirectory, skillSlug, onCreateSession, onSendMessage])
 
   // Legacy mode: navigates to chat in the same window
   const handleLegacySendMessage = useCallback((message: string) => {
