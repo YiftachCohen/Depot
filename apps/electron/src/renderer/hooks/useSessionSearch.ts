@@ -247,6 +247,9 @@ export function sessionMatchesCurrentFilter(
     case 'allSessions':
       return session.isArchived !== true
 
+    case 'quickChats':
+      return session.isArchived !== true && !session.skillSlug
+
     case 'flagged':
       return session.isFlagged === true && session.isArchived !== true
 
