@@ -7,6 +7,7 @@ mock.module('electron', () => ({
   },
   app: {
     isPackaged: true,
+    getPath: mock((_name: string) => '/tmp/mock'),
   },
   shell: {
     openExternal: mock(async () => {}),
@@ -14,6 +15,10 @@ mock.module('electron', () => ({
   BrowserWindow: {
     getFocusedWindow: mock(() => null),
   },
+  BrowserView: class MockBrowserView {},
+  ipcMain: { handle: mock(() => {}), on: mock(() => {}), removeHandler: mock(() => {}) },
+  nativeTheme: { shouldUseDarkColors: false },
+  session: { fromPartition: mock(() => ({ setPermissionCheckHandler: mock(() => {}), setPermissionRequestHandler: mock(() => {}), webRequest: { onBeforeRequest: mock(() => {}), onHeadersReceived: mock(() => {}) } })) },
 }))
 
 mock.module('../logger', () => ({
