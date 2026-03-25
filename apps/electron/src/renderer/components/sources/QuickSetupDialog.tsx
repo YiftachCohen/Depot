@@ -36,29 +36,45 @@ export function QuickSetupDialog({
   const sources = useAtomValue(sourcesAtom)
   const quickSetup = useQuickSetup(workspaceId)
 
-  // Derive connected providers from existing sources
-  const connectedProviders = useMemo(() =>
-    sources.map(s => s.config.provider),
-    [sources],
-  )
+  // Derive connected template IDs by matching source provider + service type
+  // (Google services share provider 'google' — disambiguate by googleService field)
+  const connectedTemplateIds = useMemo(() => {
+    const connected: string[] = []
+    for (const template of SOURCE_TEMPLATES) {
+      const tp = template.sourceInput.provider
+      const match = sources.find(s => {
+        if (s.config.provider !== tp) return false
+        // Disambiguate Google services by googleService field
+        const tGoogle = template.sourceInput.api?.googleService
+        if (tGoogle) return s.config.api?.googleService === tGoogle
+        // Disambiguate Slack by slackService
+        const tSlack = template.sourceInput.api?.slackService
+        if (tSlack) return s.config.api?.slackService === tSlack
+        // Disambiguate Microsoft by microsoftService
+        const tMs = template.sourceInput.api?.microsoftService
+        if (tMs) return s.config.api?.microsoftService === tMs
+        return true
+      })
+      if (match) connected.push(template.id)
+    }
+    return connected
+  }, [sources])
 
   const handleSelect = useCallback((template: SourceTemplate) => {
     quickSetup.reset()
     setDialogStep('auth')
 
-    if (template.authMethod === 'none' && template.id !== 'local-folder') {
-      // No auth, no folder — just create
-      quickSetup.startSetup(template)
+    if (template.preAuthFields) {
+      // Has pre-auth fields — show form first, create source on submit
+      quickSetup.selectTemplate(template)
     } else if (template.authMethod === 'none') {
-      // Local folder — show auth step (which renders folder picker)
-      // startSetup will be called after folder is picked
-      quickSetup.startSetup(template) // Will transition to success since authMethod is 'none'
-    } else if (!template.preAuthFields && template.authMethod === 'oauth') {
+      // No auth — create immediately
+      quickSetup.startSetup(template)
+    } else if (template.authMethod === 'oauth') {
       // OAuth without pre-auth fields — create source immediately, show auth step
       quickSetup.startSetup(template)
     } else {
-      // Bearer/API-key or has pre-auth fields — show auth step to collect input
-      // Don't call startSetup yet — wait for credential submission
+      // Bearer/API-key without pre-auth fields — create source immediately
       quickSetup.startSetup(template)
     }
   }, [quickSetup])
@@ -82,8 +98,17 @@ export function QuickSetupDialog({
   }, [quickSetup])
 
   const handleConnectedClick = useCallback((template: SourceTemplate) => {
-    // Find the source with this provider
-    const source = sources.find(s => s.config.provider === template.sourceInput.provider)
+    // Find the source matching this template (disambiguate services sharing a provider)
+    const source = sources.find(s => {
+      if (s.config.provider !== template.sourceInput.provider) return false
+      const tGoogle = template.sourceInput.api?.googleService
+      if (tGoogle) return s.config.api?.googleService === tGoogle
+      const tSlack = template.sourceInput.api?.slackService
+      if (tSlack) return s.config.api?.slackService === tSlack
+      const tMs = template.sourceInput.api?.microsoftService
+      if (tMs) return s.config.api?.microsoftService === tMs
+      return true
+    })
     if (source && onNavigateToSource) {
       onOpenChange(false)
       onNavigateToSource(source.config.slug)
@@ -109,13 +134,30 @@ export function QuickSetupDialog({
     setDialogStep('grid')
   }, [quickSetup])
 
-  const handleOAuthSubmit = useCallback(() => {
-    quickSetup.performAuth()
+  const handleOAuthSubmit = useCallback(async (fieldValues?: Record<string, string>) => {
+    const template = quickSetup.template
+    if (!template) return
+
+    if (template.preAuthFields && fieldValues) {
+      // Create source with resolved field values, then start OAuth
+      const slug = await quickSetup.startSetup(template, fieldValues)
+      if (slug) quickSetup.performAuth(undefined, slug)
+    } else {
+      quickSetup.performAuth()
+    }
   }, [quickSetup])
 
-  const handleCredentialSubmit = useCallback((credential: string, _fieldValues?: Record<string, string>) => {
-    if (!quickSetup.template) return
-    quickSetup.performAuth(credential)
+  const handleCredentialSubmit = useCallback(async (credential: string, fieldValues?: Record<string, string>) => {
+    const template = quickSetup.template
+    if (!template) return
+
+    if (template.preAuthFields && fieldValues && !quickSetup.sourceSlug) {
+      // Source not created yet — create with field values, then auth
+      const slug = await quickSetup.startSetup(template, fieldValues)
+      if (slug) quickSetup.performAuth(credential, slug)
+    } else {
+      quickSetup.performAuth(credential)
+    }
   }, [quickSetup])
 
   // Reset on close
@@ -134,7 +176,7 @@ export function QuickSetupDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-[640px] rounded-[14px] overflow-hidden"
+        className="sm:max-w-[820px] rounded-[14px] overflow-hidden p-8"
         showCloseButton
       >
         <DialogHeader>
@@ -161,7 +203,7 @@ export function QuickSetupDialog({
             <div className="animate-in fade-in duration-250">
               <SourceTemplateGrid
                 templates={SOURCE_TEMPLATES}
-                connectedSlugs={connectedProviders}
+                connectedSlugs={connectedTemplateIds}
                 onSelect={handleSelect}
                 onConnectedClick={handleConnectedClick}
               />

@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react'
 import { Check, AlertCircle, Loader2, Eye, EyeOff, ExternalLink, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { validatePreAuthField } from '@depot/shared/sources/templates'
+import { useTemplateLogo } from '@/hooks/useTemplateLogo'
 import type { SourceTemplate } from '@depot/shared/sources/templates'
 import type { QuickSetupStep } from '@/hooks/useQuickSetup'
 
@@ -12,7 +13,7 @@ interface QuickSetupAuthStepProps {
   loading: boolean
   error: string | null
   toolCount?: number
-  onSubmitOAuth: () => void
+  onSubmitOAuth: (fieldValues?: Record<string, string>) => void
   onSubmitCredential: (credential: string, fieldValues?: Record<string, string>) => void
   onSubmitLocalFolder: (path: string) => void
   onRetry: () => void
@@ -33,6 +34,7 @@ export function QuickSetupAuthStep({
   onDone,
   onConnectAnother,
 }: QuickSetupAuthStepProps) {
+  const logoUrl = useTemplateLogo(template)
   const [credential, setCredential] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
@@ -53,7 +55,7 @@ export function QuickSetupAuthStep({
     if (!template.preAuthFields) return true
     const errors: Record<string, string> = {}
     for (const field of template.preAuthFields) {
-      const err = validatePreAuthField(field.key, fieldValues[field.key] ?? '')
+      const err = validatePreAuthField(field, fieldValues[field.key] ?? '')
       if (err) errors[field.key] = err
     }
     setFieldErrors(errors)
@@ -61,10 +63,11 @@ export function QuickSetupAuthStep({
   }, [template.preAuthFields, fieldValues])
 
   const handleOAuthClick = useCallback(() => {
+    if (!validateFields()) return
     setOauthTimeout(false)
     oauthTimerRef.current = setTimeout(() => setOauthTimeout(true), 60_000)
-    onSubmitOAuth()
-  }, [onSubmitOAuth])
+    onSubmitOAuth(template.preAuthFields ? fieldValues : undefined)
+  }, [onSubmitOAuth, validateFields, template.preAuthFields, fieldValues])
 
   const handleCredentialSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
@@ -93,6 +96,11 @@ export function QuickSetupAuthStep({
     }
   }, [step])
 
+  // Check if all required preAuthFields have values (for disabling the connect button)
+  const hasAllPreAuthFields = !template.preAuthFields || template.preAuthFields.every(
+    f => (fieldValues[f.key] ?? '').trim().length > 0
+  )
+
   // ── Terminal states ──────────────────────────────────────────────────
   if (step === 'success') {
     return (
@@ -112,7 +120,7 @@ export function QuickSetupAuthStep({
           <button
             type="button"
             onClick={onDone}
-            className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-accent px-4 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
+            className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-accent px-4 text-sm font-medium text-white hover:bg-accent/90 transition-colors"
           >
             Done
           </button>
@@ -157,7 +165,7 @@ export function QuickSetupAuthStep({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-6 inline-flex h-9 items-center gap-2 rounded-[8px] bg-accent px-4 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
+          className="mt-6 inline-flex h-9 items-center gap-2 rounded-[8px] bg-accent px-4 text-sm font-medium text-white hover:bg-accent/90 transition-colors"
         >
           Try again
         </button>
@@ -176,13 +184,59 @@ export function QuickSetupAuthStep({
     )
   }
 
+  // ── Shared pre-auth fields renderer ────────────────────────────────
+  const preAuthFieldsUI = template.preAuthFields?.map((field) => (
+    <div key={field.key}>
+      <label
+        htmlFor={`preauth-${field.key}`}
+        className="mb-1.5 block text-sm font-medium text-foreground"
+      >
+        {field.label}
+      </label>
+      <input
+        id={`preauth-${field.key}`}
+        type={field.secret ? 'password' : 'text'}
+        value={fieldValues[field.key] ?? ''}
+        onChange={(e) => handleFieldChange(field.key, e.target.value)}
+        placeholder={field.placeholder}
+        className={cn(
+          'w-full rounded-[8px] border bg-background px-3 py-2 text-sm text-foreground transition-colors',
+          'focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent',
+          fieldErrors[field.key]
+            ? 'border-destructive'
+            : 'border-border',
+        )}
+      />
+      {fieldErrors[field.key] && (
+        <p className="mt-1 text-xs text-destructive">{fieldErrors[field.key]}</p>
+      )}
+    </div>
+  ))
+
   // ── Auth step (authenticating) ───────────────────────────────────────
   return (
     <div className="mx-auto w-full max-w-[400px] py-4">
       {/* Header */}
       <div className="mb-6 flex flex-col items-center text-center">
         <div className="mb-3 flex size-16 items-center justify-center rounded-full bg-muted text-3xl">
-          {template.icon}
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={template.name}
+              className="size-9 rounded-sm object-contain"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+                const parent = e.currentTarget.parentElement
+                if (parent) {
+                  const span = document.createElement('span')
+                  span.textContent = template.icon
+                  parent.appendChild(span)
+                }
+              }}
+            />
+          ) : (
+            template.icon
+          )}
         </div>
         <h3 className="text-xl font-semibold text-foreground">
           {template.name}
@@ -198,7 +252,7 @@ export function QuickSetupAuthStep({
           type="button"
           onClick={handleFolderPick}
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent/90 transition-colors disabled:opacity-50"
         >
           <FolderOpen className="size-4" />
           Choose Folder
@@ -208,6 +262,25 @@ export function QuickSetupAuthStep({
       {/* OAuth flow */}
       {template.authMethod === 'oauth' && (
         <div className="space-y-4">
+          {/* Pre-auth fields (e.g., Google OAuth credentials) */}
+          {preAuthFieldsUI}
+
+          {/* Help link for credential setup */}
+          {template.credentialHelpUrl && template.preAuthFields && (
+            <a
+              href={template.credentialHelpUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80"
+              onClick={(e) => {
+                e.preventDefault()
+                window.electronAPI.openUrl(template.credentialHelpUrl!)
+              }}
+            >
+              Where do I get these? <ExternalLink className="size-3" />
+            </a>
+          )}
+
           {loading ? (
             <div className="flex flex-col items-center gap-3 py-4" aria-live="polite">
               <Loader2 className="size-6 animate-spin text-accent" />
@@ -228,7 +301,8 @@ export function QuickSetupAuthStep({
             <button
               type="button"
               onClick={handleOAuthClick}
-              className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
+              disabled={!hasAllPreAuthFields}
+              className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent/90 transition-colors disabled:opacity-50"
               aria-label={`Connect with ${template.name} via OAuth`}
             >
               Connect with {template.name}
@@ -241,33 +315,7 @@ export function QuickSetupAuthStep({
       {(template.authMethod === 'bearer' || template.authMethod === 'api-key') && (
         <form onSubmit={handleCredentialSubmit} className="space-y-4">
           {/* Pre-auth fields */}
-          {template.preAuthFields?.map((field) => (
-            <div key={field.key}>
-              <label
-                htmlFor={`preauth-${field.key}`}
-                className="mb-1.5 block text-sm font-medium text-foreground"
-              >
-                {field.label}
-              </label>
-              <input
-                id={`preauth-${field.key}`}
-                type="text"
-                value={fieldValues[field.key] ?? ''}
-                onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                placeholder={field.placeholder}
-                className={cn(
-                  'w-full rounded-[8px] border bg-background px-3 py-2 text-sm text-foreground transition-colors',
-                  'focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent',
-                  fieldErrors[field.key]
-                    ? 'border-destructive'
-                    : 'border-border',
-                )}
-              />
-              {fieldErrors[field.key] && (
-                <p className="mt-1 text-xs text-destructive">{fieldErrors[field.key]}</p>
-              )}
-            </div>
-          ))}
+          {preAuthFieldsUI}
 
           {/* Credential input */}
           <div>
@@ -314,7 +362,7 @@ export function QuickSetupAuthStep({
           <button
             type="submit"
             disabled={loading || !credential.trim()}
-            className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/90 transition-colors disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-[8px] bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent/90 transition-colors disabled:opacity-50"
           >
             {loading ? (
               <>

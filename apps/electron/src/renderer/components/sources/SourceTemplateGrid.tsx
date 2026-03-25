@@ -1,7 +1,6 @@
-import * as React from 'react'
 import { Check, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { logoUrlCache } from '@/lib/icon-cache'
+import { useTemplateLogo } from '@/hooks/useTemplateLogo'
 import type { SourceTemplate } from '@depot/shared/sources/templates'
 
 interface SourceTemplateGridProps {
@@ -9,49 +8,6 @@ interface SourceTemplateGridProps {
   connectedSlugs?: string[]
   onSelect: (template: SourceTemplate) => void
   onConnectedClick?: (template: SourceTemplate) => void
-}
-
-/**
- * Resolve a favicon/logo URL for a source template.
- * Uses the same getLogoUrl IPC as SourceAvatar.
- */
-function useTemplateLogo(template: SourceTemplate): string | null {
-  const [logoUrl, setLogoUrl] = React.useState<string | null>(null)
-
-  const provider = template.sourceInput.provider
-  const serviceUrl = template.sourceInput.mcp?.url
-    ?? template.sourceInput.api?.baseUrl
-    ?? null
-
-  React.useEffect(() => {
-    // Local folder doesn't need a logo
-    if (template.sourceInput.type === 'local') return
-
-    if (!serviceUrl) return
-
-    const cacheKey = `${serviceUrl}:${provider}`
-    const cached = logoUrlCache.get(cacheKey)
-    if (cached !== undefined) {
-      setLogoUrl(cached)
-      return
-    }
-
-    let cancelled = false
-    window.electronAPI.getLogoUrl(serviceUrl, provider)
-      .then((result) => {
-        if (cancelled) return
-        logoUrlCache.set(cacheKey, result)
-        setLogoUrl(result)
-      })
-      .catch(() => {
-        if (cancelled) return
-        logoUrlCache.set(cacheKey, null)
-      })
-
-    return () => { cancelled = true }
-  }, [provider, serviceUrl, template.sourceInput.type])
-
-  return logoUrl
 }
 
 function TemplateIcon({ template }: { template: SourceTemplate }) {
@@ -143,7 +99,7 @@ export function SourceTemplateGrid({
   }
 
   const allConnected = templates.every(t =>
-    connectedSlugs.includes(t.sourceInput.provider)
+    connectedSlugs.includes(t.id)
   )
 
   return (
@@ -154,16 +110,16 @@ export function SourceTemplateGrid({
           All integrations connected
         </div>
       )}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {templates.map((template) => {
-          const isConnected = connectedSlugs.includes(template.sourceInput.provider)
+          const isConnected = connectedSlugs.includes(template.id)
           return (
             <button
               key={template.id}
               type="button"
               onClick={() => isConnected && onConnectedClick ? onConnectedClick(template) : onSelect(template)}
               className={cn(
-                'group relative flex items-start gap-3 rounded-[10px] border p-4 text-left transition-all duration-150',
+                'group relative flex items-start gap-3 rounded-[10px] border p-5 text-left transition-all duration-150',
                 'bg-card border-border',
                 'hover:-translate-y-px hover:shadow-minimal hover:border-accent/40',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',

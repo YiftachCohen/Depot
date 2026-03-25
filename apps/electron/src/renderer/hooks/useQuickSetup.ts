@@ -47,20 +47,33 @@ export function useQuickSetup(workspaceId: string) {
     }
   }, [])
 
+  /**
+   * Set template without creating source.
+   * Used for templates with preAuthFields where we need user input before creation.
+   */
+  const selectTemplate = useCallback((template: SourceTemplate) => {
+    abortedRef.current = false
+    setState({ step: 'authenticating', loading: false, error: null, sourceSlug: null, template })
+  }, [])
+
+  /**
+   * Create the source and transition to auth step.
+   * Returns the created source slug, or null on failure.
+   */
   const startSetup = useCallback(async (
     template: SourceTemplate,
     fieldValues?: Record<string, string>,
-  ) => {
+  ): Promise<string | null> => {
     abortedRef.current = false
     clearTimeout_()
 
     // Validate pre-auth fields
     if (template.preAuthFields && fieldValues) {
       for (const field of template.preAuthFields) {
-        const err = validatePreAuthField(field.key, fieldValues[field.key] ?? '')
+        const err = validatePreAuthField(field, fieldValues[field.key] ?? '')
         if (err) {
           setState({ ...INITIAL_STATE, step: 'error', error: err, template })
-          return
+          return null
         }
       }
     }
@@ -72,7 +85,7 @@ export function useQuickSetup(workspaceId: string) {
         sourceInput = resolveTemplateFields(template.sourceInput, fieldValues)
       } catch (e) {
         setState({ ...INITIAL_STATE, step: 'error', error: (e as Error).message, template })
-        return
+        return null
       }
     }
 
@@ -88,12 +101,12 @@ export function useQuickSetup(workspaceId: string) {
       const createPromise = window.electronAPI.createSource(workspaceId, sourceInput)
       const result = await Promise.race([createPromise, timeoutPromise])
 
-      if (abortedRef.current) return
+      if (abortedRef.current) return null
       clearTimeout_()
 
       if (result === 'timeout') {
         setState({ step: 'error', loading: false, error: 'Source creation timed out. Try again.', sourceSlug: null, template })
-        return
+        return null
       }
 
       // createSource returns FolderSourceConfig which has slug directly
@@ -103,25 +116,32 @@ export function useQuickSetup(workspaceId: string) {
       // ── No-auth sources → skip to success ─────────────────────────
       if (template.authMethod === 'none') {
         setState({ step: 'success', loading: false, error: null, sourceSlug: slug, template })
-        return
+        return slug
       }
 
       // ── Auth required → transition to authenticating ──────────────
       setState({ step: 'authenticating', loading: false, error: null, sourceSlug: slug, template })
+      return slug
 
     } catch (e) {
-      if (abortedRef.current) return
+      if (abortedRef.current) return null
       clearTimeout_()
       setState({ step: 'error', loading: false, error: (e as Error).message || 'Failed to create source', sourceSlug: null, template })
+      return null
     }
   }, [workspaceId, clearTimeout_])
 
-  const performAuth = useCallback(async (credential?: string) => {
-    if (!state.sourceSlug || !state.template) return
+  /**
+   * Perform authentication (OAuth or credential save) and test connection.
+   * @param credential - Bearer token or API key (for non-OAuth flows)
+   * @param slugOverride - Use this slug instead of state.sourceSlug (for chained create→auth flows)
+   */
+  const performAuth = useCallback(async (credential?: string, slugOverride?: string) => {
+    const sourceSlug = slugOverride || state.sourceSlug
+    const template = state.template
+    if (!sourceSlug || !template) return
 
-    const { sourceSlug, template } = state
-
-    setState(prev => ({ ...prev, loading: true, error: null }))
+    setState(prev => ({ ...prev, sourceSlug, loading: true, error: null }))
 
     try {
       if (template.authMethod === 'oauth') {
@@ -218,6 +238,7 @@ export function useQuickSetup(workspaceId: string) {
   return {
     ...state,
     oauthInProgress,
+    selectTemplate,
     startSetup,
     performAuth,
     retry,
