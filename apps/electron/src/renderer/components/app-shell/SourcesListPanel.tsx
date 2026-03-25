@@ -7,6 +7,7 @@ import { EntityListBadge } from '@/components/ui/entity-list-badge'
 import { EntityListEmptyScreen } from '@/components/ui/entity-list-empty'
 import { sourceSelection } from '@/hooks/useEntitySelection'
 import { SourceMenu } from './SourceMenu'
+import { EditPopover, getEditConfig, type EditContextKey } from '@/components/ui/EditPopover'
 import { DiscoverSourcesDialog } from './DiscoverSourcesDialog'
 import { QuickSetupDialog } from '@/components/sources/QuickSetupDialog'
 import type { LoadedSource, SourceConnectionStatus, SourceFilter } from '../../../shared/types'
@@ -71,11 +72,17 @@ export function SourcesListPanel({
   }, [sourceFilter])
 
   const [quickSetupOpen, setQuickSetupOpen] = React.useState(false)
+  const [manualSetupOpen, setManualSetupOpen] = React.useState(false)
+  const editContextKey = sourceFilter?.kind === 'type' ? `add-source-${sourceFilter.sourceType}` as EditContextKey : 'add-source'
 
   const handleNavigateToSource = React.useCallback((sourceSlug: string) => {
     const source = sources.find(s => s.config.slug === sourceSlug)
     if (source) onSourceClick(source)
   }, [sources, onSourceClick])
+
+  const handleManualSetup = React.useCallback(() => {
+    setManualSetupOpen(true)
+  }, [])
 
   return (
     <EntityPanel<LoadedSource>
@@ -115,8 +122,18 @@ export function SourcesListPanel({
                 open={quickSetupOpen}
                 onOpenChange={setQuickSetupOpen}
                 onNavigateToSource={handleNavigateToSource}
+                onManualSetup={workspaceRootPath ? handleManualSetup : undefined}
               />
             </>
+          )}
+          {workspaceRootPath && (
+            <EditPopover
+              align="end"
+              open={manualSetupOpen}
+              onOpenChange={setManualSetupOpen}
+              trigger={<span />}
+              {...getEditConfig(editContextKey, workspaceRootPath)}
+            />
           )}
         </div>
       ) : undefined}

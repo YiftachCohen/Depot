@@ -22,6 +22,7 @@ interface QuickSetupDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onNavigateToSource?: (sourceSlug: string) => void
+  onManualSetup?: () => void
 }
 
 export function QuickSetupDialog({
@@ -29,6 +30,7 @@ export function QuickSetupDialog({
   open,
   onOpenChange,
   onNavigateToSource,
+  onManualSetup,
 }: QuickSetupDialogProps) {
   const [dialogStep, setDialogStep] = useState<DialogStep>('grid')
   const sources = useAtomValue(sourcesAtom)
@@ -163,16 +165,22 @@ export function QuickSetupDialog({
                 onSelect={handleSelect}
                 onConnectedClick={handleConnectedClick}
               />
-              <p className="mt-4 text-center text-xs text-muted-foreground">
-                Need a different integration?{' '}
-                <button
-                  type="button"
-                  onClick={handleDone}
-                  className="text-accent hover:text-accent/80 underline"
-                >
-                  Manual setup
-                </button>
-              </p>
+              {onManualSetup && (
+                <p className="mt-4 text-center text-xs text-muted-foreground">
+                  Need a different integration?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDone()
+                      // Small delay so dialog close animation completes before opening popover
+                      setTimeout(onManualSetup, 250)
+                    }}
+                    className="text-accent hover:text-accent/80 underline"
+                  >
+                    Manual setup
+                  </button>
+                </p>
+              )}
             </div>
           ) : quickSetup.template ? (
             <div className="animate-in fade-in duration-250" aria-live="polite">
