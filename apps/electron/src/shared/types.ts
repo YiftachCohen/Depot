@@ -507,7 +507,7 @@ export interface ElectronAPI {
   // Appearance settings
   getRichToolDescriptions(): Promise<boolean>
   setRichToolDescriptions(enabled: boolean): Promise<void>
-  setAppIcon(dataUrl: string): Promise<void>
+  setAppIcon(dataUrl: string, iconId?: string): Promise<void>
 
   // Network proxy settings
   getNetworkProxySettings(): Promise<NetworkProxySettings | undefined>
@@ -615,6 +615,7 @@ export type RightSidebarPanel =
  */
 export type SessionFilter =
   | { kind: 'allSessions' }
+  | { kind: 'quickChats' }
   | { kind: 'flagged' }
   | { kind: 'state'; stateId: string }
   | { kind: 'label'; labelId: string }
@@ -813,6 +814,7 @@ export const parseNavigationStateKey = (key: string): NavigationState | null => 
   const parseSessionsKey = (filterKey: string, sessionId?: string): NavigationState | null => {
     let filter: SessionFilter
     if (filterKey === 'allSessions') filter = { kind: 'allSessions' }
+    else if (filterKey === 'quickChats') filter = { kind: 'quickChats' }
     else if (filterKey === 'flagged') filter = { kind: 'flagged' }
     else if (filterKey === 'archived') filter = { kind: 'archived' }
     else if (filterKey.startsWith('state:')) {

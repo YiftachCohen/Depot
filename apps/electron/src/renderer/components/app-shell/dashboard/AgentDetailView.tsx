@@ -52,10 +52,10 @@ const noMotionVariants: Variants = {
 // ---------------------------------------------------------------------------
 interface AgentDetailViewProps {
   focusedSkill: LoadedSkill
-  activeWorkspaceId: string
+  activeWorkspaceId: string | null
   skillStats: Map<string, SkillSessionStats>
   agentStateMap: Map<string, AgentState>
-  setAgentStateMap: React.Dispatch<React.SetStateAction<Map<string, AgentState>>>
+  setAgentStateMap?: React.Dispatch<React.SetStateAction<Map<string, AgentState>>>
   knowledgeStatsMap: Map<string, KnowledgeStatsData>
   allAutomations: AutomationListItem[]
   sessionMetaMap: Map<string, { id: string; name?: string; lastMessageAt?: number; skillSlug?: string }>
@@ -67,6 +67,9 @@ interface AgentDetailViewProps {
   onSendMessage: (sessionId: string, prompt: string, attachments?: FileAttachment[], skillSlugs?: string[]) => void
   onTestAutomation?: (automationId: string) => void
   getAutomationHistory?: (automationId: string) => Promise<ExecutionEntry[]>
+  onAgentStateRefresh?: (slug: string) => void
+  onQuickCommand?: (skill: LoadedSkill, cmd: QuickCommand) => void
+  onNewChat?: (skill: LoadedSkill) => void
 }
 
 export function AgentDetailView({
@@ -82,6 +85,7 @@ export function AgentDetailView({
   onSendMessage,
   onTestAutomation,
   getAutomationHistory,
+  onAgentStateRefresh,
 }: AgentDetailViewProps) {
   const prefersReducedMotion = useReducedMotion() ?? false
   const containerRef = useRef<HTMLDivElement>(null)
@@ -331,6 +335,11 @@ export function AgentDetailView({
   }, [activeWorkspaceId, focusedSkill])
 
   const handleFactsChanged = useCallback(() => {
+    if (onAgentStateRefresh) {
+      onAgentStateRefresh(focusedSkill.slug)
+      return
+    }
+    if (!activeWorkspaceId || !setAgentStateMap) return
     window.electronAPI.getAgentState(activeWorkspaceId, focusedSkill.slug)
       .then((state) => {
         setAgentStateMap((prev) => {
@@ -340,7 +349,7 @@ export function AgentDetailView({
           return next
         })
       }).catch(() => {})
-  }, [activeWorkspaceId, focusedSkill.slug, setAgentStateMap])
+  }, [activeWorkspaceId, focusedSkill.slug, setAgentStateMap, onAgentStateRefresh])
 
   // Choose animation variants
   const cVariants = prefersReducedMotion ? noMotionVariants : containerVariants

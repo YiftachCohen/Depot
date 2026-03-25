@@ -485,6 +485,8 @@ icon: brain
 description: Full v2 agent
 personality: "Meticulous security auditor"
 permission_mode: ask
+model: claude-sonnet-4-6
+llm_connection: my-bedrock
 memory:
   enabled: true
 sources:
@@ -500,6 +502,7 @@ source_configs:
 quick_commands:
   - name: Audit
     prompt: "Audit the codebase"
+    model: claude-haiku-4-5-20251001
 `;
 
 describe('parseDepotManifest — v2 fields', () => {
@@ -720,10 +723,13 @@ quick_commands:
     expect(manifest.description).toBe('Full v2 agent');
     expect(manifest.personality).toBe('Meticulous security auditor');
     expect(manifest.permission_mode).toBe('ask');
+    expect(manifest.model).toBe('claude-sonnet-4-6');
+    expect(manifest.llm_connection).toBe('my-bedrock');
     expect(manifest.memory).toEqual({ enabled: true });
     expect(manifest.sources).toEqual(['jira']);
     expect(manifest.source_configs).toBeDefined();
     expect(manifest.quick_commands).toHaveLength(1);
+    expect(manifest.quick_commands[0]!.model).toBe('claude-haiku-4-5-20251001');
   });
 
   it('should keep all v2 fields undefined for a minimal v1 manifest', () => {
@@ -731,7 +737,75 @@ quick_commands:
 
     expect(manifest.personality).toBeUndefined();
     expect(manifest.permission_mode).toBeUndefined();
+    expect(manifest.model).toBeUndefined();
+    expect(manifest.llm_connection).toBeUndefined();
     expect(manifest.memory).toBeUndefined();
     expect(manifest.source_configs).toBeUndefined();
+  });
+
+  it('should parse model and llm_connection and trim whitespace', () => {
+    const yaml = `
+name: Model Test
+icon: cpu
+description: Test model fields
+model: "  claude-opus-4-6  "
+llm_connection: "  my-connection  "
+quick_commands:
+  - name: Go
+    prompt: "Do it"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.model).toBe('claude-opus-4-6');
+    expect(manifest.llm_connection).toBe('my-connection');
+  });
+
+  it('should leave model and llm_connection undefined for empty strings', () => {
+    const yaml = `
+name: Empty Model
+icon: cpu
+description: Test empty model
+model: ""
+llm_connection: ""
+quick_commands:
+  - name: Go
+    prompt: "Do it"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.model).toBeUndefined();
+    expect(manifest.llm_connection).toBeUndefined();
+  });
+
+  it('should parse per-command model override', () => {
+    const yaml = `
+name: Multi Model
+icon: cpu
+description: Commands with different models
+quick_commands:
+  - name: Fast
+    prompt: "Quick check"
+    model: claude-haiku-4-5-20251001
+  - name: Deep
+    prompt: "Deep analysis"
+    model: claude-opus-4-6
+  - name: Default
+    prompt: "Use default model"
+`;
+    const manifest = parseDepotManifest(yaml);
+    expect(manifest.quick_commands[0]!.model).toBe('claude-haiku-4-5-20251001');
+    expect(manifest.quick_commands[1]!.model).toBe('claude-opus-4-6');
+    expect(manifest.quick_commands[2]!.model).toBeUndefined();
+  });
+
+  it('should throw validation error for non-string model in quick command', () => {
+    const yaml = `
+name: Bad Model
+icon: cpu
+description: Non-string model
+quick_commands:
+  - name: Broken
+    prompt: "This has a bad model"
+    model: 123
+`;
+    expect(() => parseDepotManifest(yaml)).toThrow('quick_commands[0].model must be a string, got number');
   });
 });

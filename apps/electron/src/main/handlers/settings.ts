@@ -293,8 +293,13 @@ export function registerSettingsGuiHandlers(server: RpcServer, deps: HandlerDeps
     await updateConfiguredProxySettings(settings)
   })
 
-  server.handle(RPC_CHANNELS.appearance.SET_APP_ICON, async (_ctx, dataUrl: string) => {
+  server.handle(RPC_CHANNELS.appearance.SET_APP_ICON, async (_ctx, dataUrl: string, iconId?: string) => {
     const { setBaseDockIcon } = await import('../notifications')
+    const { persistIconPreference } = await import('../dock-icon-storage')
     setBaseDockIcon(dataUrl)
+
+    if (typeof iconId === 'string' && iconId.trim()) {
+      persistIconPreference(iconId)
+    }
   })
 }
