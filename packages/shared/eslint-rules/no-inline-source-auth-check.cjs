@@ -46,7 +46,8 @@ module.exports = {
   create(context) {
     // Files where direct isAuthenticated access is allowed
     const allowedFiles = [
-      'storage.ts', // isSourceUsable is defined here
+      'types.ts', // isSourceUsable is defined here
+      'storage.ts', // Re-exports isSourceUsable
       'credential-manager.ts', // State-setting and inverse check
       'server-builder.ts', // OAuth provider checks (documented)
     ]

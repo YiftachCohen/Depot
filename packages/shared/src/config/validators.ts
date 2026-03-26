@@ -393,7 +393,7 @@ const McpSourceConfigSchema = z.object({
 
 const ApiSourceConfigSchema = z.object({
   baseUrl: z.string().url(),
-  authType: z.enum(['bearer', 'header', 'query', 'basic', 'none']),
+  authType: z.enum(['bearer', 'header', 'query', 'basic', 'oauth', 'none']),
   headerName: z.string().optional(),
   queryParam: z.string().optional(),
   authScheme: z.string().optional(),
@@ -407,6 +407,12 @@ const ApiSourceConfigSchema = z.object({
     .optional(),
   googleService: z.enum(['gmail', 'calendar', 'drive', 'docs', 'sheets']).optional(),
   googleScopes: z.array(z.string()).optional(),
+  googleOAuthClientId: z.string().optional(),
+  googleOAuthClientSecret: z.string().optional(),
+  slackService: z.string().optional(),
+  slackUserScopes: z.array(z.string()).optional(),
+  microsoftService: z.string().optional(),
+  microsoftScopes: z.array(z.string()).optional(),
 });
 
 const LocalSourceConfigSchema = z.object({

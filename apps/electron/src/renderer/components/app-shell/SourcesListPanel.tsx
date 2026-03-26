@@ -9,6 +9,7 @@ import { sourceSelection } from '@/hooks/useEntitySelection'
 import { SourceMenu } from './SourceMenu'
 import { EditPopover, getEditConfig, type EditContextKey } from '@/components/ui/EditPopover'
 import { DiscoverSourcesDialog } from './DiscoverSourcesDialog'
+import { QuickSetupDialog } from '@/components/sources/QuickSetupDialog'
 import type { LoadedSource, SourceConnectionStatus, SourceFilter } from '../../../shared/types'
 
 const SOURCE_TYPE_CONFIG: Record<string, { label: string; colorClass: string }> = {
@@ -70,7 +71,18 @@ export function SourcesListPanel({
     return 'No sources configured.'
   }, [sourceFilter])
 
+  const [quickSetupOpen, setQuickSetupOpen] = React.useState(false)
+  const [manualSetupOpen, setManualSetupOpen] = React.useState(false)
   const editContextKey = sourceFilter?.kind === 'type' ? `add-source-${sourceFilter.sourceType}` as EditContextKey : 'add-source'
+
+  const handleNavigateToSource = React.useCallback((sourceSlug: string) => {
+    const source = sources.find(s => s.config.slug === sourceSlug)
+    if (source) onSourceClick(source)
+  }, [sources, onSourceClick])
+
+  const handleManualSetup = React.useCallback(() => {
+    setManualSetupOpen(true)
+  }, [])
 
   return (
     <EntityPanel<LoadedSource>
@@ -96,17 +108,30 @@ export function SourcesListPanel({
               }
             />
           )}
+          {workspaceId && (
+            <>
+              <button
+                className="inline-flex items-center justify-center h-6 w-6 rounded-[6px] text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.05] transition-colors"
+                aria-label="Add source"
+                onClick={() => setQuickSetupOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <QuickSetupDialog
+                workspaceId={workspaceId}
+                open={quickSetupOpen}
+                onOpenChange={setQuickSetupOpen}
+                onNavigateToSource={handleNavigateToSource}
+                onManualSetup={workspaceRootPath ? handleManualSetup : undefined}
+              />
+            </>
+          )}
           {workspaceRootPath && (
             <EditPopover
               align="end"
-              trigger={
-                <button
-                  className="inline-flex items-center justify-center h-6 w-6 rounded-[6px] text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.05] transition-colors"
-                  aria-label="Add source"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              }
+              open={manualSetupOpen}
+              onOpenChange={setManualSetupOpen}
+              trigger={<span />}
               {...getEditConfig(editContextKey, workspaceRootPath)}
             />
           )}

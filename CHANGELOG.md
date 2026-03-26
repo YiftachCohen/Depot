@@ -4,6 +4,24 @@ All notable changes to Depot are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.12] - 2026-03-26
+
+### Added
+
+- **Sources quick setup wizard** — New "Quick Setup" dialog with a grid of 12 popular integrations (Linear, GitHub, Notion, Slack, Google Calendar, Google Drive, Gmail, Todoist, Jira, Exa, Microsoft Outlook, Local Folder). Click a service, authenticate inline, and the source appears ready to use — no manual config needed.
+- **Template-based source creation** — Source templates with pre-filled configs for MCP, API, and local sources. Includes `resolveTemplateFields()` for safe placeholder resolution with domain validation to prevent URL injection.
+- **Agent detail page redesign** — Living dossier layout with profile column, shift handoff cards, activity timeline, and knowledge story cards. Modular component architecture replacing the previous monolithic view.
+
+### Changed
+
+- **"+" button opens Quick Setup** — The sources panel "+" button now opens the Quick Setup wizard as the primary add-source path. Manual AI-chat setup is accessible via a "Manual setup" link at the bottom.
+- **Connected source matching** — Quick setup grid correctly identifies connected sources by matching provider + service type (e.g., Google Calendar vs Gmail), not just provider name.
+
+### Fixed
+
+- **Zod schema parity** — Added `slackService`, `slackUserScopes`, `microsoftService`, `microsoftScopes` fields to `ApiSourceConfigSchema` to match TypeScript type definitions, preventing validation failures for Slack and Microsoft templates.
+- **Service logo resolution** — Added `useTemplateLogo` hook for reliable service logo display with emoji fallback.
+
 ## [1.2.8] - 2026-03-24
 
 ### Changed
