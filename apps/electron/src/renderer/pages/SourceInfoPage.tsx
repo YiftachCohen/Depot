@@ -31,6 +31,7 @@ import {
 } from '@/components/info'
 import type { LoadedSource, McpToolWithPermission } from '../../shared/types'
 import type { PermissionsConfigFile } from '@depot/shared/agent/modes'
+import { isSourceUsable } from '@depot/shared/sources'
 
 interface SourceInfoPageProps {
   sourceSlug: string
@@ -416,7 +417,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
   const sourceAuthType = source?.config.mcp?.authType ?? source?.config.api?.authType
 
   // Check if source needs authentication (API or MCP sources with non-none auth)
-  const needsAuth = source != null && !source.config.isAuthenticated && sourceAuthType != null && sourceAuthType !== 'none'
+  const needsAuth = source != null && !isSourceUsable(source) && sourceAuthType != null && sourceAuthType !== 'none'
 
   const handleReauthenticate = useCallback(async () => {
     if (!source) return
