@@ -68,8 +68,8 @@ export function QuickSetupDialog({
       // Has pre-auth fields — show form first, create source on submit
       quickSetup.selectTemplate(template)
     } else if (template.authMethod === 'none') {
-      // No auth — create immediately
-      quickSetup.startSetup(template)
+      // No auth — show folder picker first, create source on submit
+      quickSetup.selectTemplate(template)
     } else if (template.authMethod === 'oauth') {
       // OAuth without pre-auth fields — create source immediately, show auth step
       quickSetup.startSetup(template)

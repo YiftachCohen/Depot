@@ -226,8 +226,8 @@ export function useQuickSetup(workspaceId: string) {
 
   const retry = useCallback(() => {
     if (!state.template) return
-    setState({ ...INITIAL_STATE, template: state.template })
-  }, [state.template])
+    setState({ ...INITIAL_STATE, step: 'authenticating', template: state.template, sourceSlug: state.sourceSlug })
+  }, [state.template, state.sourceSlug])
 
   const reset = useCallback(() => {
     abortedRef.current = true
