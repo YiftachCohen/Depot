@@ -31,7 +31,7 @@ import {
 } from '@/components/info'
 import type { LoadedSource, McpToolWithPermission } from '../../shared/types'
 import type { PermissionsConfigFile } from '@depot/shared/agent/modes'
-import { isSourceUsable } from '@depot/shared/sources'
+import { isSourceUsable } from '@depot/shared/sources/types'
 
 interface SourceInfoPageProps {
   sourceSlug: string
