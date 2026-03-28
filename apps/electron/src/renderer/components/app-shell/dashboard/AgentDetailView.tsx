@@ -17,14 +17,15 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TemplateVariableModal } from '../TemplateVariableModal'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { RenameDialog } from '@/components/ui/rename-dialog'
 
-import { AgentProfileColumn, getAccentColor, formatRelativeTime } from './AgentProfileColumn'
+import { AgentProfileColumn } from './AgentProfileColumn'
+import { getAccentColor, formatRelativeTime } from './utils'
 import { AgentPromptBar } from './AgentPromptBar'
 import { AgentHandoffCard } from './AgentHandoffCard'
 import { AgentActivityTimeline } from './AgentActivityTimeline'
 import { KnowledgeStoryCard } from './KnowledgeStoryCard'
 import { AgentMemoryCard } from './AgentMemoryCard'
-import { AgentAutomationsCard } from './AgentAutomationsCard'
 import { determinePageMode } from './types'
 import type { AgentPageMode, KnowledgeStatsData, SkillSessionStats } from './types'
 
@@ -66,6 +67,8 @@ interface AgentDetailViewProps {
   }) => Promise<{ id: string } | undefined>
   onSendMessage: (sessionId: string, prompt: string, attachments?: FileAttachment[], skillSlugs?: string[]) => void
   onTestAutomation?: (automationId: string) => void
+  onToggleAutomation?: (automationId: string) => void
+  onDeleteAutomation?: (automationId: string) => void
   getAutomationHistory?: (automationId: string) => Promise<ExecutionEntry[]>
   onAgentStateRefresh?: (slug: string) => void
   onQuickCommand?: (skill: LoadedSkill, cmd: QuickCommand) => void
@@ -84,6 +87,8 @@ export function AgentDetailView({
   onCreateSession,
   onSendMessage,
   onTestAutomation,
+  onToggleAutomation,
+  onDeleteAutomation,
   getAutomationHistory,
   onAgentStateRefresh,
 }: AgentDetailViewProps) {
@@ -197,6 +202,10 @@ export function AgentDetailView({
   // Delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
+  // Rename dialog
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameName, setRenameName] = useState('')
+
   // --- Manifest save helper ---
   const saveFocusedManifest = useCallback(async (updates: Partial<DepotSkillManifest>): Promise<boolean> => {
     if (!focusedSkill?.manifest) return false
@@ -217,6 +226,26 @@ export function AgentDetailView({
   // --- Handlers ---
   const handleSourcesChange = useCallback(async (slugs: string[]) => {
     await saveFocusedManifest({ sources: slugs })
+  }, [saveFocusedManifest])
+
+  const handleRenameStart = useCallback(() => {
+    setRenameName(focusedSkill.manifest?.name ?? focusedSkill.metadata.name)
+    setRenameOpen(true)
+  }, [focusedSkill])
+
+  const handleRenameSubmit = useCallback(async () => {
+    const trimmed = renameName.trim()
+    if (!trimmed) return
+    const saved = await saveFocusedManifest({ name: trimmed })
+    if (saved) setRenameOpen(false)
+  }, [renameName, saveFocusedManifest])
+
+  const handleColorChange = useCallback(async (color: string) => {
+    await saveFocusedManifest({ color })
+  }, [saveFocusedManifest])
+
+  const handleModelChange = useCallback(async (modelId: string) => {
+    await saveFocusedManifest({ model: modelId || undefined })
   }, [saveFocusedManifest])
 
   const handleFocusedIconSelect = useCallback(async (iconName: string) => {
@@ -410,7 +439,15 @@ export function AgentDetailView({
                 onDelete={() => setDeleteDialogOpen(true)}
                 onPermissionModeChange={(mode) => void saveFocusedManifest({ permission_mode: mode as 'safe' | 'ask' | 'allow-all' })}
                 onSourcesChange={handleSourcesChange}
+                onColorChange={handleColorChange}
+                onModelChange={handleModelChange}
+                onRenameStart={handleRenameStart}
                 agentAutomations={agentAutomations}
+                allAutomations={allAutomations}
+                onTestAutomation={onTestAutomation}
+                onToggleAutomation={onToggleAutomation}
+                onDeleteAutomation={onDeleteAutomation}
+                getAutomationHistory={getAutomationHistory}
                 lastSession={recentSessions[0] ?? null}
                 skillSlug={focusedSkill.slug}
               />
@@ -445,6 +482,8 @@ export function AgentDetailView({
                   handleNewChat,
                   handleFactsChanged,
                   onTestAutomation,
+                  onToggleAutomation,
+                  onDeleteAutomation,
                   getAutomationHistory,
                   prefersReducedMotion,
                   iVariants,
@@ -463,6 +502,17 @@ export function AgentDetailView({
         promptTemplate={pendingVarCommand?.cmd.prompt ?? ''}
         variables={pendingVarCommand?.cmd.variables ?? []}
         onSubmit={handleVariableSubmit}
+      />
+
+      {/* Rename Dialog */}
+      <RenameDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        title="Rename Agent"
+        value={renameName}
+        onValueChange={setRenameName}
+        onSubmit={handleRenameSubmit}
+        placeholder="Agent name..."
       />
 
       {/* Delete Dialog */}
@@ -521,6 +571,8 @@ function renderContentCards(ctx: {
   handleNewChat: () => void
   handleFactsChanged: () => void
   onTestAutomation?: (automationId: string) => void
+  onToggleAutomation?: (automationId: string) => void
+  onDeleteAutomation?: (automationId: string) => void
   getAutomationHistory?: (automationId: string) => Promise<ExecutionEntry[]>
   prefersReducedMotion: boolean
   iVariants: Variants
@@ -589,22 +641,7 @@ function renderContentCards(ctx: {
     )
   }
 
-  // 5. Automations card (only for non-cron automations not in pulse strip)
-  const hasCronAutomations = ctx.agentAutomations.some(a => a.enabled && a.cron)
-  const hasNonCronAutomations = ctx.agentAutomations.some(a => !a.cron)
-  if (hasNonCronAutomations || !hasCronAutomations) {
-    cards.push(
-      <M key="automations" variants={ctx.iVariants}>
-        <AgentAutomationsCard
-          skillSlug={ctx.focusedSkill.slug}
-          skillPath={ctx.focusedSkill.path}
-          automations={ctx.allAutomations}
-          onTest={ctx.onTestAutomation}
-          getHistory={ctx.getAutomationHistory}
-        />
-      </M>,
-    )
-  }
+  // Automations are now shown exclusively in the left profile column.
 
   return cards
 }

@@ -2,7 +2,6 @@
  * AgentGrid — responsive grid container for agent cards.
  */
 import { motion } from 'motion/react'
-import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { containerVariants, itemVariants, getAccentColor } from './utils'
 import type { SkillSessionStats, KnowledgeStats } from './utils'
@@ -73,7 +72,7 @@ export function AgentGrid({
         <motion.div key={skill.slug} variants={itemVariants}>
           <AgentCard
             skill={skill}
-            accent={getAccentColor(skill.slug)}
+            accent={getAccentColor(skill.slug, skill.manifest?.color)}
             workspaceId={activeWorkspaceId}
             stats={skillStats.get(skill.slug)}
             agentState={agentStateMap.get(skill.slug)}
@@ -87,25 +86,6 @@ export function AgentGrid({
         </motion.div>
       ))}
 
-      {/* Add Agent — last grid item */}
-      <motion.div variants={itemVariants}>
-        <button
-          type="button"
-          onClick={onAddAgent}
-          className={cn(
-            'w-full flex items-center gap-3 rounded-[10px] p-4',
-            'border border-dashed border-border/50',
-            'hover:bg-background hover:border-amber-500/30 hover:shadow-xs',
-            'transition-all cursor-pointer',
-            'focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:outline-none',
-          )}
-        >
-          <div className="shrink-0 flex items-center justify-center h-10 w-10 rounded-xl bg-secondary/50">
-            <Plus className="h-4 w-4 text-muted-foreground/40" />
-          </div>
-          <span className="text-[13px] text-muted-foreground/60 font-medium">Add Agent</span>
-        </button>
-      </motion.div>
     </motion.div>
   )
 }

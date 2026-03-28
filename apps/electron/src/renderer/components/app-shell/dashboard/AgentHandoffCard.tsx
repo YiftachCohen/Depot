@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import type { ObservationRun, AgentState } from '@depot/shared/skills'
 import type { SessionMetadata } from '@depot/core/types'
 import type { AgentPageMode, KnowledgeStatsData } from './types'
-import { formatRelativeTime } from './AgentProfileColumn'
+import { formatRelativeTime } from './utils'
 import type { AutomationListItem } from '../../automations/types'
 
 interface AgentHandoffCardProps {

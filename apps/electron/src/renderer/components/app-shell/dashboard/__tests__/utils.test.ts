@@ -13,7 +13,7 @@ describe('getAccentColor', () => {
 
   it('returns different colors for different slugs', () => {
     // Not guaranteed but very likely for different strings
-    const colors = new Set(['alpha', 'beta', 'gamma', 'delta', 'epsilon'].map(getAccentColor))
+    const colors = new Set(['alpha', 'beta', 'gamma', 'delta', 'epsilon'].map(s => getAccentColor(s)))
     expect(colors.size).toBeGreaterThan(1)
   })
 

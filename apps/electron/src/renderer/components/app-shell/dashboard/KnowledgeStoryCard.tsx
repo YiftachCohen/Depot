@@ -156,11 +156,11 @@ export function KnowledgeStoryCard({
           <StorySkeleton />
         ) : error ? (
           <div className="text-[12px] text-destructive">
-            {error} \u2014 <button type="button" onClick={loadData} className="underline cursor-pointer">retry</button>
+            {error} — <button type="button" onClick={loadData} className="underline cursor-pointer">retry</button>
           </div>
         ) : entities.length === 0 && patterns.length === 0 ? (
           <p className="text-[12px] text-foreground/35 italic">
-            No knowledge yet \u2014 run an observation to start learning.
+            No knowledge yet — run an observation to start learning.
           </p>
         ) : (
           <div className="space-y-3">

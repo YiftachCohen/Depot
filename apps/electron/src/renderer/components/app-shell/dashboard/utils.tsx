@@ -17,10 +17,11 @@ import type { LoadedSkill } from '../../../../shared/types'
 // Warm palette only — no violet/magenta per DESIGN.md (amber brand differentiation)
 export const ACCENT_PALETTE = ['#D97706','#16A34A','#2563EB','#DC2626','#0D9488','#CA8A04','#B45309','#0284C7']
 
-export function getAccentColor(slug: string): string {
+export function getAccentColor(slug: string, customColor?: string): string {
+  if (customColor) return customColor
   let hash = 0
   for (let i = 0; i < slug.length; i++) hash = ((hash << 5) - hash + slug.charCodeAt(i)) | 0
-  return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length]
+  return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length]!
 }
 
 // ---------------------------------------------------------------------------
@@ -47,7 +48,7 @@ export function formatRelativeTime(epochMs: number): string {
 // ---------------------------------------------------------------------------
 // Status dot classes
 // ---------------------------------------------------------------------------
-export const ACTIVITY_DOT: Record<string, string> = { active: 'bg-success', recent: 'bg-info', idle: 'bg-foreground/20' }
+export const ACTIVITY_DOT: Record<string, string> = { active: 'bg-amber-500', recent: 'bg-amber-300', idle: 'bg-foreground/20' }
 
 export const OBSERVATION_HEALTH_DOT: Record<string, string> = {
   green: 'bg-[#16A34A]',
@@ -63,6 +64,13 @@ export const CMD_CHIP = cn(
   'inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/80 cursor-pointer',
   'rounded-md px-1.5 py-0.5 -mx-0.5',
   'hover:bg-foreground/[0.05] hover:text-foreground/80 transition-colors',
+)
+
+export const CARD_CMD_CHIP = cn(
+  'inline-flex items-center gap-1.5 text-[12px] text-foreground/70 cursor-pointer',
+  'rounded-full px-2.5 py-1',
+  'border border-border/50 bg-foreground/[0.03]',
+  'hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:border-amber-300/60 dark:hover:border-amber-700/40 hover:text-amber-900 dark:hover:text-amber-300 transition-colors',
 )
 
 export const FOCUSED_CMD_CHIP = cn(
@@ -115,7 +123,14 @@ export interface KnowledgeStats {
 // ---------------------------------------------------------------------------
 // AgentIcon — accent-tinted avatar for dashboard cards
 // ---------------------------------------------------------------------------
-export function AgentIcon({ skill, accent, workspaceId }: { skill: LoadedSkill; accent: string; workspaceId: string }) {
+const ICON_SIZES = {
+  md: { container: 'h-12 w-12 rounded-xl', icon: 'h-[22px] w-[22px]', svg: '[&>svg]:h-[22px] [&>svg]:w-[22px]' },
+  sm: { container: 'h-7 w-7 rounded-lg', icon: 'h-[14px] w-[14px]', svg: '[&>svg]:h-[14px] [&>svg]:w-[14px]' },
+} as const
+
+export function AgentIcon({ skill, accent, workspaceId, size = 'md', 'aria-label': ariaLabel }: {
+  skill: LoadedSkill; accent: string; workspaceId: string; size?: 'md' | 'sm'; 'aria-label'?: string
+}) {
   const icon = useEntityIcon({
     workspaceId,
     entityType: 'skill',
@@ -127,22 +142,25 @@ export function AgentIcon({ skill, accent, workspaceId }: { skill: LoadedSkill; 
     () => resolveIconComponent(skill.manifest?.icon, skill.metadata.name),
     [skill.manifest?.icon, skill.metadata.name],
   )
+  const s = ICON_SIZES[size]
 
   return (
     <div
-      className="flex items-center justify-center h-12 w-12 rounded-xl shrink-0"
+      className={cn('flex items-center justify-center shrink-0', s.container)}
       style={{ backgroundColor: `${accent}28` }}
+      aria-label={ariaLabel}
     >
-      {/* Per DESIGN.md: line-style icons only, no emoji avatars */}
-      {icon.kind === 'file' && icon.colorable && icon.rawSvg ? (
-        <span className="[&>svg]:h-[22px] [&>svg]:w-[22px]" style={{ color: accent }}>
+      {icon.kind === 'emoji' ? (
+        <span className="text-base leading-none">{icon.value}</span>
+      ) : icon.kind === 'file' && icon.colorable && icon.rawSvg ? (
+        <span className={s.svg} style={{ color: accent }}>
           <InlineSvg svg={icon.rawSvg} />
         </span>
       ) : icon.kind === 'file' ? (
-        <img src={icon.value} alt={skill.metadata.name} className="h-[22px] w-[22px] rounded" />
+        <img src={icon.value} alt={skill.metadata.name} className={cn(s.icon, 'rounded')} />
       ) : (
         <span style={{ color: accent }}>
-          <FallbackIcon className="h-[22px] w-[22px]" />
+          <FallbackIcon className={s.icon} />
         </span>
       )}
     </div>

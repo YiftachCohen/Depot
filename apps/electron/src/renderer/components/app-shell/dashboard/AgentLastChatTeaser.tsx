@@ -7,7 +7,7 @@ import * as React from 'react'
 import { MessageSquare, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { navigate, routes } from '@/lib/navigate'
-import { formatRelativeTime } from './AgentProfileColumn'
+import { formatRelativeTime } from './utils'
 
 interface AgentLastChatTeaserProps {
   skillSlug: string

@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { navigate, routes } from '@/lib/navigate'
 import type { ObservationRun, AgentMemoryFact } from '@depot/shared/skills'
 import type { AgentEvent } from './types'
-import { formatRelativeTime } from './AgentProfileColumn'
+import { formatRelativeTime } from './utils'
 import type { ExecutionEntry } from '../../automations/types'
 
 // ---------------------------------------------------------------------------
@@ -184,7 +184,7 @@ export function AgentActivityTimeline({
         <h3 className="text-[11px] font-medium text-foreground/40 uppercase tracking-widest mb-3">Activity</h3>
         <p className="text-[12px] text-destructive">
           Couldn't load events{onRetry && (
-            <> \u2014 <button type="button" onClick={onRetry} className="underline cursor-pointer">retry</button></>
+            <> — <button type="button" onClick={onRetry} className="underline cursor-pointer">retry</button></>
           )}
         </p>
       </div>
@@ -197,7 +197,7 @@ export function AgentActivityTimeline({
 
       {events.length === 0 ? (
         <div className="py-4 text-center">
-          <p className="text-[12px] text-foreground/35 mb-2">No activity yet \u2014 run a task to get started.</p>
+          <p className="text-[12px] text-foreground/35 mb-2">No activity yet — run a task to get started.</p>
           <button
             type="button"
             onClick={onNewChat}
