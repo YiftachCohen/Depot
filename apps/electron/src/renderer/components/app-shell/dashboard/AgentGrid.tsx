@@ -72,7 +72,7 @@ export function AgentGrid({
         <motion.div key={skill.slug} variants={itemVariants}>
           <AgentCard
             skill={skill}
-            accent={getAccentColor(skill.slug)}
+            accent={getAccentColor(skill.slug, skill.manifest?.color)}
             workspaceId={activeWorkspaceId}
             stats={skillStats.get(skill.slug)}
             agentState={agentStateMap.get(skill.slug)}

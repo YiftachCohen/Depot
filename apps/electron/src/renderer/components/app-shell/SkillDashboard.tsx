@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils'
 import { isAgent } from '../../../shared/types'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../shared/types'
 import { TemplateVariableModal } from './TemplateVariableModal'
-import { AgentIcon } from './dashboard/utils'
+import { AgentIcon, getAccentColor, formatRelativeTime } from './dashboard/utils'
 import { AgentDetailView } from './dashboard/AgentDetailView'
 import { AgentGrid } from './dashboard/AgentGrid'
 import { AgentTemplateBrowser } from './AgentTemplateBrowser'
@@ -115,24 +115,7 @@ Choose an appropriate icon, write a clear description, and create 2-4 useful qui
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-const ACCENT_PALETTE = ['#D97706','#16A34A','#2563EB','#DC2626','#0D9488','#CA8A04','#7C3AED','#BE185D']
-
-export function getAccentColor(slug: string): string {
-  let hash = 0
-  for (let i = 0; i < slug.length; i++) hash = ((hash << 5) - hash + slug.charCodeAt(i)) | 0
-  return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length]
-}
-export function formatRelativeTime(epochMs: number): string {
-  const diff = Date.now() - epochMs
-  const s = Math.floor(diff / 1000)
-  if (s < 60) return 'just now'
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  return d < 30 ? `${d}d ago` : `${Math.floor(d / 30)}mo ago`
-}
+// getAccentColor, ACCENT_PALETTE, formatRelativeTime are canonical in ./dashboard/utils
 // Dynamic greeting pool — each entry has [withName, withoutName] variants
 type TimeBucket = 'morning' | 'afternoon' | 'evening' | 'latenight' | 'any'
 const GREETINGS: [TimeBucket, string, string][] = [
@@ -809,7 +792,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                 <div className="space-y-0.5">
                   {recentGlobalSessions.map((session) => {
                     const sk = session.skillSlug ? skillBySlug.get(session.skillSlug) : null
-                    const accent = session.skillSlug ? getAccentColor(session.skillSlug) : '#71717A'
+                    const accent = session.skillSlug ? getAccentColor(session.skillSlug, sk?.manifest?.color) : '#71717A'
                     return (
                       <button key={session.id} type="button"
                         onClick={() => { if (session.skillSlug) navigate(routes.view.skills(session.skillSlug, session.id)) }}
