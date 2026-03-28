@@ -4,6 +4,27 @@ All notable changes to Depot are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.13] - 2026-03-28
+
+### Added
+
+- **Agent color picker** — Per-agent custom accent color from the warm ACCENT_PALETTE. Swatches appear in the icon picker area on the agent profile page. Color persists to `depot.yaml` and overrides the default slug-based hash.
+- **Agent model selector** — Dropdown in the agent profile Vital Signs section to set a default model per agent (from MODEL_REGISTRY). Clears with "Default" option.
+- **Agent quick rename** — Pencil icon on hover next to the agent name opens a rename dialog. Saves to both `depot.yaml` and syncs to `SKILL.md` frontmatter.
+- **Automations card in agent detail** — Full automations panel embedded in the agent profile view with test, toggle, delete, and execution history.
+
+### Changed
+
+- **Dashboard layout** — Agent grid now uses a responsive multi-column layout (up to 3 columns) with card-based design replacing the flat list. Max width increased to 960px.
+- **Amber design system** — Activity dots, CTA buttons, recent activity feed, and command chips use warm amber accents per DESIGN.md. Pill-shaped chips with amber hover states.
+- **Recent activity feed** — Shows agent icons, processing spinners, unread indicators, and amber-tinted hover states. Filtered to enabled agents only.
+- **"+ Add Agent" button** — Moved from grid footer to header bar as an amber pill CTA.
+
+### Fixed
+
+- **Duplicate color palette** — Consolidated `getAccentColor` and `ACCENT_PALETTE` into canonical `dashboard/utils.tsx`. Removed DESIGN.md-violating violet/magenta from the old SkillDashboard copy.
+- **Custom colors in grid and feed** — AgentGrid and recent activity feed now pass custom colors through `getAccentColor`, fixing inconsistency with the profile page.
+
 ## [1.2.12] - 2026-03-26
 
 ### Added
