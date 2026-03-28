@@ -46,9 +46,9 @@ export function AgentCard({
   return (
     <div
       className={cn(
-        'rounded-[10px] bg-background shadow-sm',
+        'rounded-[10px] bg-background shadow-thin',
         'border border-border/60',
-        'hover:-translate-y-0.5 hover:shadow-md hover:border-amber-500/30',
+        'hover:-translate-y-0.5 hover:shadow-minimal hover:border-amber-500/30',
         'transition-all duration-200',
       )}
     >
