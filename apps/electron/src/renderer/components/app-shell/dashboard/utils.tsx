@@ -150,8 +150,9 @@ export function AgentIcon({ skill, accent, workspaceId, size = 'md', 'aria-label
       style={{ backgroundColor: `${accent}28` }}
       aria-label={ariaLabel}
     >
-      {/* Per DESIGN.md: line-style icons only, no emoji avatars */}
-      {icon.kind === 'file' && icon.colorable && icon.rawSvg ? (
+      {icon.kind === 'emoji' ? (
+        <span className="text-base leading-none">{icon.value}</span>
+      ) : icon.kind === 'file' && icon.colorable && icon.rawSvg ? (
         <span className={s.svg} style={{ color: accent }}>
           <InlineSvg svg={icon.rawSvg} />
         </span>

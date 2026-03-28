@@ -194,8 +194,8 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
 
     writeDepotManifest(skill.path, manifest)
 
-    // Sync SKILL.md name if it changed
-    if (skill.metadata.name !== manifest.name) {
+    // Sync SKILL.md name if it changed (guard against undefined manifest.name)
+    if (manifest.name && skill.metadata.name !== manifest.name) {
       const { updateSkillFrontmatter } = await import('@depot/shared/skills')
       updateSkillFrontmatter(skill.path, { name: manifest.name })
     }
