@@ -224,6 +224,9 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     ? data.model.trim()
     : undefined;
 
+  const colorRaw = typeof data.color === 'string' ? data.color.trim() : '';
+  const color = /^#[0-9A-Fa-f]{6}$/.test(colorRaw) ? colorRaw : undefined;
+
   const llmConnection = typeof data.llm_connection === 'string' && data.llm_connection.trim() !== ''
     ? data.llm_connection.trim()
     : undefined;
@@ -364,6 +367,7 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     description: (data.description as string).trim(),
     provider,
     model,
+    color,
     llm_connection: llmConnection,
     sources: sources && sources.length > 0 ? sources : undefined,
     quick_commands: parsedCommands,

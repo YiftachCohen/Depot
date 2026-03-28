@@ -41,16 +41,20 @@ ARCH="arm64"
 UPLOAD=false
 UPLOAD_LATEST=false
 UPLOAD_SCRIPT=false
+FAST=false
+SKIP_ZIP=false
 
 show_help() {
     cat << EOF
-Usage: build-dmg.sh [arm64|x64] [--upload] [--latest] [--script]
+Usage: build-dmg.sh [arm64|x64] [--upload] [--latest] [--script] [--fast] [--no-zip]
 
 Arguments:
   arm64|x64    Target architecture (default: arm64)
   --upload     Upload DMG to S3 after building
   --latest     Also update electron/latest (requires --upload)
   --script     Also upload install-app.sh (requires --upload)
+  --fast       Skip full clean and redundant dependency installation
+  --no-zip     Skip building the .zip target (faster)
 
 Environment variables (from .env or environment):
   APPLE_SIGNING_IDENTITY    - Code signing identity
@@ -68,6 +72,8 @@ while [[ $# -gt 0 ]]; do
         --upload)      UPLOAD=true; shift ;;
         --latest)      UPLOAD_LATEST=true; shift ;;
         --script)      UPLOAD_SCRIPT=true; shift ;;
+        --fast)        FAST=true; shift ;;
+        --no-zip)      SKIP_ZIP=true; shift ;;
         -h|--help)     show_help ;;
         *)
             echo "Unknown option: $1"
@@ -79,6 +85,8 @@ done
 
 # Configuration
 BUN_VERSION="bun-v1.3.5"  # Pinned version for reproducible builds
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/depot-build"
+mkdir -p "$CACHE_DIR"
 
 echo "=== Building Depot Agents DMG (${ARCH}) using electron-builder ==="
 if [ "$UPLOAD" = true ]; then
@@ -86,37 +94,56 @@ if [ "$UPLOAD" = true ]; then
 fi
 
 # 1. Clean previous build artifacts
-echo "Cleaning previous builds..."
-rm -rf "$ELECTRON_DIR/vendor"
-rm -rf "$ELECTRON_DIR/node_modules/@anthropic-ai"
-rm -rf "$ELECTRON_DIR/packages"
-rm -rf "$ELECTRON_DIR/release"
+if [ "$FAST" = true ]; then
+    echo "Fast build enabled, skipping full clean..."
+    rm -rf "$ELECTRON_DIR/release"
+else
+    echo "Cleaning previous builds..."
+    rm -rf "$ELECTRON_DIR/vendor"
+    rm -rf "$ELECTRON_DIR/node_modules/@anthropic-ai"
+    rm -rf "$ELECTRON_DIR/packages"
+    rm -rf "$ELECTRON_DIR/release"
+fi
 
 # 2. Install dependencies
-echo "Installing dependencies..."
-cd "$ROOT_DIR"
-bun install
+if [ "$FAST" = true ] && [ -d "$ROOT_DIR/node_modules" ]; then
+    echo "Fast build enabled and node_modules exists, skipping 'bun install'..."
+else
+    echo "Installing dependencies..."
+    cd "$ROOT_DIR"
+    bun install
+fi
 
-# 3. Download Bun binary with checksum verification
-echo "Downloading Bun ${BUN_VERSION} for darwin-${ARCH}..."
-mkdir -p "$ELECTRON_DIR/vendor/bun"
+# 3. Get Bun binary (with caching)
 BUN_DOWNLOAD="bun-darwin-$([ "$ARCH" = "arm64" ] && echo "aarch64" || echo "x64")"
+CACHED_BUN="$CACHE_DIR/${BUN_VERSION}-${BUN_DOWNLOAD}.zip"
+CACHED_SHASUMS="$CACHE_DIR/${BUN_VERSION}-SHASUMS256.txt"
 
-# Create temp directory to avoid race conditions
+echo "Checking for cached Bun ${BUN_VERSION} for ${ARCH}..."
+
+if [ ! -f "$CACHED_BUN" ] || [ ! -f "$CACHED_SHASUMS" ]; then
+    echo "Cache miss, downloading Bun ${BUN_VERSION} for darwin-${ARCH}..."
+    curl -fSL "https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/${BUN_DOWNLOAD}.zip" -o "$CACHED_BUN"
+    curl -fSL "https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/SHASUMS256.txt" -o "$CACHED_SHASUMS"
+else
+    echo "Using cached Bun binary"
+fi
+
+# Create temp directory for extraction
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf $TEMP_DIR" EXIT
 
-# Download binary and checksums
-curl -fSL "https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/${BUN_DOWNLOAD}.zip" -o "$TEMP_DIR/${BUN_DOWNLOAD}.zip"
-curl -fSL "https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/SHASUMS256.txt" -o "$TEMP_DIR/SHASUMS256.txt"
-
 # Verify checksum
 echo "Verifying checksum..."
+cp "$CACHED_BUN" "$TEMP_DIR/${BUN_DOWNLOAD}.zip"
+cp "$CACHED_SHASUMS" "$TEMP_DIR/SHASUMS256.txt"
 cd "$TEMP_DIR"
 grep "${BUN_DOWNLOAD}.zip" SHASUMS256.txt | shasum -a 256 -c -
 cd - > /dev/null
 
 # Extract and install
+echo "Installing Bun binary to vendor/..."
+mkdir -p "$ELECTRON_DIR/vendor/bun"
 unzip -o "$TEMP_DIR/${BUN_DOWNLOAD}.zip" -d "$TEMP_DIR"
 cp "$TEMP_DIR/${BUN_DOWNLOAD}/bun" "$ELECTRON_DIR/vendor/bun/"
 chmod +x "$ELECTRON_DIR/vendor/bun/bun"
@@ -140,6 +167,9 @@ cp "$INTERCEPTOR_SOURCE" "$ELECTRON_DIR/packages/shared/src/"
 # 6. Build Electron app
 echo "Building Electron app..."
 cd "$ROOT_DIR"
+if [ "$FAST" = true ]; then
+    export FAST_BUILD=true
+fi
 bun run electron:build
 
 # 7. Package with electron-builder
@@ -151,6 +181,12 @@ export CSC_IDENTITY_AUTO_DISCOVERY=true
 
 # Build electron-builder arguments
 BUILDER_ARGS="--mac --${ARCH}"
+
+# Skip zip target if requested (much faster build)
+if [ "$SKIP_ZIP" = true ]; then
+    echo "Skipping .zip target..."
+    BUILDER_ARGS="$BUILDER_ARGS -c.mac.target=dmg"
+fi
 
 # Add code signing if identity is available
 if [ -n "$APPLE_SIGNING_IDENTITY" ]; then
@@ -172,7 +208,7 @@ if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PA
 fi
 
 # Run electron-builder
-npx electron-builder $BUILDER_ARGS
+"$ROOT_DIR/node_modules/.bin/electron-builder" $BUILDER_ARGS
 
 # 8. Verify the DMG was built
 # electron-builder.yml uses artifactName to output: Depot-Agent-${arch}.dmg

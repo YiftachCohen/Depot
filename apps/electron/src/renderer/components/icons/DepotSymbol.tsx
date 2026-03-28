@@ -71,7 +71,7 @@ export function useSyncDepotAppIcon(): void {
       try {
         const dataUrl = await getIconPngDataUrl(iconId, isDark)
         if (!cancelled) {
-          await window.electronAPI.setAppIcon(dataUrl)
+          await window.electronAPI.setAppIcon(dataUrl, iconId)
         }
       } catch (error) {
         console.error('Failed to sync app icon:', error)

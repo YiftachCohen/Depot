@@ -1,6 +1,6 @@
 {
   "name": "@depot/shared",
-  "version": "1.2.7",
+  "version": "1.3.0",
   "license": "Apache-2.0",
   "description": "Shared business logic for Depot - agent, auth, config, credentials, MCP integration",
   "type": "module",
@@ -30,6 +30,7 @@
     "./sessions": "./src/sessions/index.ts",
     "./sources": "./src/sources/index.ts",
     "./sources/types": "./src/sources/types.ts",
+    "./sources/templates": "./src/sources/templates.ts",
     "./skills": "./src/skills/index.ts",
     "./skills/knowledge": "./src/skills/knowledge/index.ts",
     "./workspaces": "./src/workspaces/index.ts",

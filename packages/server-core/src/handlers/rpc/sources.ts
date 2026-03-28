@@ -304,11 +304,94 @@ export function registerSourcesHandlers(server: RpcServer, deps: HandlerDeps): v
       const sources = await loadWorkspaceSources(workspace.rootPath)
       const source = sources.find(s => s.config.slug === sourceSlug)
       if (!source) return { success: false, error: 'Source not found' }
-      if (source.config.type !== 'mcp') return { success: false, error: 'Source is not an MCP server' }
+
+      const { loadSourceConfig, saveSourceConfig } = await import('@depot/shared/sources')
+
+      // ── API source test ──────────────────────────────────────────────
+      if (source.config.type === 'api') {
+        if (!source.config.api?.baseUrl) {
+          return { success: false, error: 'No API base URL configured' }
+        }
+
+        const testEndpoint = source.config.api.testEndpoint
+        const testUrl = testEndpoint
+          ? `${source.config.api.baseUrl}${testEndpoint.path}`
+          : source.config.api.baseUrl
+
+        // Get credential for authenticated request
+        const credentialManager = getCredentialManager()
+        const credentialType = source.config.api.authType === 'bearer' ? 'source_bearer' as const
+          : source.config.api.authType === 'basic' ? 'source_bearer' as const
+          : null
+
+        let accessToken: string | undefined
+        if (credentialType) {
+          const credential = await credentialManager.get({
+            type: credentialType,
+            workspaceId: source.workspaceId,
+            sourceId: sourceSlug,
+          })
+          accessToken = credential?.value
+        }
+
+        // Build auth headers
+        const headers: Record<string, string> = {}
+        if (accessToken) {
+          if (source.config.api.authType === 'bearer') {
+            headers['Authorization'] = `Bearer ${accessToken}`
+          } else if (source.config.api.authType === 'basic') {
+            headers['Authorization'] = `Basic ${accessToken}`
+          }
+        }
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10_000)
+
+        try {
+          const method = testEndpoint?.method || 'GET'
+          const response = await fetch(testUrl, { method, headers, signal: controller.signal })
+          clearTimeout(timeoutId)
+
+          if (response.ok) {
+            const config = loadSourceConfig(workspace.rootPath, sourceSlug)
+            if (config) {
+              config.connectionStatus = 'connected'
+              config.connectionError = undefined
+              config.isAuthenticated = true
+              config.lastTestedAt = Date.now()
+              saveSourceConfig(workspace.rootPath, config)
+            }
+            const updatedSources = loadWorkspaceSources(workspace.rootPath)
+            pushTyped(server, RPC_CHANNELS.sources.CHANGED, { to: 'workspace', workspaceId }, workspaceId, updatedSources)
+            log.info(`API connection test passed for source: ${sourceSlug}`)
+            return { success: true }
+          }
+
+          const statusError = `API returned ${response.status} ${response.statusText}`
+          const isAuthError = response.status === 401 || response.status === 403
+          const config = loadSourceConfig(workspace.rootPath, sourceSlug)
+          if (config) {
+            config.connectionStatus = isAuthError ? 'needs_auth' : 'failed'
+            if (isAuthError) config.isAuthenticated = false
+            config.connectionError = statusError
+            config.lastTestedAt = Date.now()
+            saveSourceConfig(workspace.rootPath, config)
+          }
+          const updatedSources = loadWorkspaceSources(workspace.rootPath)
+          pushTyped(server, RPC_CHANNELS.sources.CHANGED, { to: 'workspace', workspaceId }, workspaceId, updatedSources)
+
+          return { success: false, error: isAuthError ? 'Authentication failed. Check your API token.' : statusError }
+        } catch (fetchError) {
+          clearTimeout(timeoutId)
+          throw fetchError
+        }
+      }
+
+      // ── MCP source test ──────────────────────────────────────────────
+      if (source.config.type !== 'mcp') return { success: false, error: 'Unsupported source type for connection test' }
       if (!source.config.mcp) return { success: false, error: 'MCP config not found' }
 
       const { DepotMcpClient } = await import('@depot/shared/mcp')
-      const { loadSourceConfig, saveSourceConfig } = await import('@depot/shared/sources')
       let client: InstanceType<typeof DepotMcpClient> | undefined
 
       if (source.config.mcp.transport === 'stdio') {

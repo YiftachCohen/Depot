@@ -34,6 +34,7 @@ export const PROVIDER_ICON_URLS: Record<string, string> = {
   sheets: 'https://ssl.gstatic.com/docs/spreadsheets/favicon3.ico',
   // Microsoft services need direct URLs - Microsoft domains return generic favicons
   outlook: 'https://res.cdn.office.net/files/fabric-cdn-prod_20241209.001/assets/brand-icons/product/svg/outlook_48x1.svg',
+  'microsoft-outlook': 'https://res.cdn.office.net/files/fabric-cdn-prod_20241209.001/assets/brand-icons/product/svg/outlook_48x1.svg',
   'microsoft-calendar': 'https://res.cdn.office.net/files/fabric-cdn-prod_20241209.001/assets/brand-icons/product/svg/outlook_48x1.svg',
   teams: 'https://res.cdn.office.net/files/fabric-cdn-prod_20241209.001/assets/brand-icons/product/svg/teams_48x1.svg',
   sharepoint: 'https://res.cdn.office.net/files/fabric-cdn-prod_20241209.001/assets/brand-icons/product/svg/sharepoint_48x1.svg',
@@ -58,6 +59,10 @@ const STATIC_PROVIDER_DOMAINS: Readonly<Record<string, string>> = Object.freeze(
   'onedrive': 'onedrive.live.com',
   'teams': 'teams.microsoft.com',
   'sharepoint': 'sharepoint.com',
+  // Productivity services
+  'todoist': 'todoist.com',
+  'jira': 'atlassian.com',
+  'exa': 'exa.ai',
   // Common MCP providers - their MCP URLs differ from their main domain
   'github': 'github.com',
   'linear': 'linear.app',

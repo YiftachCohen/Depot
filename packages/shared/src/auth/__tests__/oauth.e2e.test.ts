@@ -25,20 +25,18 @@ async function isReachable(url: string, timeoutMs = 5000): Promise<boolean> {
   }
 }
 
-// Helper to conditionally skip tests based on server reachability
-function describeIfReachable(name: string, mcpUrl: string, fn: () => void) {
-  describe(name, () => {
-    // Check reachability once - if unreachable, all tests in this describe will run but assertions will be skipped
-    let reachable = true;
-    it('should be reachable', async () => {
-      const origin = getMcpBaseUrl(mcpUrl);
-      reachable = await isReachable(origin);
-      if (!reachable) {
-        console.log(`Skipping ${name}: server unreachable`);
-      }
-    });
-    fn();
-  });
+async function discoverOAuthMetadataIfReachable(
+  name: string,
+  mcpUrl: string,
+  onLog?: (message: string) => void,
+): Promise<Awaited<ReturnType<typeof discoverOAuthMetadata>>> {
+  const origin = getMcpBaseUrl(mcpUrl);
+  const reachable = await isReachable(origin, 3000);
+  if (!reachable) {
+    console.log(`Skipping ${name}: server unreachable`);
+    return null;
+  }
+  return discoverOAuthMetadata(mcpUrl, onLog);
 }
 
 describe('E2E: OAuth Metadata Discovery', () => {
@@ -51,7 +49,7 @@ describe('E2E: OAuth Metadata Discovery', () => {
 
     it('discovers OAuth metadata', async () => {
       const logs: string[] = [];
-      const metadata = await discoverOAuthMetadata(MCP_URL, (msg) => logs.push(msg));
+      const metadata = await discoverOAuthMetadataIfReachable('GitHub MCP', MCP_URL, (msg) => logs.push(msg));
 
       // If we get null, the server might be down or require auth - that's OK for E2E
       if (metadata === null) {
@@ -63,7 +61,7 @@ describe('E2E: OAuth Metadata Discovery', () => {
       expect(metadata.authorization_endpoint).toBeTruthy();
       expect(metadata.token_endpoint).toBeTruthy();
       console.log('GitHub MCP OAuth metadata:', metadata);
-    });
+    }, { timeout: 15000 });
   });
 
   describe('Linear MCP (mcp.linear.app)', () => {
@@ -75,7 +73,7 @@ describe('E2E: OAuth Metadata Discovery', () => {
 
     it('discovers OAuth metadata', async () => {
       const logs: string[] = [];
-      const metadata = await discoverOAuthMetadata(MCP_URL, (msg) => logs.push(msg));
+      const metadata = await discoverOAuthMetadataIfReachable('Linear MCP', MCP_URL, (msg) => logs.push(msg));
 
       if (metadata === null) {
         console.log('Linear MCP: No metadata discovered (server may require auth or be unavailable)');
@@ -86,7 +84,7 @@ describe('E2E: OAuth Metadata Discovery', () => {
       expect(metadata.authorization_endpoint).toBeTruthy();
       expect(metadata.token_endpoint).toBeTruthy();
       console.log('Linear MCP OAuth metadata:', metadata);
-    });
+    }, { timeout: 15000 });
   });
 
   describe('Ahrefs MCP (api.ahrefs.com/mcp/mcp)', () => {
@@ -99,7 +97,7 @@ describe('E2E: OAuth Metadata Discovery', () => {
 
     it('discovers OAuth metadata', async () => {
       const logs: string[] = [];
-      const metadata = await discoverOAuthMetadata(MCP_URL, (msg) => logs.push(msg));
+      const metadata = await discoverOAuthMetadataIfReachable('Ahrefs MCP', MCP_URL, (msg) => logs.push(msg));
 
       if (metadata === null) {
         console.log('Ahrefs MCP: No metadata discovered (server may require auth or be unavailable)');
@@ -110,7 +108,7 @@ describe('E2E: OAuth Metadata Discovery', () => {
       expect(metadata.authorization_endpoint).toBeTruthy();
       expect(metadata.token_endpoint).toBeTruthy();
       console.log('Ahrefs MCP OAuth metadata:', metadata);
-    });
+    }, { timeout: 15000 });
   });
 
   describe('Multiple path segments', () => {

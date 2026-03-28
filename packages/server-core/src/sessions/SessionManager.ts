@@ -935,6 +935,9 @@ interface ManagedSession {
   wasInterrupted?: boolean
   // Maximum number of agent turns for this session (used by knowledge observation sessions)
   maxTurns?: number
+  // Pre-observation knowledge counts (captured at observation start for delta computation)
+  preObservationEntityCount?: number
+  preObservationPatternCount?: number
 }
 
 /**
@@ -5757,11 +5760,30 @@ ${conversationSnippet}`
           const durationMs = observationStartedAt
             ? Date.now() - observationStartedAt
             : 0
+
+          // Compute entity/pattern deltas from pre-observation counts
+          let entitiesAdded = 0
+          let patternsAdded = 0
+          try {
+            const { KnowledgeStoreManager } = await import('@depot/shared/skills/knowledge')
+            const { loadSkillBySlug: loadSkillForStats } = await import('@depot/shared/skills')
+            const skillForStats = loadSkillForStats(rootPath, skillSlug)
+            const store = await KnowledgeStoreManager.getInstance().open(rootPath, skillSlug, skillForStats?.path)
+            const postStats = store.getStats()
+            const preEntityCount = managed.preObservationEntityCount ?? 0
+            const prePatternCount = managed.preObservationPatternCount ?? 0
+            entitiesAdded = Math.max(0, postStats.entityCount - preEntityCount)
+            patternsAdded = Math.max(0, postStats.patternCount - prePatternCount)
+          } catch {
+            // Non-critical — fall back to 0
+          }
+
           const history = state.observationHistory ?? []
           history.unshift({
             timestamp: Date.now(),
             durationMs,
-            entitiesAdded: 0, // TODO: track delta from knowledge store stats
+            entitiesAdded,
+            patternsAdded,
             tokensUsed,
             outcome: isSuccess ? 'success' : 'failure',
           })
@@ -6980,11 +7002,22 @@ ${conversationSnippet}`
     if (managed) {
       managed.triggeredBy = { automationName, timestamp: Date.now() }
 
-      // Thread maxTurns for knowledge observation sessions
+      // Thread maxTurns and capture pre-observation knowledge counts for knowledge observation sessions
       if (labels?.includes('__knowledge_observation__') && skillSlug) {
         const { loadSkillBySlug: loadSkill } = await import('@depot/shared/skills')
         const obsSkill = loadSkill(workspaceRootPath, skillSlug)
         managed.maxTurns = obsSkill?.manifest?.knowledge?.maxObservationTurns ?? 20
+
+        // Capture pre-observation entity/pattern counts for delta computation
+        try {
+          const { KnowledgeStoreManager } = await import('@depot/shared/skills/knowledge')
+          const store = await KnowledgeStoreManager.getInstance().open(workspaceRootPath, skillSlug, obsSkill?.path)
+          const stats = store.getStats()
+          managed.preObservationEntityCount = stats.entityCount
+          managed.preObservationPatternCount = stats.patternCount
+        } catch {
+          // Non-critical — delta will fall back to 0
+        }
       }
 
       this.persistSession(managed)

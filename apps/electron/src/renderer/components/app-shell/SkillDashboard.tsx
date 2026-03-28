@@ -9,11 +9,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2, Brain, Copy, MoreHorizontal, Database, Play, Check, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
+import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2, Copy, MoreHorizontal, Play, Check, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getCommandIcon, ICON_NAME_MAP, resolveIconComponent } from '@/lib/command-icon'
-import { useEntityIcon } from '@/lib/icon-cache'
-import { InlineSvg } from '@/lib/inline-svg'
+import { ICON_NAME_MAP } from '@/lib/command-icon'
 import { skillsAtom } from '@/atoms/skills'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
 import { automationsAtom } from '@/atoms/automations'
@@ -30,6 +28,9 @@ import { cn } from '@/lib/utils'
 import { isAgent } from '../../../shared/types'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../shared/types'
 import { TemplateVariableModal } from './TemplateVariableModal'
+import { AgentIcon, getAccentColor, formatRelativeTime } from './dashboard/utils'
+import { AgentDetailView } from './dashboard/AgentDetailView'
+import { AgentGrid } from './dashboard/AgentGrid'
 import { AgentTemplateBrowser } from './AgentTemplateBrowser'
 import { CreateAgentFlow } from '../agent-creation/CreateAgentFlow'
 import { sourcesAtom } from '@/atoms/sources'
@@ -116,29 +117,7 @@ Choose an appropriate icon, write a clear description, and create 2-4 useful qui
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-const ACCENT_PALETTE = ['#D97706','#16A34A','#2563EB','#DC2626','#0D9488','#CA8A04','#7C3AED','#BE185D']
-
-export function getAccentColor(slug: string): string {
-  let hash = 0
-  for (let i = 0; i < slug.length; i++) hash = ((hash << 5) - hash + slug.charCodeAt(i)) | 0
-  return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length]
-}
-function getActivityStatus(lastUsedAt?: number): 'active' | 'recent' | 'idle' {
-  if (!lastUsedAt) return 'idle'
-  const diff = Date.now() - lastUsedAt
-  return diff < 3600_000 ? 'active' : diff < 86400_000 ? 'recent' : 'idle'
-}
-export function formatRelativeTime(epochMs: number): string {
-  const diff = Date.now() - epochMs
-  const s = Math.floor(diff / 1000)
-  if (s < 60) return 'just now'
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  return d < 30 ? `${d}d ago` : `${Math.floor(d / 30)}mo ago`
-}
+// getAccentColor, ACCENT_PALETTE, formatRelativeTime are canonical in ./dashboard/utils
 // Dynamic greeting pool — each entry has [withName, withoutName] variants
 type TimeBucket = 'morning' | 'afternoon' | 'evening' | 'latenight' | 'any'
 const GREETINGS: [TimeBucket, string, string][] = [
@@ -192,72 +171,12 @@ const fadeIn: Variants = {
 }
 
 // Shared class strings — command chips (minimal style)
-const OBSERVATION_HEALTH_DOT: Record<string, string> = {
-  green: 'bg-[#16A34A]',
-  yellow: 'bg-[#EAB308]',
-  red: 'bg-[#DC2626]',
-  gray: 'bg-foreground/20',
-}
-
-const CMD_CHIP = cn(
-  'inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/80 cursor-pointer',
-  'rounded-md px-1.5 py-0.5 -mx-0.5',
-  'hover:bg-foreground/[0.05] hover:text-foreground/80 transition-colors',
-)
-const FOCUSED_CMD_CHIP = cn(
-  'inline-flex items-center gap-1.5 text-[13px] text-foreground/70 cursor-pointer',
-  'rounded-lg px-3 py-1.5',
-  'border border-border/60 bg-foreground/[0.02]',
-  'hover:bg-foreground/[0.06] hover:border-foreground/20 hover:text-foreground/80 transition-colors',
-)
-const PATH_BADGE = cn(
-  'inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/70',
-  'rounded-md px-1.5 py-0.5 group/path',
-  'hover:text-muted-foreground/70 transition-colors',
-)
 const INPUT_CLS = cn(
   'w-full h-8 px-3 text-sm rounded-md bg-background border border-border/60',
   'placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring',
 )
 
 interface SkillSessionStats { sessionCount: number; lastUsedAt?: number }
-const ACTIVITY_DOT: Record<string, string> = { active: 'bg-success', recent: 'bg-info', idle: 'bg-foreground/20' }
-
-// Accent-tinted agent avatar for the dashboard list
-function AgentIcon({ skill, accent, workspaceId }: { skill: LoadedSkill; accent: string; workspaceId: string }) {
-  const icon = useEntityIcon({
-    workspaceId,
-    entityType: 'skill',
-    identifier: skill.slug,
-    iconPath: skill.iconPath,
-    iconValue: skill.metadata.icon,
-  })
-  const FallbackIcon = useMemo(
-    () => resolveIconComponent(skill.manifest?.icon, skill.metadata.name),
-    [skill.manifest?.icon, skill.metadata.name],
-  )
-
-  return (
-    <div
-      className="flex items-center justify-center h-9 w-9 rounded-xl shrink-0"
-      style={{ backgroundColor: `${accent}14` }}
-    >
-      {icon.kind === 'emoji' ? (
-        <span className="text-base leading-none">{icon.value}</span>
-      ) : icon.kind === 'file' && icon.colorable && icon.rawSvg ? (
-        <span className="[&>svg]:h-[18px] [&>svg]:w-[18px]" style={{ color: accent }}>
-          <InlineSvg svg={icon.rawSvg} />
-        </span>
-      ) : icon.kind === 'file' ? (
-        <img src={icon.value} alt={skill.metadata.name} className="h-[18px] w-[18px] rounded" />
-      ) : (
-        <span style={{ color: accent }}>
-          <FallbackIcon className="h-[18px] w-[18px]" />
-        </span>
-      )}
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // SkillDashboard
@@ -266,7 +185,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const skills = useAtomValue(skillsAtom)
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
   const allAutomations = useAtomValue(automationsAtom)
-  const { activeWorkspaceId, onCreateSession, onSendMessage, onEnabledSkillSlugsChange, onTestAutomation, getAutomationHistory } = useAppShellContext()
+  const { activeWorkspaceId, onCreateSession, onSendMessage, onEnabledSkillSlugsChange, onTestAutomation, onToggleAutomation, onDeleteAutomation, getAutomationHistory } = useAppShellContext()
   const [searchQuery, setSearchQuery] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [enabledSlugs, setEnabledSlugs] = useState<string[] | undefined>(undefined)
@@ -460,12 +379,20 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       s.metadata.name.toLowerCase().includes(q) || s.metadata.description.toLowerCase().includes(q) || s.slug.toLowerCase().includes(q))
   }, [skills, enabledSlugs, searchQuery])
 
-  const filteredAgents = useMemo(() => filteredSkills.filter(isAgent), [filteredSkills])
+  const filteredAgents = useMemo(() =>
+    filteredSkills.filter(isAgent).sort((a, b) => {
+      const aCount = skillStats.get(a.slug)?.sessionCount ?? 0
+      const bCount = skillStats.get(b.slug)?.sessionCount ?? 0
+      return bCount - aCount
+    }),
+  [filteredSkills, skillStats])
 
-  const recentGlobalSessions = useMemo(() =>
-    Array.from(sessionMetaMap.values()).filter((m) => m.skillSlug)
-      .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)).slice(0, 8),
-  [sessionMetaMap])
+  const recentGlobalSessions = useMemo(() => {
+    const enabledSet = enabledSlugs ? new Set(enabledSlugs) : null
+    return Array.from(sessionMetaMap.values())
+      .filter((m) => m.skillSlug && (!enabledSet || enabledSet.has(m.skillSlug)))
+      .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)).slice(0, 5)
+  }, [sessionMetaMap, enabledSlugs])
 
   const skillBySlug = useMemo(() => {
     const map = new Map<string, LoadedSkill>()
@@ -483,7 +410,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       name: cmd.name, skillSlug: skill.slug,
       enabledSourceSlugs: skill.manifest?.sources ?? skill.metadata.requiredSources,
     })
-    if (session?.id && cmd.prompt) onSendMessage(session.id, cmd.prompt, undefined, [skill.slug], undefined, cmd.model)
+    if (session?.id && cmd.prompt) onSendMessage(session.id, cmd.prompt, undefined, [skill.slug])
     if (session?.id) navigate(routes.view.skills(skill.slug, session.id))
   }, [activeWorkspaceId, onCreateSession, onSendMessage])
 
@@ -499,7 +426,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
         toast.error('Failed to create session')
         return
       }
-      if (resolvedPrompt) onSendMessage(session.id, resolvedPrompt, undefined, [skill.slug], undefined, cmd.model)
+      if (resolvedPrompt) onSendMessage(session.id, resolvedPrompt, undefined, [skill.slug])
       setPendingVarCommand(null)
       navigate(routes.view.skills(skill.slug, session.id))
     } catch (err) {
@@ -573,8 +500,6 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       </button>
     </div>
   )
-
-  const gridCls = 'space-y-0 divide-y divide-border/30'
 
   // --- Focused Agent View ---
   const focusedSkill = focusedSkillSlug ? skills.find(s => s.slug === focusedSkillSlug) : null
@@ -677,364 +602,39 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     }
   }, [activeWorkspaceId, focusedSkill])
 
-  if (focusedSkill) {
-    const cmds = focusedSkill.manifest?.quick_commands ?? []
-    const stats = skillStats.get(focusedSkill.slug)
-    const count = stats?.sessionCount ?? 0
-    const activity = getActivityStatus(stats?.lastUsedAt)
-    const accent = getAccentColor(focusedSkill.slug)
-    const recent = Array.from(sessionMetaMap.values())
-      .filter(m => m.skillSlug === focusedSkill.slug)
-      .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)).slice(0, 5)
+  const handleAgentStateRefresh = useCallback((slug: string) => {
+    if (!activeWorkspaceId) return
+    window.electronAPI.getAgentState(activeWorkspaceId, slug)
+      .then((state) => {
+        setAgentStateMap((prev) => {
+          const next = new Map(prev)
+          if (state) next.set(slug, state)
+          else next.delete(slug)
+          return next
+        })
+      }).catch(() => {})
+  }, [activeWorkspaceId])
+
+  if (focusedSkill && activeWorkspaceId) {
     return (
-      <div className="flex flex-col h-full">
-        <PanelHeader title={focusedSkill.metadata.name} />
-        <Separator />
-        <ScrollArea className="flex-1">
-          <motion.div
-            className="px-8 py-6 max-w-[640px] mx-auto space-y-5"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            {/* Header — mirrors dashboard card layout */}
-            <motion.div variants={fadeIn}>
-              <div className="flex items-start gap-3.5">
-                <div className="relative shrink-0 mt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => focusedSkill.manifest && setShowIconPicker(v => !v)}
-                    aria-label="Change icon"
-                    className="cursor-pointer rounded-xl hover:ring-2 hover:ring-foreground/10 transition-all"
-                    title="Change icon"
-                  >
-                    <AgentIcon skill={focusedSkill} accent={accent} workspaceId={activeWorkspaceId ?? ''} />
-                  </button>
-                </div>
-                <div className="flex-1 min-w-0">
-                  {/* Row 1: Name + activity dot */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl font-display truncate">{focusedSkill.metadata.name}</span>
-                    <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
-                  </div>
-
-                  {/* Row 2: Description */}
-                  <p className="text-[13px] leading-relaxed text-foreground/60 line-clamp-2 mt-1">{focusedSkill.metadata.description}</p>
-
-                  {/* Row 2b: Personality + Memory + Permission indicators */}
-                  {focusedSkill.manifest && (focusedSkill.manifest.personality || focusedSkill.manifest.memory?.enabled || focusedSkill.manifest.permission_mode) && (
-                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-[11px] text-foreground/40">
-                      {focusedSkill.manifest.personality && (
-                        <span className="inline-flex items-center gap-1 italic line-clamp-1 max-w-full">
-                          <Brain className="h-3 w-3 shrink-0" />{focusedSkill.manifest.personality}
-                        </span>
-                      )}
-                      {(() => {
-                        const agentState = agentStateMap.get(focusedSkill.slug)
-                        const factCount = agentState?.memory?.facts?.length ?? 0
-                        if (!focusedSkill.manifest?.memory?.enabled) return null
-                        return <span className="inline-flex items-center gap-1"><Brain className="h-3 w-3 shrink-0" />{factCount > 0 ? `${factCount} fact${factCount !== 1 ? 's' : ''} in memory` : 'No memory yet'}</span>
-                      })()}
-                      {(() => {
-                        const kStats = knowledgeStatsMap.get(focusedSkill.slug)
-                        if (!focusedSkill.manifest?.knowledge?.enabled) return null
-                        const healthColor = kStats?.observationHealth ?? 'gray'
-                        const healthTitle = kStats?.lastObservation
-                          ? `Last observation: ${new Date(kStats.lastObservation).toLocaleString()}`
-                          : 'No observations yet'
-                        if (!kStats || kStats.entityCount === 0) return (
-                          <span className="inline-flex items-center gap-1">
-                            <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', OBSERVATION_HEALTH_DOT[healthColor])} title={healthTitle} aria-label={`Observation health: ${healthColor}`} />
-                            <Database className="h-3 w-3 shrink-0" />
-                            No knowledge yet
-                          </span>
-                        )
-                        return (
-                          <span className="inline-flex items-center gap-1">
-                            <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', OBSERVATION_HEALTH_DOT[healthColor])} title={healthTitle} aria-label={`Observation health: ${healthColor}`} />
-                            <Database className="h-3 w-3 shrink-0" />
-                            {kStats.entityCount} entit{kStats.entityCount !== 1 ? 'ies' : 'y'}, {kStats.relationshipCount} relationship{kStats.relationshipCount !== 1 ? 's' : ''}
-                          </span>
-                        )
-                      })()}
-                      {focusedSkill.manifest.permission_mode && (
-                        <span className={cn(
-                          'inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-medium',
-                          focusedSkill.manifest.permission_mode === 'safe' && 'bg-emerald-500/10 text-emerald-600',
-                          focusedSkill.manifest.permission_mode === 'ask' && 'bg-amber-500/10 text-amber-600',
-                          focusedSkill.manifest.permission_mode === 'allow-all' && 'bg-red-500/10 text-red-600',
-                        )}>
-                          {focusedSkill.manifest.permission_mode}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Row 3: Project paths as inline badges */}
-                  {focusedSkill.manifest && (focusedPaths.length > 0 || addingPath) && (
-                    <div className="flex flex-wrap items-center gap-1 mt-2">
-                      {focusedPaths.map((p, i) => (
-                        <span key={i} className={PATH_BADGE}>
-                          <FolderOpen className="h-2.5 w-2.5" />
-                          <span className="truncate max-w-[180px]">{p}</span>
-                          <button
-                            type="button"
-                            onClick={() => void handleRemovePath(i)}
-                            disabled={savingPath}
-                            aria-label={`Remove project path ${p}`}
-                            title="Remove project path"
-                            className="opacity-0 group-hover/path:opacity-100 group-focus-within/path:opacity-100 focus-visible:opacity-100 transition-opacity rounded hover:text-destructive focus-visible:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        </span>
-                      ))}
-                      {addingPath && (
-                        <span className="inline-flex items-center gap-1">
-                          <input
-                            type="text"
-                            autoFocus
-                            placeholder="~/projects/my-app"
-                            value={newPathValue}
-                            onChange={(e) => setNewPathValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') void handleAddPath()
-                              if (e.key === 'Escape') { setAddingPath(false); setNewPathValue('') }
-                            }}
-                            onBlur={() => { if (!newPathValue.trim()) { setAddingPath(false); setNewPathValue('') } }}
-                            className="h-5 px-1.5 text-[10px] font-mono rounded border border-border/60 bg-background w-36 focus:outline-none focus:ring-1 focus:ring-ring"
-                          />
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Row 4: Meta line — stats + primary actions + overflow menu */}
-                  <div className="flex items-center gap-1.5 mt-2 text-xs text-foreground/45">
-                    {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
-                    {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
-                    {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
-                    {(count > 0 || stats?.lastUsedAt) && <span aria-hidden>{'·'}</span>}
-                    {focusedSkill.manifest && !addingPath && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setAddingPath(true)}
-                          className="text-foreground/50 hover:text-foreground/80 transition-colors cursor-pointer"
-                        >
-                          + Add path
-                        </button>
-                        <span aria-hidden>{'·'}</span>
-                      </>
-                    )}
-                    <EditPopover
-                      trigger={
-                        <button type="button" className="inline-flex items-center gap-1 text-foreground/50 hover:text-foreground/80 transition-colors cursor-pointer">
-                          <Pencil className="h-3 w-3" />
-                          Edit
-                        </button>
-                      }
-                      {...getEditConfig('skill-metadata', focusedSkill.path)}
-                      secondaryAction={{
-                        label: 'Edit File',
-                        filePath: `${focusedSkill.path}/SKILL.md`,
-                      }}
-                    />
-                    <span aria-hidden>{'·'}</span>
-                    <button
-                      type="button"
-                      onClick={handleImproveAgent}
-                      className="inline-flex items-center gap-1 text-foreground/50 hover:text-foreground/80 transition-colors cursor-pointer"
-                    >
-                      <Sparkles className="h-3 w-3" />
-                      Improve
-                    </button>
-                    <span aria-hidden>{'·'}</span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button type="button" className="inline-flex items-center text-foreground/50 hover:text-foreground/80 transition-colors cursor-pointer rounded p-0.5 hover:bg-foreground/[0.06]">
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="min-w-[160px]">
-                        <DropdownMenuItem onClick={() => window.electronAPI.showInFolder(`${focusedSkill.path}/SKILL.md`)}>
-                          <FolderOpen className="h-3.5 w-3.5 mr-2" />
-                          Open folder
-                        </DropdownMenuItem>
-                        {focusedSkill.manifest && (
-                          <DropdownMenuItem onClick={async () => {
-                            try {
-                              const content = await window.electronAPI.readFile(`${focusedSkill.path}/depot.yaml`)
-                              await navigator.clipboard.writeText(content)
-                              toast.success('Copied depot.yaml to clipboard')
-                            } catch { toast.error('Failed to copy depot.yaml') }
-                          }}>
-                            <Copy className="h-3.5 w-3.5 mr-2" />
-                            Export depot.yaml
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive focus:text-destructive">
-                          <Trash2 className="h-3.5 w-3.5 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </div>
-
-              {/* Inline icon picker */}
-              {showIconPicker && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-3 rounded-lg border border-border/60 bg-background p-2"
-                >
-                  <div className="grid grid-cols-8 gap-1">
-                    {iconEntries.map(([name, Icon]) => (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => handleFocusedIconSelect(name)}
-                        aria-label={`Select icon ${name}`}
-                        title={name}
-                        className={cn(
-                          'flex items-center justify-center h-8 w-8 rounded-md transition-colors cursor-pointer',
-                          (iconOverride ?? focusedSkill.manifest?.icon) === name
-                            ? 'bg-foreground text-background'
-                            : 'hover:bg-foreground/[0.08] text-foreground/70',
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </motion.div>
-
-            {/* Quick commands — chip style */}
-            <motion.div variants={itemVariants}>
-                <h3 className="text-[11px] font-medium text-foreground/40 uppercase tracking-widest mb-2.5">
-                  {cmds.length > 0 ? 'Run a Task' : 'Start'}
-                </h3>
-                <div className="flex flex-wrap items-center gap-2">
-                  {cmds.map((cmd) => (
-                    <button key={cmd.name} type="button" onClick={() => handleQuickCommand(focusedSkill, cmd)} className={FOCUSED_CMD_CHIP}>
-                      {getCommandIcon(cmd.name, 'h-4 w-4 opacity-70', cmd.icon)}{cmd.name}
-                    </button>
-                  ))}
-                  <button type="button" onClick={() => handleSkillClick(focusedSkill)} className={cn(FOCUSED_CMD_CHIP, 'text-foreground/45')}>
-                    <Plus className="h-4 w-4 opacity-70" />New Chat
-                  </button>
-                </div>
-            </motion.div>
-
-            {/* Agent Automations */}
-            <motion.div variants={itemVariants}>
-              <div className="border-t border-border/20 pt-4 mb-2" />
-              <AgentAutomationsSection
-                skillSlug={focusedSkill.slug}
-                skillPath={focusedSkill.path}
-                automations={allAutomations}
-                onTest={onTestAutomation}
-                getHistory={getAutomationHistory}
-              />
-            </motion.div>
-
-            {/* Knowledge Browser */}
-            {focusedSkill.manifest?.knowledge?.enabled && activeWorkspaceId && (
-              <motion.div variants={itemVariants}>
-                <div className="border-t border-border/20 pt-4 mb-2" />
-                <KnowledgeBrowserPanel
-                  workspaceId={activeWorkspaceId}
-                  skillSlug={focusedSkill.slug}
-                  onBack={() => {}}
-                />
-              </motion.div>
-            )}
-
-            {/* Agent Memory */}
-            {focusedSkill.manifest?.memory?.enabled !== false && agentStateMap.has(focusedSkill.slug) && activeWorkspaceId && (
-              <motion.div variants={itemVariants}>
-                <div className="border-t border-border/20 pt-4 mb-2" />
-                <AgentMemoryPanel
-                  workspaceId={activeWorkspaceId}
-                  skillSlug={focusedSkill.slug}
-                  facts={agentStateMap.get(focusedSkill.slug)?.memory?.facts ?? []}
-                  onFactsChanged={() => {
-                    window.electronAPI.getAgentState(activeWorkspaceId, focusedSkill.slug)
-                      .then((state) => {
-                        setAgentStateMap((prev) => {
-                          const next = new Map(prev)
-                          if (state) next.set(focusedSkill.slug, state)
-                          else next.delete(focusedSkill.slug)
-                          return next
-                        })
-                      }).catch(() => {})
-                  }}
-                />
-              </motion.div>
-            )}
-
-            {/* Recent Sessions */}
-            {recent.length > 0 && (
-              <motion.div variants={itemVariants}>
-                <div className="border-t border-border/20 pt-4 mb-2" />
-                <h3 className="text-[11px] font-medium text-foreground/40 uppercase tracking-widest mb-2">Recent</h3>
-                <div className="space-y-0">
-                  {recent.map((s) => (
-                    <button key={s.id} type="button" onClick={() => navigate(routes.view.skills(focusedSkill.slug, s.id))}
-                      className="w-full flex items-center gap-3 px-0 py-1.5 text-left hover:text-foreground transition-colors cursor-pointer group/recent">
-                      <span className="flex-1 min-w-0 text-sm text-foreground/85 truncate group-hover/recent:text-foreground transition-colors">{s.name || 'Untitled'}</span>
-                      {s.lastMessageAt && <span className="shrink-0 text-[11px] text-foreground/35">{formatRelativeTime(s.lastMessageAt)}</span>}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </motion.div>
-        </ScrollArea>
-        <TemplateVariableModal
-          open={pendingVarCommand !== null}
-          onOpenChange={(open) => { if (!open) setPendingVarCommand(null) }}
-          commandName={pendingVarCommand?.cmd.name ?? ''}
-          promptTemplate={pendingVarCommand?.cmd.prompt ?? ''}
-          variables={pendingVarCommand?.cmd.variables ?? []}
-          onSubmit={handleVariableSubmit}
-        />
-        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <DialogContent showCloseButton={false} className="sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>Delete {focusedSkill.metadata.name}?</DialogTitle>
-              <DialogDescription>
-                {isAgent(focusedSkill)
-                  ? 'Choose whether to remove the agent configuration only or delete everything.'
-                  : 'This will permanently delete the skill and all its files.'}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="gap-2 sm:gap-2">
-              {isAgent(focusedSkill) && (
-                <button
-                  type="button"
-                  onClick={handleDemoteFocusedAgent}
-                  className="h-8 px-3 text-xs font-medium rounded-md border border-border bg-background hover:bg-foreground/[0.05] text-foreground transition-colors cursor-pointer"
-                >
-                  Remove Agent Only
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleDeleteFocusedAgent}
-                className="h-8 px-3 text-xs font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors cursor-pointer"
-              >
-                Delete Everything
-              </button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <AgentDetailView
+        focusedSkill={focusedSkill}
+        activeWorkspaceId={activeWorkspaceId}
+        agentStateMap={agentStateMap}
+        knowledgeStatsMap={knowledgeStatsMap}
+        skillStats={skillStats}
+        sessionMetaMap={sessionMetaMap}
+        allAutomations={allAutomations}
+        onCreateSession={onCreateSession}
+        onSendMessage={onSendMessage}
+        onTestAutomation={onTestAutomation}
+        onToggleAutomation={onToggleAutomation}
+        onDeleteAutomation={onDeleteAutomation}
+        getAutomationHistory={getAutomationHistory}
+        onAgentStateRefresh={handleAgentStateRefresh}
+        onQuickCommand={handleQuickCommand}
+        onNewChat={handleSkillClick}
+      />
     )
   }
 
@@ -1044,17 +644,23 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       <PanelHeader title="Agents" actions={headerActions} />
       <Separator />
       <ScrollArea className="flex-1">
-        <div className="px-8 py-6 max-w-[640px] mx-auto space-y-6">
+        <div className="px-8 py-6 max-w-[960px] mx-auto space-y-6">
           {/* Greeting + Search */}
           <motion.div variants={fadeIn} initial="hidden" animate="visible" className="space-y-2.5">
             <div className="flex items-baseline justify-between mb-6">
               <h2 className="text-2xl tracking-tight text-foreground" style={{ fontFamily: 'ui-serif, Georgia, "Times New Roman", serif', fontWeight: 500 }}>
                 {getDynamicGreeting(userName || undefined)}
               </h2>
-              <button type="button" onClick={() => navigate(routes.action.newSession())}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 decoration-foreground/20 hover:decoration-foreground/40 cursor-pointer">
-                + New Chat
-              </button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => navigate(routes.action.newSession())}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-2.5 py-1 rounded-full border border-border/40 hover:border-border/60 hover:bg-foreground/[0.03]">
+                  + New Chat
+                </button>
+                <button type="button" onClick={() => setPickerOpen(true)}
+                  className="text-xs font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 transition-colors cursor-pointer px-3 py-1 rounded-full border border-amber-200/60">
+                  + Add Agent
+                </button>
+              </div>
             </div>
             {filteredAgents.length > 2 && (
               <div className="relative">
@@ -1065,86 +671,20 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             )}
           </motion.div>
 
-          {/* Agent list */}
-          {filteredAgents.length > 0 && (
-            <motion.div className={gridCls} variants={containerVariants} initial="hidden" animate="visible">
-              {filteredAgents.map((skill) => {
-                const cmds = skill.manifest?.quick_commands ?? []
-                const stats = skillStats.get(skill.slug)
-                const count = stats?.sessionCount ?? 0
-                const activity = getActivityStatus(stats?.lastUsedAt)
-                const accent = getAccentColor(skill.slug)
-                return (
-                  <motion.div key={skill.slug} variants={itemVariants}
-                    className="group py-4 first:pt-0">
-                    <div className="flex items-start gap-3.5">
-                      <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className="shrink-0 mt-0.5 cursor-pointer">
-                        <AgentIcon skill={skill} accent={accent} workspaceId={activeWorkspaceId ?? ''} />
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))}
-                            className="flex items-center gap-2 text-left rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer group/title">
-                            <span className="text-[13px] font-display truncate">
-                              {skill.metadata.name}
-                            </span>
-                            <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
-                          </button>
-                          <div className="shrink-0 flex items-center gap-1.5 text-[10px] text-muted-foreground/55">
-                            {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
-                            {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
-                            {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
-                            {(() => {
-                              const factCount = agentStateMap.get(skill.slug)?.memory?.facts?.length ?? 0
-                              if (factCount === 0) return null
-                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Brain className="h-2.5 w-2.5" />{factCount}</span></>
-                            })()}
-                            {(() => {
-                              const kStats = knowledgeStatsMap.get(skill.slug)
-                              if (!kStats) return null
-                              const healthColor = kStats.observationHealth ?? 'gray'
-                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><span className={cn('inline-block h-1.5 w-1.5 rounded-full', OBSERVATION_HEALTH_DOT[healthColor])} /><Database className="h-2.5 w-2.5" />{kStats.entityCount}</span></>
-                            })()}
-                            {(() => {
-                              const autoCount = skillAutomationCounts.get(skill.slug) ?? 0
-                              if (autoCount === 0) return null
-                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Zap className="h-2.5 w-2.5" />{autoCount}</span></>
-                            })()}
-                          </div>
-                        </div>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground/70 line-clamp-1 mt-0.5">{skill.metadata.description}</p>
-                        <div className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 mt-2">
-                          {cmds.slice(0, 4).map((cmd) => (
-                            <button key={cmd.name} type="button" onClick={() => handleQuickCommand(skill, cmd)} className={CMD_CHIP}>
-                              {getCommandIcon(cmd.name, 'h-3 w-3 opacity-70', cmd.icon)}{cmd.name}
-                            </button>
-                          ))}
-                          {cmds.length > 4 && (
-                            <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className={cn(CMD_CHIP, 'text-muted-foreground/60')}>
-                              +{cmds.length - 4} more
-                            </button>
-                          )}
-                          <button type="button" onClick={() => handleSkillClick(skill)} className={cn(CMD_CHIP, 'text-muted-foreground/60')}>
-                            <Plus className="h-3 w-3 opacity-70" />New Chat
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )
-              })}
-              {/* Add Agent — last item in the list */}
-              <motion.div variants={itemVariants} className="py-3">
-                <button type="button" onClick={() => setPickerOpen(true)}
-                  className="flex items-center gap-3 rounded-md -mx-1.5 px-1.5 py-1.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer">
-                  <div className="shrink-0 flex items-center justify-center h-7 w-7 rounded-md border border-dashed border-foreground/[0.12]">
-                    <Plus className="h-3.5 w-3.5 text-muted-foreground/60" />
-                  </div>
-                  <span className="text-[12px] text-muted-foreground/70">Add Agent</span>
-                </button>
-              </motion.div>
-            </motion.div>
-          )}
+          {/* Agent grid */}
+          <AgentGrid
+            agents={filteredAgents}
+            activeWorkspaceId={activeWorkspaceId ?? ''}
+            skillStats={skillStats}
+            agentStateMap={agentStateMap}
+            knowledgeStatsMap={knowledgeStatsMap}
+            skillAutomationCounts={skillAutomationCounts}
+            searchQuery={searchQuery}
+            onNavigateToAgent={(slug) => navigate(routes.view.skills(slug))}
+            onQuickCommand={handleQuickCommand}
+            onNewChat={handleSkillClick}
+            onAddAgent={() => setPickerOpen(true)}
+          />
 
           {/* Empty state — no agents configured */}
           {filteredSkills.length === 0 && skills.length === 0 && (
@@ -1261,25 +801,57 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             </motion.div>
           )}
 
-          {/* Recent Sessions */}
-          {recentGlobalSessions.length > 0 && filteredSkills.length > 0 && (
+          {/* Recent Activity Feed */}
+          {filteredSkills.length > 0 && (
             <motion.div variants={fadeIn} initial="hidden" animate="visible" className="pt-4">
-              <div className="border-t border-border/20 pt-4 mb-2" />
-              <h3 className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Recent</h3>
-              <div className="space-y-0">
-                {recentGlobalSessions.map((session) => {
-                  const sk = session.skillSlug ? skillBySlug.get(session.skillSlug) : null
-                  return (
-                    <button key={session.id} type="button"
-                      onClick={() => { if (session.skillSlug) navigate(routes.view.skills(session.skillSlug, session.id)) }}
-                      className="w-full flex items-center gap-3 px-0 py-1.5 text-left hover:text-foreground transition-colors cursor-pointer group/recent">
-                      {sk && <span className="shrink-0 text-[10px] text-muted-foreground/60 w-20 truncate">{sk.metadata.name}</span>}
-                      <span className="flex-1 min-w-0 text-[13px] text-foreground/80 truncate group-hover/recent:text-foreground transition-colors">{session.name || 'Untitled'}</span>
-                      {session.lastMessageAt && <span className="shrink-0 text-[10px] text-muted-foreground/50">{formatRelativeTime(session.lastMessageAt)}</span>}
-                    </button>
-                  )
-                })}
-              </div>
+              <div className="border-t border-amber-200/40 pt-5 mb-3" />
+              <h3 className="text-[11px] font-medium text-amber-800/50 uppercase tracking-widest mb-3">Recent Activity</h3>
+              {recentGlobalSessions.length === 0 ? (
+                <p className="text-[12px] text-muted-foreground/50 py-3">No recent sessions yet. Start a conversation with one of your agents above.</p>
+              ) : (
+                <div className="space-y-0.5">
+                  {recentGlobalSessions.map((session) => {
+                    const sk = session.skillSlug ? skillBySlug.get(session.skillSlug) : null
+                    const accent = session.skillSlug ? getAccentColor(session.skillSlug, sk?.manifest?.color) : '#71717A'
+                    return (
+                      <button key={session.id} type="button"
+                        onClick={() => { if (session.skillSlug) navigate(routes.view.skills(session.skillSlug, session.id)) }}
+                        className={cn(
+                          'w-full flex items-center gap-2.5 px-2.5 py-2.5 text-left rounded-lg',
+                          'hover:bg-amber-50/50 transition-colors cursor-pointer group/recent',
+                          'focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:outline-none',
+                        )}>
+                        {sk && activeWorkspaceId ? (
+                          <AgentIcon skill={sk} accent={accent} workspaceId={activeWorkspaceId} size="sm" />
+                        ) : (
+                          <div className="h-7 w-7 rounded-lg bg-foreground/[0.06] flex items-center justify-center shrink-0">
+                            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground/40" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[13px] text-foreground truncate group-hover/recent:text-foreground transition-colors">
+                              {session.name || 'Untitled'}
+                            </span>
+                            {session.isProcessing && (
+                              <Loader2 className="h-3 w-3 text-amber-500 animate-spin shrink-0" />
+                            )}
+                            {session.hasUnread && !session.isProcessing && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                            )}
+                          </div>
+                          {sk && (
+                            <span className="text-[11px] text-muted-foreground truncate block">{sk.metadata.name}</span>
+                          )}
+                        </div>
+                        {session.lastMessageAt && (
+                          <span className="shrink-0 text-[10px] text-muted-foreground/70 tabular-nums">{formatRelativeTime(session.lastMessageAt)}</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
         </div>
@@ -1334,6 +906,8 @@ interface AgentAutomationsSectionProps {
   skillPath: string
   automations: AutomationListItem[]
   onTest?: (automationId: string) => void
+  onToggle?: (automationId: string) => void
+  onDelete?: (automationId: string) => void
   getHistory?: (automationId: string) => Promise<ExecutionEntry[]>
 }
 
@@ -1342,6 +916,8 @@ function AgentAutomationsSection({
   skillPath,
   automations,
   onTest,
+  onToggle,
+  onDelete,
   getHistory,
 }: AgentAutomationsSectionProps) {
   const [historyMap, setHistoryMap] = useState<Record<string, ExecutionEntry[]>>({})
@@ -1464,33 +1040,25 @@ function AgentAutomationsSection({
                   aria-label={`View ${auto.name} automation`}
                   className="w-full flex items-center gap-2 text-[12px] text-left rounded-md -mx-1 px-1 py-1 hover:bg-foreground/[0.03] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
                 >
-                  <Zap className={cn('h-3 w-3 shrink-0', auto.enabled ? 'text-amber-500' : 'text-foreground/20')} />
-
-                  <span className={cn('min-w-0 truncate font-medium', !auto.enabled && 'text-foreground/40 line-through')}>
+                  <span className={cn('min-w-0 truncate font-medium', !auto.enabled && 'text-foreground/40')}>
                     {auto.name}
                   </span>
 
-                  {isWorkspace && (
-                    <span className="shrink-0 text-[9px] text-stone-400 bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded-full leading-none">
-                      workspace
+                  {/* Status tag */}
+                  {!auto.enabled ? (
+                    <span className="shrink-0 text-[9px] text-stone-500 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded-full leading-none">
+                      disabled
                     </span>
-                  )}
-
-                  {/* Status dot */}
-                  <span className={cn(
-                    'shrink-0 inline-block h-1.5 w-1.5 rounded-full',
-                    auto.enabled ? 'bg-green-600' : 'bg-stone-400',
-                  )} />
+                  ) : isRunning ? (
+                    <span className="shrink-0 text-[9px] text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full leading-none">
+                      running
+                    </span>
+                  ) : null}
 
                   {/* Last run */}
                   {auto.lastExecutedAt && (
                     <span className="shrink-0 text-[10px] text-foreground/30">
                       {formatShortRelativeTime(auto.lastExecutedAt)}
-                      {entries[0] && (
-                        <span className={cn('ml-0.5', STATUS_ICON[entries[0].status]?.cls)}>
-                          {entries[0].status === 'success' ? '✓' : entries[0].status === 'error' ? '✗' : '⚠'}
-                        </span>
-                      )}
                     </span>
                   )}
 
@@ -1501,30 +1069,60 @@ function AgentAutomationsSection({
                     </span>
                   )}
 
-                  {/* Spacer to push run button right */}
+                  {/* Spacer to push action buttons right */}
                   <span className="flex-1" />
 
-                  {/* Run button — stops propagation to avoid card click */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRun(auto.id, auto.name)
-                    }}
-                    disabled={isRunning}
-                    aria-label={`Run ${auto.name}`}
-                    className={cn(
-                      'shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity',
-                      'p-0.5 rounded hover:bg-foreground/[0.08]',
-                      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50',
-                      'disabled:opacity-50',
+                  {/* Action buttons — appear on hover */}
+                  <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    {/* Run */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRun(auto.id, auto.name)
+                      }}
+                      disabled={isRunning}
+                      aria-label={`Run ${auto.name}`}
+                      className="p-0.5 rounded hover:bg-foreground/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50 disabled:opacity-50"
+                    >
+                      {isRunning
+                        ? <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
+                        : <Play className="h-3 w-3 text-foreground/40" />
+                      }
+                    </button>
+
+                    {/* Toggle enabled/disabled */}
+                    {onToggle && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onToggle(auto.id)
+                        }}
+                        aria-label={auto.enabled ? `Disable ${auto.name}` : `Enable ${auto.name}`}
+                        title={auto.enabled ? 'Disable' : 'Enable'}
+                        className="p-0.5 rounded hover:bg-foreground/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/50"
+                      >
+                        <Zap className={cn('h-3 w-3', auto.enabled ? 'text-amber-500' : 'text-foreground/25')} />
+                      </button>
                     )}
-                  >
-                    {isRunning
-                      ? <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
-                      : <Play className="h-3 w-3 text-foreground/40" />
-                    }
-                  </button>
+
+                    {/* Delete */}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDelete(auto.id)
+                        }}
+                        aria-label={`Delete ${auto.name}`}
+                        title="Delete"
+                        className="p-0.5 rounded hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/50"
+                      >
+                        <Trash2 className="h-3 w-3 text-foreground/30 hover:text-destructive" />
+                      </button>
+                    )}
+                  </span>
                 </div>
 
                 {/* Inline execution history */}

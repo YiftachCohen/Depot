@@ -371,7 +371,7 @@ export function MainContentPanel({
                 executions={executions}
                 testResult={automationTestResults?.[selectedAutomation.id]}
                 onTest={onTestAutomation ? () => onTestAutomation(selectedAutomation.id) : undefined}
-                onToggleEnabled={canMutate && onToggleAutomation ? () => onToggleAutomation(selectedAutomation.id) : undefined}
+                onToggleEnabled={onToggleAutomation ? () => onToggleAutomation(selectedAutomation.id) : undefined}
                 onDuplicate={canMutate && onDuplicateAutomation ? () => onDuplicateAutomation(selectedAutomation.id) : undefined}
                 onDelete={canMutate && onDeleteAutomation ? () => onDeleteAutomation(selectedAutomation.id) : undefined}
                 onReplay={onReplayAutomation}

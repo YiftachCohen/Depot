@@ -55,8 +55,10 @@ async function withAutomationMatcher(workspaceId: string, eventName: string, mat
 export const HANDLED_CHANNELS = [
   RPC_CHANNELS.automations.TEST,
   RPC_CHANNELS.automations.SET_ENABLED,
+  RPC_CHANNELS.automations.SET_SKILL_OVERRIDE,
   RPC_CHANNELS.automations.DUPLICATE,
   RPC_CHANNELS.automations.DELETE,
+  RPC_CHANNELS.automations.DELETE_FROM_MANIFEST,
   RPC_CHANNELS.automations.GET_HISTORY,
   RPC_CHANNELS.automations.GET_LAST_EXECUTED,
   RPC_CHANNELS.automations.REPLAY,
@@ -161,6 +163,20 @@ export function registerAutomationsHandlers(server: RpcServer, deps: HandlerDeps
     })
   })
 
+  // Skill automation override — enable/disable skill automations without editing depot.yaml
+  server.handle(RPC_CHANNELS.automations.SET_SKILL_OVERRIDE, async (_ctx, workspaceId: string, automationId: string, enabled: boolean) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { AutomationSystem } = await import('@depot/shared/automations')
+    const automationSystem = new AutomationSystem({
+      workspaceRootPath: workspace.rootPath,
+      workspaceId: workspace.id,
+    })
+    automationSystem.setSkillAutomationOverride(automationId, enabled)
+    automationSystem.dispose()
+  })
+
   // Duplicate an automation matcher
   server.handle(RPC_CHANNELS.automations.DUPLICATE, async (_ctx, workspaceId: string, eventName: string, matcherIndex: number) => {
     await withAutomationMatcher(workspaceId, eventName, matcherIndex, (matchers, idx, _config, genId) => {
@@ -242,6 +258,34 @@ export function registerAutomationsHandlers(server: RpcServer, deps: HandlerDeps
     }
 
     return { results: results.map(r => ({ ...r, duration: r.durationMs ?? 0 })) }
+  })
+
+  // Delete an automation from a skill's depot.yaml manifest
+  server.handle(RPC_CHANNELS.automations.DELETE_FROM_MANIFEST, async (_ctx, skillDir: string, eventName: string, matcherIndex: number) => {
+    const { loadDepotManifest } = await import('@depot/shared/skills/depot-manifest')
+    const { writeDepotManifest } = await import('@depot/shared/skills/storage')
+
+    const manifest = loadDepotManifest(skillDir)
+    if (!manifest) throw new Error('Could not load skill manifest')
+    if (!manifest.automations?.[eventName]) throw new Error(`No automations for event "${eventName}" in manifest`)
+
+    const matchers = manifest.automations[eventName] as unknown[]
+    if (!Array.isArray(matchers) || matcherIndex < 0 || matcherIndex >= matchers.length) {
+      throw new Error(`Invalid automation index: ${eventName}[${matcherIndex}]`)
+    }
+
+    matchers.splice(matcherIndex, 1)
+    // Clean up empty event key
+    if (matchers.length === 0) {
+      delete manifest.automations[eventName]
+    }
+    // Clean up empty automations block
+    if (Object.keys(manifest.automations).length === 0) {
+      delete manifest.automations
+    }
+
+    writeDepotManifest(skillDir, manifest)
+    log.info(`[Automations] Deleted automation ${eventName}[${matcherIndex}] from manifest at ${skillDir}`)
   })
 
   // Return last execution timestamp for all automations

@@ -4,6 +4,38 @@ Deferred work from plan reviews and design sessions.
 
 ---
 
+## Dashboard — Deferred Items
+
+### TODO-DASH-001: AgentCard React.memo Optimization
+**Priority:** P3 | **Effort:** S (human) → S (CC+gstack) | **Status:** Deferred
+**Depends on:** agents-dashboard-home PR shipping
+**Source:** Eng Review 2026-03-23, TODO proposal
+
+Wrap `AgentCard` in `React.memo` with custom comparator to avoid re-renders when unrelated agent state changes. When one agent's state updates, the `agentStateMap`/`knowledgeStatsMap` Map references change, causing all cards to re-render.
+
+**Why:** With 3-5 agents this is invisible. With 20+ agents, could cause jank during frequent state updates (e.g., during observation runs).
+
+**Cons:** Premature for current agent counts (<10). Adds complexity to comparator logic. Risk of stale renders if comparator is wrong.
+
+**Where to start:** In `AgentCard.tsx`, wrap the component export in `React.memo()` with a comparator that checks only `skill.slug`, the agent's specific slice from `agentStateMap.get(slug)`, and `knowledgeStatsMap.get(slug)`. Use shallow comparison on the sliced values.
+
+---
+
+### TODO-DASH-002: AgentCard Keyboard Navigation (Roving Tabindex)
+**Priority:** P3 | **Effort:** M (human) → S (CC+gstack) | **Status:** Deferred
+**Depends on:** agents-dashboard-home PR shipping
+**Source:** Design Review 2026-03-24, Pass 6 (Responsive & Accessibility)
+
+Make each AgentCard a single tab stop with roving tabindex for internal elements (quick commands, new chat). Currently each card has icon button + name button + N command buttons, creating ~25+ tab stops for a 5-agent dashboard.
+
+**Why:** Keyboard navigation through the agent grid is tedious for power users and screen reader users. WAI-ARIA grid pattern recommends one tab stop per composite widget with arrow key navigation within.
+
+**Cons:** Requires roving tabindex implementation and cross-screen-reader testing (NVDA, VoiceOver). Risk of breaking existing click handlers if focus management is wrong.
+
+**Where to start:** In `AgentCard.tsx`, wrap the card in a single `<div role="group" tabIndex={0}>`. On Enter, navigate to detail view (current icon/name click behavior). On ArrowDown/ArrowRight, focus moves to quick command buttons via roving tabindex. Remove individual tabIndex from icon/name buttons (keep them as non-focusable click targets within the group).
+
+---
+
 ## Knowledge Fabric — Deferred Items
 
 ### TODO-KF-001: Knowledge Bridge (Cross-Agent Read-Only Queries)

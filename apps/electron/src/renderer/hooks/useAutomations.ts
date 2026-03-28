@@ -15,12 +15,6 @@ import { toast } from 'sonner'
 import { automationsAtom } from '@/atoms/automations'
 import { parseAutomationsConfig, parseSkillAutomations, type AutomationListItem, type TestResult, type ExecutionEntry } from '@/components/automations/types'
 
-async function loadAutomationsFromDisk(rootPath: string): Promise<AutomationListItem[]> {
-  const automationsPath = `${rootPath}/automations.json`
-  const content = await window.electronAPI.readFile(automationsPath)
-  return parseAutomationsConfig(JSON.parse(content))
-}
-
 export interface UseAutomationsResult {
   automations: AutomationListItem[]
   automationTestResults: Record<string, TestResult>
@@ -39,21 +33,28 @@ export interface UseAutomationsResult {
 export function useAutomations(
   activeWorkspaceId: string | null | undefined,
   activeWorkspaceRootPath: string | undefined,
-  skills?: Array<{ slug: string; manifest?: { automations?: Record<string, unknown[]>; permission_mode?: string } }>,
+  skills?: Array<{ slug: string; path: string; manifest?: { automations?: Record<string, unknown[]>; permission_mode?: string } }>,
 ): UseAutomationsResult {
   const [workspaceAutomations, setWorkspaceAutomations] = useState<AutomationListItem[]>([])
   const [automationTestResults, setAutomationTestResults] = useState<Record<string, TestResult>>({})
   const [automationPendingDelete, setAutomationPendingDelete] = useState<string | null>(null)
+  const [lastExecutedMap, setLastExecutedMap] = useState<Record<string, number>>({})
+  const [disabledSkillIds, setDisabledSkillIds] = useState<Set<string>>(new Set())
 
   // Derive skill automations from loaded skills (no disk reads)
   const skillAutomations = useMemo(() => {
     return skills ? parseSkillAutomations(skills) : []
   }, [skills])
 
-  // Merge workspace + skill automations
+  // Merge workspace + skill automations, hydrating lastExecutedAt and override state
   const automations = useMemo(() => {
-    return [...workspaceAutomations, ...skillAutomations]
-  }, [workspaceAutomations, skillAutomations])
+    return [...workspaceAutomations, ...skillAutomations].map(a => ({
+      ...a,
+      lastExecutedAt: lastExecutedMap[a.id] ?? a.lastExecutedAt,
+      // Apply skill automation overrides from automations.json
+      enabled: a.source === 'skill' && disabledSkillIds.has(a.id) ? false : a.enabled,
+    }))
+  }, [workspaceAutomations, skillAutomations, lastExecutedMap, disabledSkillIds])
 
   // Sync automations to Jotai atom for cross-component access (MainContentPanel)
   const setAutomationsAtom = useSetAtom(automationsAtom)
@@ -67,18 +68,31 @@ export function useAutomations(
   const loadAndHydrate = useCallback(async () => {
     if (!activeWorkspaceRootPath) return
     try {
-      const items = await loadAutomationsFromDisk(activeWorkspaceRootPath)
+      const automationsPath = `${activeWorkspaceRootPath}/automations.json`
+      const content = await window.electronAPI.readFile(automationsPath)
+      const parsed = JSON.parse(content)
+      const items = parseAutomationsConfig(parsed)
+
+      // Read skill automation overrides
+      const disabled = parsed?.disabledSkillAutomations
+      if (Array.isArray(disabled)) {
+        setDisabledSkillIds(new Set(disabled as string[]))
+      } else {
+        setDisabledSkillIds(new Set())
+      }
+
       if (activeWorkspaceId) {
         try {
           const map = await window.electronAPI.getAutomationLastExecuted(activeWorkspaceId)
-          for (const item of items) {
-            item.lastExecutedAt = map[item.id] ?? item.lastExecutedAt
-          }
+          // Store map in state so both workspace AND skill automations get hydrated
+          // via the merged `automations` useMemo
+          setLastExecutedMap(map)
         } catch { /* history unavailable — timestamps stay undefined */ }
       }
       setWorkspaceAutomations(items)
     } catch {
       setWorkspaceAutomations([])
+      setDisabledSkillIds(new Set())
     }
   }, [activeWorkspaceRootPath, activeWorkspaceId])
 
@@ -137,14 +151,25 @@ export function useAutomations(
   const handleToggleAutomation = useCallback((automationId: string) => {
     const automation = findAutomation(automationId)
     if (!automation || !activeWorkspaceId) return
-    window.electronAPI.setAutomationEnabled(
-      activeWorkspaceId,
-      automation.event,
-      automation.matcherIndex,
-      !automation.enabled,
-    ).catch(() => {
-      toast.error('Failed to toggle automation')
-    })
+    if (automation.source === 'skill') {
+      // Skill automations use the override mechanism (stored in automations.json disabledSkillAutomations)
+      window.electronAPI.setSkillAutomationOverride(
+        activeWorkspaceId,
+        automation.id,
+        !automation.enabled,
+      ).catch(() => {
+        toast.error('Failed to toggle skill automation')
+      })
+    } else {
+      window.electronAPI.setAutomationEnabled(
+        activeWorkspaceId,
+        automation.event,
+        automation.matcherIndex,
+        !automation.enabled,
+      ).catch(() => {
+        toast.error('Failed to toggle automation')
+      })
+    }
   }, [findAutomation, activeWorkspaceId])
 
   const handleDuplicateAutomation = useCallback((automationId: string) => {
@@ -162,9 +187,16 @@ export function useAutomations(
   const pendingDeleteAutomation = automationPendingDelete ? findAutomation(automationPendingDelete) : undefined
 
   const confirmDeleteAutomation = useCallback(() => {
-    if (!pendingDeleteAutomation || !activeWorkspaceId) return
-    window.electronAPI.deleteAutomation(activeWorkspaceId, pendingDeleteAutomation.event, pendingDeleteAutomation.matcherIndex)
-      .catch(() => toast.error('Failed to delete automation'))
+    if (!pendingDeleteAutomation) return
+    if (pendingDeleteAutomation.source === 'skill' && pendingDeleteAutomation.skillDir) {
+      // Delete from skill's depot.yaml manifest
+      window.electronAPI.deleteAutomationFromManifest(pendingDeleteAutomation.skillDir, pendingDeleteAutomation.event, pendingDeleteAutomation.matcherIndex)
+        .catch(() => toast.error('Failed to delete automation from skill manifest'))
+    } else if (activeWorkspaceId) {
+      // Delete from workspace automations.json
+      window.electronAPI.deleteAutomation(activeWorkspaceId, pendingDeleteAutomation.event, pendingDeleteAutomation.matcherIndex)
+        .catch(() => toast.error('Failed to delete automation'))
+    }
     setAutomationPendingDelete(null)
   }, [pendingDeleteAutomation, activeWorkspaceId])
 

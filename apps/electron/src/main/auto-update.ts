@@ -2,8 +2,8 @@
  * Auto-update module using electron-updater
  *
  * Handles checking for updates, downloading, and installing via the standard
- * electron-updater library. Updates are served from https://depot.do/electron/latest
- * using the generic provider (YAML manifests + binaries on R2/S3).
+ * electron-updater library. Packaged apps fetch updates from GitHub Releases
+ * using the publish configuration in electron-builder.yml.
  *
  * Platform behavior:
  * - macOS: Downloads zip, extracts and swaps app bundle atomically
@@ -28,6 +28,7 @@ import {
 import { readJsonFileSync } from '@depot/shared/utils/files'
 import { RPC_CHANNELS, type UpdateInfo } from '../shared/types'
 import type { EventSink } from '@depot/server-core/transport'
+import { buildGitHubReleaseUrl } from './update-release-url'
 
 // Platform detection
 const PLATFORM = platform()
@@ -58,6 +59,7 @@ let updateInfo: UpdateInfo = {
   available: false,
   currentVersion: getAppVersion(),
   latestVersion: null,
+  releaseUrl: null,
   downloadState: 'idle',
   downloadProgress: 0,
 }
@@ -145,6 +147,7 @@ autoUpdater.on('checking-for-update', () => {
 
 autoUpdater.on('update-available', (info) => {
   mainLog.info(`[auto-update] Update available: ${updateInfo.currentVersion} → ${info.version}`)
+  const releaseUrl = buildGitHubReleaseUrl(info.version)
 
   // First, check electron-updater's internal state (most reliable)
   const internalState = checkElectronUpdaterState()
@@ -154,6 +157,7 @@ autoUpdater.on('update-available', (info) => {
       ...updateInfo,
       available: true,
       latestVersion: info.version,
+      releaseUrl,
       downloadState: 'ready',
       downloadProgress: 100,
     }
@@ -169,6 +173,7 @@ autoUpdater.on('update-available', (info) => {
       ...updateInfo,
       available: true,
       latestVersion: info.version,
+      releaseUrl,
       downloadState: 'ready',
       downloadProgress: 100,
     }
@@ -180,6 +185,7 @@ autoUpdater.on('update-available', (info) => {
     ...updateInfo,
     available: true,
     latestVersion: info.version,
+    releaseUrl,
     downloadState: 'downloading',
     downloadProgress: 0,
   }
@@ -193,6 +199,7 @@ autoUpdater.on('update-not-available', (info) => {
     ...updateInfo,
     available: false,
     latestVersion: info.version,
+    releaseUrl: null,
     downloadState: 'idle',
   }
   broadcastUpdateInfo()
@@ -211,6 +218,7 @@ autoUpdater.on('update-downloaded', async (info) => {
     ...updateInfo,
     available: true,
     latestVersion: info.version,
+    releaseUrl: buildGitHubReleaseUrl(info.version),
     downloadState: 'ready',
     downloadProgress: 100,
   }
