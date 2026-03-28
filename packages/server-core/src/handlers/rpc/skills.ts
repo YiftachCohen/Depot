@@ -193,6 +193,13 @@ export function registerSkillsHandlers(server: RpcServer, deps: HandlerDeps): vo
     if (!skill) throw new Error(`Skill not found: ${slug}`)
 
     writeDepotManifest(skill.path, manifest)
+
+    // Sync SKILL.md name if it changed
+    if (skill.metadata.name !== manifest.name) {
+      const { updateSkillFrontmatter } = await import('@depot/shared/skills')
+      updateSkillFrontmatter(skill.path, { name: manifest.name })
+    }
+
     deps.platform.logger?.info(`SKILLS_PROMOTE: Promoted skill "${slug}" to agent at ${skill.path}`)
   })
 }

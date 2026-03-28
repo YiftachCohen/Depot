@@ -111,6 +111,8 @@ export interface DepotSkillManifest {
   permission_mode?: 'safe' | 'ask' | 'allow-all';
   /** Default model ID for sessions with this agent (e.g. 'claude-sonnet-4-6') */
   model?: string;
+  /** Custom accent color hex from ACCENT_PALETTE. Overrides slug-based hash color. */
+  color?: string;
   /** Default LLM connection slug for sessions with this agent */
   llm_connection?: string;
   /** Cross-session memory configuration */

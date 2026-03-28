@@ -396,7 +396,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     const enabledSet = enabledSlugs ? new Set(enabledSlugs) : null
     return Array.from(sessionMetaMap.values())
       .filter((m) => m.skillSlug && (!enabledSet || enabledSet.has(m.skillSlug)))
-      .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)).slice(0, 12)
+      .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)).slice(0, 5)
   }, [sessionMetaMap, enabledSlugs])
 
   const skillBySlug = useMemo(() => {
@@ -491,14 +491,6 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
   const headerActions = (
     <div className="flex items-center gap-1">
-      <button type="button" onClick={() => setTemplateBrowserOpen(true)} aria-label="Browse Templates"
-        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Browse Templates">
-        <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-      </button>
-      <button type="button" onClick={handleCreateAgentSession} aria-label="Create Agent"
-        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Create Agent">
-        <Plus className="h-4 w-4 text-muted-foreground" />
-      </button>
       <button type="button" onClick={() => setPickerOpen(true)} aria-label="Manage Agents"
         className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Manage Agents">
         <Settings2 className="h-4 w-4 text-muted-foreground" />

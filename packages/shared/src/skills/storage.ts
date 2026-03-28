@@ -507,5 +507,22 @@ export function writeDepotManifest(skillDir: string, manifest: import('./types.t
   writeFileSync(join(skillDir, 'depot.yaml'), content, 'utf-8');
 }
 
+// ============================================================
+// Update SKILL.md Frontmatter
+// ============================================================
+
+/**
+ * Update specific fields in SKILL.md frontmatter without touching the body content.
+ * No-ops silently if the file doesn't exist.
+ */
+export function updateSkillFrontmatter(skillDir: string, updates: Partial<SkillMetadata>): void {
+  const skillFile = join(skillDir, 'SKILL.md');
+  let content: string;
+  try { content = readFileSync(skillFile, 'utf-8'); } catch { return; }
+  const parsed = matter(content);
+  Object.assign(parsed.data, updates);
+  writeFileSync(skillFile, matter.stringify(parsed.content, parsed.data), 'utf-8');
+}
+
 // Re-export icon utilities for convenience
 export { isIconUrl } from '../utils/icon.ts';

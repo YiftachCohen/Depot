@@ -25,55 +25,18 @@ import { navigate, routes } from '@/lib/navigate'
 import { SourceSelectorPopover } from '@/components/ui/SourceSelectorPopover'
 import { SourceAvatar } from '@/components/ui/source-avatar'
 import { sourcesAtom } from '@/atoms/sources'
+import { MODEL_REGISTRY, getModelShortName } from '@config/models'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../../shared/types'
 import type { AgentState } from '@depot/shared/skills'
 import type { AgentPageMode, KnowledgeStatsData, SkillSessionStats } from './types'
 import type { AutomationListItem } from '../../automations/types'
 import { AgentPulseStrip } from './AgentPulseStrip'
+import { AgentAutomationsCard } from './AgentAutomationsCard'
 import { AgentLastChatTeaser } from './AgentLastChatTeaser'
-
-// ---------------------------------------------------------------------------
-// Shared constants (same as SkillDashboard)
-// ---------------------------------------------------------------------------
-const ACCENT_PALETTE = ['#D97706','#16A34A','#2563EB','#DC2626','#0D9488','#CA8A04','#7C3AED','#BE185D']
-
-export function getAccentColor(slug: string): string {
-  let hash = 0
-  for (let i = 0; i < slug.length; i++) hash = ((hash << 5) - hash + slug.charCodeAt(i)) | 0
-  return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length]
-}
-
-function getActivityStatus(lastUsedAt?: number): 'active' | 'recent' | 'idle' {
-  if (!lastUsedAt) return 'idle'
-  const diff = Date.now() - lastUsedAt
-  return diff < 3600_000 ? 'active' : diff < 86400_000 ? 'recent' : 'idle'
-}
-
-export function formatRelativeTime(epochMs: number): string {
-  const diff = Date.now() - epochMs
-  const s = Math.floor(diff / 1000)
-  if (s < 60) return 'just now'
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  return d < 30 ? `${d}d ago` : `${Math.floor(d / 30)}mo ago`
-}
-
-const ACTIVITY_DOT: Record<string, string> = { active: 'bg-success', recent: 'bg-info', idle: 'bg-foreground/20' }
-const OBSERVATION_HEALTH_DOT: Record<string, string> = {
-  green: 'bg-[#16A34A]',
-  yellow: 'bg-[#EAB308]',
-  red: 'bg-[#DC2626]',
-  gray: 'bg-foreground/20',
-}
-
-const PATH_BADGE = cn(
-  'inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/70',
-  'rounded-md px-1.5 py-0.5 group/path',
-  'hover:text-muted-foreground/70 transition-colors',
-)
+import {
+  ACCENT_PALETTE, getAccentColor, getActivityStatus, formatRelativeTime,
+  ACTIVITY_DOT, OBSERVATION_HEALTH_DOT, PATH_BADGE,
+} from './utils'
 
 const FOCUSED_CMD_CHIP = cn(
   'inline-flex items-center gap-1.5 text-[12px] text-foreground/70 cursor-pointer',
@@ -163,8 +126,18 @@ interface AgentProfileColumnProps {
   // Sources
   onSourcesChange?: (slugs: string[]) => void
 
+  // Color / Model / Rename
+  onColorChange?: (color: string) => void
+  onModelChange?: (modelId: string) => void
+  onRenameStart?: () => void
+
   // Aliveness features (rendered in left rail)
   agentAutomations?: AutomationListItem[]
+  allAutomations?: AutomationListItem[]
+  onTestAutomation?: (automationId: string) => void
+  onToggleAutomation?: (automationId: string) => void
+  onDeleteAutomation?: (automationId: string) => void
+  getAutomationHistory?: (automationId: string) => Promise<import('../../automations/types').ExecutionEntry[]>
   lastSession?: { id: string; name?: string; lastMessageAt?: number; messageCount?: number } | null
   skillSlug?: string
 }
@@ -195,11 +168,19 @@ export function AgentProfileColumn({
   onDelete,
   onPermissionModeChange,
   onSourcesChange,
+  onColorChange,
+  onModelChange,
+  onRenameStart,
   agentAutomations,
+  allAutomations,
+  onTestAutomation,
+  onToggleAutomation,
+  onDeleteAutomation,
+  getAutomationHistory,
   lastSession,
   skillSlug,
 }: AgentProfileColumnProps) {
-  const accent = getAccentColor(skill.slug)
+  const accent = getAccentColor(skill.slug, skill.manifest?.color)
   const activity = getActivityStatus(stats?.lastUsedAt)
   const count = stats?.sessionCount ?? 0
   const cmds = skill.manifest?.quick_commands ?? []
@@ -237,23 +218,33 @@ export function AgentProfileColumn({
     <div className="flex flex-col h-full">
       {/* Identity Zone */}
       <div className="px-4 pt-4 pb-3 space-y-3">
-        {/* Icon (clickable) */}
+        {/* Icon (clickable — opens icon + color picker) */}
         <button
           type="button"
           onClick={() => skill.manifest && onToggleIconPicker()}
           aria-label="Change icon"
           className="cursor-pointer rounded-xl hover:ring-2 hover:ring-foreground/10 transition-all"
-          title="Change icon"
+          title="Change icon & color"
         >
           <AgentIcon skill={skill} accent={accent} workspaceId={workspaceId} size="xl" />
         </button>
 
-        {/* Name + activity dot */}
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-bold font-display truncate max-w-[220px]" title={skill.metadata.name}>
+        {/* Name + activity dot + rename pencil */}
+        <div className="flex items-center gap-2 group/name">
+          <h2 className="text-xl font-bold font-display truncate max-w-[200px]" title={skill.metadata.name}>
             {skill.metadata.name}
           </h2>
           <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
+          {skill.manifest && onRenameStart && (
+            <button
+              type="button"
+              onClick={onRenameStart}
+              aria-label="Rename agent"
+              className="opacity-0 group-hover/name:opacity-100 text-foreground/30 hover:text-foreground/60 transition-all cursor-pointer"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
         </div>
 
         {/* Description — click to expand */}
@@ -312,31 +303,52 @@ export function AgentProfileColumn({
           </div>
         )}
 
-        {/* Inline icon picker */}
+        {/* Inline icon + color picker */}
         {showIconPicker && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-lg border border-border/60 bg-background p-2"
+            className="rounded-lg border border-border/60 bg-background p-2 space-y-2"
           >
-            <div className="grid grid-cols-6 gap-1">
-              {iconEntries.map(([name, Icon]) => (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => onIconSelect(name)}
-                  aria-label={`Select icon ${name}`}
-                  title={name}
-                  className={cn(
-                    'flex items-center justify-center h-7 w-7 rounded-md transition-colors cursor-pointer',
-                    (iconOverride ?? skill.manifest?.icon) === name
-                      ? 'bg-foreground text-background'
-                      : 'hover:bg-foreground/[0.08] text-foreground/70',
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                </button>
-              ))}
+            <div className="max-h-[200px] overflow-y-auto">
+              <div className="grid grid-cols-6 gap-1">
+                {iconEntries.map(([name, Icon]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => onIconSelect(name)}
+                    aria-label={`Select icon ${name}`}
+                    title={name}
+                    className={cn(
+                      'flex items-center justify-center h-7 w-7 rounded-md transition-colors cursor-pointer',
+                      (iconOverride ?? skill.manifest?.icon) === name
+                        ? 'bg-foreground text-background'
+                        : 'hover:bg-foreground/[0.08] text-foreground/70',
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Color swatches */}
+            <div className="border-t border-border/40 pt-2">
+              <div className="text-[9px] text-foreground/30 uppercase tracking-widest mb-1.5">Color</div>
+              <div className="flex items-center gap-1.5">
+                {ACCENT_PALETTE.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => onColorChange?.(c)}
+                    aria-label={`Accent color ${c}`}
+                    className={cn(
+                      'h-5 w-5 rounded-full cursor-pointer transition-all shrink-0',
+                      accent === c ? 'ring-2 ring-offset-1 ring-offset-background' : 'hover:scale-110',
+                    )}
+                    style={{ backgroundColor: c, ...(accent === c ? { ['--tw-ring-color' as string]: c } : {}) }}
+                  />
+                ))}
+              </div>
             </div>
           </motion.div>
         )}
@@ -397,6 +409,36 @@ export function AgentProfileColumn({
                         mode === 'allow-all' && 'bg-red-500',
                       )} />
                       {mode}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+          {/* Model selector */}
+          {skill.manifest && (
+            <div>
+              <div className="text-[10px] text-foreground/35">Model</div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium cursor-pointer transition-colors bg-foreground/[0.04] text-foreground/60 hover:bg-foreground/[0.08]">
+                    {skill.manifest.model ? getModelShortName(skill.manifest.model) : 'Default'}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[160px]">
+                  <DropdownMenuItem
+                    onClick={() => onModelChange?.('')}
+                    className={cn('text-xs', !skill.manifest?.model && 'font-semibold')}
+                  >
+                    Default
+                  </DropdownMenuItem>
+                  {MODEL_REGISTRY.map((m) => (
+                    <DropdownMenuItem
+                      key={m.id}
+                      onClick={() => onModelChange?.(m.id)}
+                      className={cn('text-xs', skill.manifest?.model === m.id && 'font-semibold')}
+                    >
+                      {m.name}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -535,10 +577,19 @@ export function AgentProfileColumn({
         </div>
       </div>
 
-      {/* Live Pulse Strip — automation heartbeat */}
-      {agentAutomations && agentAutomations.some(a => a.enabled && a.cron) && (
+      {/* Automations — full list with actions */}
+      {allAutomations && skillSlug && (
         <div className="px-4 py-3 border-t border-border/20">
-          <AgentPulseStrip automations={agentAutomations} />
+          <AgentAutomationsCard
+            skillSlug={skillSlug}
+            skillPath={skill.path}
+            automations={allAutomations}
+            onTest={onTestAutomation}
+            onToggle={onToggleAutomation}
+            onDelete={onDeleteAutomation}
+            getHistory={getAutomationHistory}
+            compact
+          />
         </div>
       )}
 

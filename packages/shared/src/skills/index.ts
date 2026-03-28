@@ -22,6 +22,7 @@ export {
   importSkillsFromClaudeCode,
   createSkill,
   writeDepotManifest,
+  updateSkillFrontmatter,
 } from './storage.ts';
 export {
   parseDepotManifest,
