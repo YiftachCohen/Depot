@@ -9,11 +9,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2, Brain, Copy, MoreHorizontal, Database, Play, Check, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
+import { Zap, Plus, Settings2, Search, FolderOpen, X, Pencil, Sparkles, Bot, MessageSquare, ArrowRight, LayoutGrid, Trash2, Copy, MoreHorizontal, Play, Check, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getCommandIcon, ICON_NAME_MAP, resolveIconComponent } from '@/lib/command-icon'
-import { useEntityIcon } from '@/lib/icon-cache'
-import { InlineSvg } from '@/lib/inline-svg'
+import { ICON_NAME_MAP } from '@/lib/command-icon'
 import { skillsAtom } from '@/atoms/skills'
 import { sessionMetaMapAtom } from '@/atoms/sessions'
 import { automationsAtom } from '@/atoms/automations'
@@ -30,7 +28,9 @@ import { cn } from '@/lib/utils'
 import { isAgent } from '../../../shared/types'
 import type { LoadedSkill, QuickCommand, DepotSkillManifest } from '../../../shared/types'
 import { TemplateVariableModal } from './TemplateVariableModal'
+import { AgentIcon } from './dashboard/utils'
 import { AgentDetailView } from './dashboard/AgentDetailView'
+import { AgentGrid } from './dashboard/AgentGrid'
 import { AgentTemplateBrowser } from './AgentTemplateBrowser'
 import { AgentMemoryPanel } from './AgentMemoryPanel'
 import { KnowledgeBrowserPanel } from './KnowledgeBrowserPanel'
@@ -122,11 +122,6 @@ export function getAccentColor(slug: string): string {
   for (let i = 0; i < slug.length; i++) hash = ((hash << 5) - hash + slug.charCodeAt(i)) | 0
   return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length]
 }
-function getActivityStatus(lastUsedAt?: number): 'active' | 'recent' | 'idle' {
-  if (!lastUsedAt) return 'idle'
-  const diff = Date.now() - lastUsedAt
-  return diff < 3600_000 ? 'active' : diff < 86400_000 ? 'recent' : 'idle'
-}
 export function formatRelativeTime(epochMs: number): string {
   const diff = Date.now() - epochMs
   const s = Math.floor(diff / 1000)
@@ -191,72 +186,12 @@ const fadeIn: Variants = {
 }
 
 // Shared class strings — command chips (minimal style)
-const OBSERVATION_HEALTH_DOT: Record<string, string> = {
-  green: 'bg-[#16A34A]',
-  yellow: 'bg-[#EAB308]',
-  red: 'bg-[#DC2626]',
-  gray: 'bg-foreground/20',
-}
-
-const CMD_CHIP = cn(
-  'inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/80 cursor-pointer',
-  'rounded-md px-1.5 py-0.5 -mx-0.5',
-  'hover:bg-foreground/[0.05] hover:text-foreground/80 transition-colors',
-)
-const FOCUSED_CMD_CHIP = cn(
-  'inline-flex items-center gap-1.5 text-[13px] text-foreground/70 cursor-pointer',
-  'rounded-lg px-3 py-1.5',
-  'border border-border/60 bg-foreground/[0.02]',
-  'hover:bg-foreground/[0.06] hover:border-foreground/20 hover:text-foreground/80 transition-colors',
-)
-const PATH_BADGE = cn(
-  'inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/70',
-  'rounded-md px-1.5 py-0.5 group/path',
-  'hover:text-muted-foreground/70 transition-colors',
-)
 const INPUT_CLS = cn(
   'w-full h-8 px-3 text-sm rounded-md bg-background border border-border/60',
   'placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring',
 )
 
 interface SkillSessionStats { sessionCount: number; lastUsedAt?: number }
-const ACTIVITY_DOT: Record<string, string> = { active: 'bg-success', recent: 'bg-info', idle: 'bg-foreground/20' }
-
-// Accent-tinted agent avatar for the dashboard list
-function AgentIcon({ skill, accent, workspaceId }: { skill: LoadedSkill; accent: string; workspaceId: string }) {
-  const icon = useEntityIcon({
-    workspaceId,
-    entityType: 'skill',
-    identifier: skill.slug,
-    iconPath: skill.iconPath,
-    iconValue: skill.metadata.icon,
-  })
-  const FallbackIcon = useMemo(
-    () => resolveIconComponent(skill.manifest?.icon, skill.metadata.name),
-    [skill.manifest?.icon, skill.metadata.name],
-  )
-
-  return (
-    <div
-      className="flex items-center justify-center h-9 w-9 rounded-xl shrink-0"
-      style={{ backgroundColor: `${accent}14` }}
-    >
-      {icon.kind === 'emoji' ? (
-        <span className="text-base leading-none">{icon.value}</span>
-      ) : icon.kind === 'file' && icon.colorable && icon.rawSvg ? (
-        <span className="[&>svg]:h-[18px] [&>svg]:w-[18px]" style={{ color: accent }}>
-          <InlineSvg svg={icon.rawSvg} />
-        </span>
-      ) : icon.kind === 'file' ? (
-        <img src={icon.value} alt={skill.metadata.name} className="h-[18px] w-[18px] rounded" />
-      ) : (
-        <span style={{ color: accent }}>
-          <FallbackIcon className="h-[18px] w-[18px]" />
-        </span>
-      )}
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // SkillDashboard
@@ -449,12 +384,20 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       s.metadata.name.toLowerCase().includes(q) || s.metadata.description.toLowerCase().includes(q) || s.slug.toLowerCase().includes(q))
   }, [skills, enabledSlugs, searchQuery])
 
-  const filteredAgents = useMemo(() => filteredSkills.filter(isAgent), [filteredSkills])
+  const filteredAgents = useMemo(() =>
+    filteredSkills.filter(isAgent).sort((a, b) => {
+      const aCount = skillStats.get(a.slug)?.sessionCount ?? 0
+      const bCount = skillStats.get(b.slug)?.sessionCount ?? 0
+      return bCount - aCount
+    }),
+  [filteredSkills, skillStats])
 
-  const recentGlobalSessions = useMemo(() =>
-    Array.from(sessionMetaMap.values()).filter((m) => m.skillSlug)
-      .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)).slice(0, 8),
-  [sessionMetaMap])
+  const recentGlobalSessions = useMemo(() => {
+    const enabledSet = enabledSlugs ? new Set(enabledSlugs) : null
+    return Array.from(sessionMetaMap.values())
+      .filter((m) => m.skillSlug && (!enabledSet || enabledSet.has(m.skillSlug)))
+      .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)).slice(0, 12)
+  }, [sessionMetaMap, enabledSlugs])
 
   const skillBySlug = useMemo(() => {
     const map = new Map<string, LoadedSkill>()
@@ -562,8 +505,6 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       </button>
     </div>
   )
-
-  const gridCls = 'space-y-0 divide-y divide-border/30'
 
   // --- Focused Agent View ---
   const focusedSkill = focusedSkillSlug ? skills.find(s => s.slug === focusedSkillSlug) : null
@@ -692,6 +633,8 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
         onCreateSession={onCreateSession}
         onSendMessage={onSendMessage}
         onTestAutomation={onTestAutomation}
+        onToggleAutomation={onToggleAutomation}
+        onDeleteAutomation={onDeleteAutomation}
         getAutomationHistory={getAutomationHistory}
         onAgentStateRefresh={handleAgentStateRefresh}
         onQuickCommand={handleQuickCommand}
@@ -706,17 +649,23 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       <PanelHeader title="Agents" actions={headerActions} />
       <Separator />
       <ScrollArea className="flex-1">
-        <div className="px-8 py-6 max-w-[640px] mx-auto space-y-6">
+        <div className="px-8 py-6 max-w-[960px] mx-auto space-y-6">
           {/* Greeting + Search */}
           <motion.div variants={fadeIn} initial="hidden" animate="visible" className="space-y-2.5">
             <div className="flex items-baseline justify-between mb-6">
               <h2 className="text-2xl tracking-tight text-foreground" style={{ fontFamily: 'ui-serif, Georgia, "Times New Roman", serif', fontWeight: 500 }}>
                 {getDynamicGreeting(userName || undefined)}
               </h2>
-              <button type="button" onClick={() => navigate(routes.action.newSession())}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 decoration-foreground/20 hover:decoration-foreground/40 cursor-pointer">
-                + New Chat
-              </button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => navigate(routes.action.newSession())}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-2.5 py-1 rounded-full border border-border/40 hover:border-border/60 hover:bg-foreground/[0.03]">
+                  + New Chat
+                </button>
+                <button type="button" onClick={() => setPickerOpen(true)}
+                  className="text-xs font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 transition-colors cursor-pointer px-3 py-1 rounded-full border border-amber-200/60">
+                  + Add Agent
+                </button>
+              </div>
             </div>
             {filteredAgents.length > 2 && (
               <div className="relative">
@@ -727,86 +676,20 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             )}
           </motion.div>
 
-          {/* Agent list */}
-          {filteredAgents.length > 0 && (
-            <motion.div className={gridCls} variants={containerVariants} initial="hidden" animate="visible">
-              {filteredAgents.map((skill) => {
-                const cmds = skill.manifest?.quick_commands ?? []
-                const stats = skillStats.get(skill.slug)
-                const count = stats?.sessionCount ?? 0
-                const activity = getActivityStatus(stats?.lastUsedAt)
-                const accent = getAccentColor(skill.slug)
-                return (
-                  <motion.div key={skill.slug} variants={itemVariants}
-                    className="group py-4 first:pt-0">
-                    <div className="flex items-start gap-3.5">
-                      <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className="shrink-0 mt-0.5 cursor-pointer">
-                        <AgentIcon skill={skill} accent={accent} workspaceId={activeWorkspaceId ?? ''} />
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))}
-                            className="flex items-center gap-2 text-left rounded-md -mx-1.5 px-1.5 py-0.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer group/title">
-                            <span className="text-[13px] font-display truncate">
-                              {skill.metadata.name}
-                            </span>
-                            <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', ACTIVITY_DOT[activity])} />
-                          </button>
-                          <div className="shrink-0 flex items-center gap-1.5 text-[10px] text-muted-foreground/55">
-                            {count > 0 && <span>{count} session{count !== 1 ? 's' : ''}</span>}
-                            {count > 0 && stats?.lastUsedAt && <span aria-hidden>{'·'}</span>}
-                            {stats?.lastUsedAt && <span>{formatRelativeTime(stats.lastUsedAt)}</span>}
-                            {(() => {
-                              const factCount = agentStateMap.get(skill.slug)?.memory?.facts?.length ?? 0
-                              if (factCount === 0) return null
-                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Brain className="h-2.5 w-2.5" />{factCount}</span></>
-                            })()}
-                            {(() => {
-                              const kStats = knowledgeStatsMap.get(skill.slug)
-                              if (!kStats) return null
-                              const healthColor = kStats.observationHealth ?? 'gray'
-                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><span className={cn('inline-block h-1.5 w-1.5 rounded-full', OBSERVATION_HEALTH_DOT[healthColor])} /><Database className="h-2.5 w-2.5" />{kStats.entityCount}</span></>
-                            })()}
-                            {(() => {
-                              const autoCount = skillAutomationCounts.get(skill.slug) ?? 0
-                              if (autoCount === 0) return null
-                              return <><span aria-hidden>{'·'}</span><span className="inline-flex items-center gap-0.5"><Zap className="h-2.5 w-2.5" />{autoCount}</span></>
-                            })()}
-                          </div>
-                        </div>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground/70 line-clamp-1 mt-0.5">{skill.metadata.description}</p>
-                        <div className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 mt-2">
-                          {cmds.slice(0, 4).map((cmd) => (
-                            <button key={cmd.name} type="button" onClick={() => handleQuickCommand(skill, cmd)} className={CMD_CHIP}>
-                              {getCommandIcon(cmd.name, 'h-3 w-3 opacity-70', cmd.icon)}{cmd.name}
-                            </button>
-                          ))}
-                          {cmds.length > 4 && (
-                            <button type="button" onClick={() => navigate(routes.view.skills(skill.slug))} className={cn(CMD_CHIP, 'text-muted-foreground/60')}>
-                              +{cmds.length - 4} more
-                            </button>
-                          )}
-                          <button type="button" onClick={() => handleSkillClick(skill)} className={cn(CMD_CHIP, 'text-muted-foreground/60')}>
-                            <Plus className="h-3 w-3 opacity-70" />New Chat
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )
-              })}
-              {/* Add Agent — last item in the list */}
-              <motion.div variants={itemVariants} className="py-3">
-                <button type="button" onClick={() => setPickerOpen(true)}
-                  className="flex items-center gap-3 rounded-md -mx-1.5 px-1.5 py-1.5 hover:bg-foreground/[0.04] transition-colors cursor-pointer">
-                  <div className="shrink-0 flex items-center justify-center h-7 w-7 rounded-md border border-dashed border-foreground/[0.12]">
-                    <Plus className="h-3.5 w-3.5 text-muted-foreground/60" />
-                  </div>
-                  <span className="text-[12px] text-muted-foreground/70">Add Agent</span>
-                </button>
-              </motion.div>
-            </motion.div>
-          )}
+          {/* Agent grid */}
+          <AgentGrid
+            agents={filteredAgents}
+            activeWorkspaceId={activeWorkspaceId ?? ''}
+            skillStats={skillStats}
+            agentStateMap={agentStateMap}
+            knowledgeStatsMap={knowledgeStatsMap}
+            skillAutomationCounts={skillAutomationCounts}
+            searchQuery={searchQuery}
+            onNavigateToAgent={(slug) => navigate(routes.view.skills(slug))}
+            onQuickCommand={handleQuickCommand}
+            onNewChat={handleSkillClick}
+            onAddAgent={() => setPickerOpen(true)}
+          />
 
           {/* Empty state — no agents configured */}
           {filteredSkills.length === 0 && skills.length === 0 && (
@@ -923,25 +806,57 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
             </motion.div>
           )}
 
-          {/* Recent Sessions */}
-          {recentGlobalSessions.length > 0 && filteredSkills.length > 0 && (
+          {/* Recent Activity Feed */}
+          {filteredSkills.length > 0 && (
             <motion.div variants={fadeIn} initial="hidden" animate="visible" className="pt-4">
-              <div className="border-t border-border/20 pt-4 mb-2" />
-              <h3 className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-2">Recent</h3>
-              <div className="space-y-0">
-                {recentGlobalSessions.map((session) => {
-                  const sk = session.skillSlug ? skillBySlug.get(session.skillSlug) : null
-                  return (
-                    <button key={session.id} type="button"
-                      onClick={() => { if (session.skillSlug) navigate(routes.view.skills(session.skillSlug, session.id)) }}
-                      className="w-full flex items-center gap-3 px-0 py-1.5 text-left hover:text-foreground transition-colors cursor-pointer group/recent">
-                      {sk && <span className="shrink-0 text-[10px] text-muted-foreground/60 w-20 truncate">{sk.metadata.name}</span>}
-                      <span className="flex-1 min-w-0 text-[13px] text-foreground/80 truncate group-hover/recent:text-foreground transition-colors">{session.name || 'Untitled'}</span>
-                      {session.lastMessageAt && <span className="shrink-0 text-[10px] text-muted-foreground/50">{formatRelativeTime(session.lastMessageAt)}</span>}
-                    </button>
-                  )
-                })}
-              </div>
+              <div className="border-t border-amber-200/40 pt-5 mb-3" />
+              <h3 className="text-[11px] font-medium text-amber-800/50 uppercase tracking-widest mb-3">Recent Activity</h3>
+              {recentGlobalSessions.length === 0 ? (
+                <p className="text-[12px] text-muted-foreground/50 py-3">No recent sessions yet. Start a conversation with one of your agents above.</p>
+              ) : (
+                <div className="space-y-0.5">
+                  {recentGlobalSessions.map((session) => {
+                    const sk = session.skillSlug ? skillBySlug.get(session.skillSlug) : null
+                    const accent = session.skillSlug ? getAccentColor(session.skillSlug) : '#71717A'
+                    return (
+                      <button key={session.id} type="button"
+                        onClick={() => { if (session.skillSlug) navigate(routes.view.skills(session.skillSlug, session.id)) }}
+                        className={cn(
+                          'w-full flex items-center gap-2.5 px-2.5 py-2.5 text-left rounded-lg',
+                          'hover:bg-amber-50/50 transition-colors cursor-pointer group/recent',
+                          'focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:outline-none',
+                        )}>
+                        {sk && activeWorkspaceId ? (
+                          <AgentIcon skill={sk} accent={accent} workspaceId={activeWorkspaceId} size="sm" />
+                        ) : (
+                          <div className="h-7 w-7 rounded-lg bg-foreground/[0.06] flex items-center justify-center shrink-0">
+                            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground/40" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[13px] text-foreground truncate group-hover/recent:text-foreground transition-colors">
+                              {session.name || 'Untitled'}
+                            </span>
+                            {session.isProcessing && (
+                              <Loader2 className="h-3 w-3 text-amber-500 animate-spin shrink-0" />
+                            )}
+                            {session.hasUnread && !session.isProcessing && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                            )}
+                          </div>
+                          {sk && (
+                            <span className="text-[11px] text-muted-foreground truncate block">{sk.metadata.name}</span>
+                          )}
+                        </div>
+                        {session.lastMessageAt && (
+                          <span className="shrink-0 text-[10px] text-muted-foreground/70 tabular-nums">{formatRelativeTime(session.lastMessageAt)}</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
         </div>
