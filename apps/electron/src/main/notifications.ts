@@ -177,21 +177,8 @@ export function setBaseDockIcon(dataUrl: string): void {
  *
  * @param count - Number to show on badge (0 to clear)
  */
-export function updateBadgeCount(count: number): void {
-  // Skip if count hasn't changed
-  if (count === currentBadgeCount) {
-    return
-  }
-
-  currentBadgeCount = count
-
-  if (process.platform === 'darwin') {
-    updateBadgeCountMacOS(count)
-  } else if (process.platform === 'win32') {
-    updateBadgeCountWindows(count)
-  } else if (process.platform === 'linux') {
-    updateBadgeCountLinux(count)
-  }
+export function updateBadgeCount(_count: number): void {
+  // Badge disabled — showing active session count is noisy and not actionable
 }
 
 /**
