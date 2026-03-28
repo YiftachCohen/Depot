@@ -519,9 +519,24 @@ export function updateSkillFrontmatter(skillDir: string, updates: Partial<SkillM
   const skillFile = join(skillDir, 'SKILL.md');
   let content: string;
   try { content = readFileSync(skillFile, 'utf-8'); } catch { return; }
-  const parsed = matter(content);
-  Object.assign(parsed.data, updates);
-  writeFileSync(skillFile, matter.stringify(parsed.content, parsed.data), 'utf-8');
+
+  // Use targeted regex replacements to avoid re-serializing the entire YAML
+  // frontmatter (which can reorder keys and reformat block scalars).
+  let updated = content;
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === undefined) continue;
+    const escaped = String(value).replace(/\$/g, '$$$$');
+    const lineRegex = new RegExp(`^(${key}:\\s*).*$`, 'm');
+    if (lineRegex.test(updated)) {
+      updated = updated.replace(lineRegex, `$1${escaped}`);
+    } else {
+      // Key doesn't exist yet — append before closing `---`
+      updated = updated.replace(/^(---\s*$)/m, `${key}: ${escaped}\n$1`);
+    }
+  }
+  if (updated !== content) {
+    writeFileSync(skillFile, updated, 'utf-8');
+  }
 }
 
 // Re-export icon utilities for convenience
