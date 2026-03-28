@@ -3,10 +3,10 @@
  * Typography and spacing create hierarchy, not borders or backgrounds.
  */
 import { useState } from 'react'
-import { Brain, Database, Zap, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Brain, Database, Zap, ChevronDown, ChevronUp } from 'lucide-react'
 import { getCommandIcon } from '@/lib/command-icon'
 import { cn } from '@/lib/utils'
-import { AgentIcon, getActivityStatus, formatRelativeTime, ACTIVITY_DOT, OBSERVATION_HEALTH_DOT, CMD_CHIP } from './utils'
+import { AgentIcon, getActivityStatus, formatRelativeTime, ACTIVITY_DOT, OBSERVATION_HEALTH_DOT, CARD_CMD_CHIP } from './utils'
 import type { SkillSessionStats, KnowledgeStats } from './utils'
 import type { LoadedSkill, QuickCommand } from '../../../../shared/types'
 
@@ -46,10 +46,10 @@ export function AgentCard({
   return (
     <div
       className={cn(
-        'rounded-[10px] bg-background',
-        'border border-border/50',
-        'hover:-translate-y-px hover:shadow-xs hover:border-border/80',
-        'transition-all duration-150',
+        'rounded-[10px] bg-background shadow-sm',
+        'border border-border/60',
+        'hover:-translate-y-0.5 hover:shadow-md hover:border-amber-500/30',
+        'transition-all duration-200',
       )}
     >
       <div className="p-4">
@@ -81,17 +81,18 @@ export function AgentCard({
                   ACTIVITY_DOT[activity],
                   activity === 'active' && 'animate-pulse',
                 )}
+                title={activity === 'active' ? 'Active recently' : activity === 'idle' ? 'Idle — no recent activity' : 'Dormant — hasn\u2019t been used in a while'}
                 aria-label={`Agent status: ${activity}`}
               />
             </button>
-            <p className="text-[13px] leading-relaxed text-muted-foreground/60 line-clamp-1 mt-0.5">
+            <p className="text-[13px] leading-relaxed text-muted-foreground/80 line-clamp-2 mt-0.5">
               {skill.metadata.description}
             </p>
           </div>
         </div>
 
-        {/* Stats — small, monochrome, quiet */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-[11px] text-muted-foreground/50">
+        {/* Stats — readable, labeled */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[12px] text-muted-foreground">
           {isStatsLoading ? (
             <>
               <span className="h-3.5 w-16 rounded bg-foreground/[0.04] animate-pulse" />
@@ -106,56 +107,55 @@ export function AgentCard({
               )}
               {memoryEnabled && factCount > 0 && (
                 <span className="inline-flex items-center gap-1">
-                  <Brain className="h-3 w-3" />
-                  <span className="font-mono tabular-nums">{factCount}</span>
+                  <Brain className="h-3.5 w-3.5" />
+                  <span className="font-mono tabular-nums">{factCount} {factCount === 1 ? 'memory' : 'memories'}</span>
                 </span>
               )}
               {knowledgeStats && (
                 <span className="inline-flex items-center gap-1">
                   <span className={cn('inline-block h-1.5 w-1.5 rounded-full', OBSERVATION_HEALTH_DOT[knowledgeStats.observationHealth])} />
-                  <Database className="h-3 w-3" />
-                  <span className="font-mono tabular-nums">{knowledgeStats.entityCount}</span>
+                  <Database className="h-3.5 w-3.5" />
+                  <span className="font-mono tabular-nums">{knowledgeStats.entityCount} {knowledgeStats.entityCount === 1 ? 'entity' : 'entities'}</span>
                 </span>
               )}
               {automationCount > 0 && (
                 <span className="inline-flex items-center gap-1">
-                  <Zap className="h-3 w-3" />
-                  <span className="font-mono tabular-nums">{automationCount}</span>
+                  <Zap className="h-3.5 w-3.5" />
+                  <span className="font-mono tabular-nums">{automationCount} automation{automationCount !== 1 ? 's' : ''}</span>
                 </span>
               )}
               {stats?.lastUsedAt && (
-                <span className="ml-auto text-muted-foreground/35">{formatRelativeTime(stats.lastUsedAt)}</span>
+                <span className="ml-auto text-muted-foreground/70">{formatRelativeTime(stats.lastUsedAt)}</span>
               )}
             </>
           )}
         </div>
 
         {/* Commands — show all, collapse if >6 */}
-        <CommandList cmds={cmds} onQuickCommand={onQuickCommand} onNewChat={onNewChat} />
+        <CommandList cmds={cmds} onQuickCommand={onQuickCommand} />
       </div>
     </div>
   )
 }
 
-const CMD_FOLD_THRESHOLD = 6
+const CMD_FOLD_THRESHOLD = 5
 
-function CommandList({ cmds, onQuickCommand, onNewChat }: {
+function CommandList({ cmds, onQuickCommand }: {
   cmds: QuickCommand[]
   onQuickCommand: (cmd: QuickCommand) => void
-  onNewChat: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const needsFold = cmds.length > CMD_FOLD_THRESHOLD
   const visible = needsFold && !expanded ? cmds.slice(0, CMD_FOLD_THRESHOLD) : cmds
 
   return (
-    <div className="flex flex-wrap items-center gap-1 mt-3 pt-3 border-t border-border/30">
+    <div className="flex flex-wrap items-center gap-1 mt-4">
       {visible.map((cmd) => (
         <button
           key={cmd.name}
           type="button"
           onClick={() => onQuickCommand(cmd)}
-          className={cn(CMD_CHIP, 'min-h-[28px] focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:outline-none')}
+          className={cn(CARD_CMD_CHIP, 'min-h-[28px] focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:outline-none')}
         >
           {getCommandIcon(cmd.name, 'h-3 w-3 opacity-60', cmd.icon)}{cmd.name}
         </button>
@@ -164,7 +164,7 @@ function CommandList({ cmds, onQuickCommand, onNewChat }: {
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className={cn(CMD_CHIP, 'text-muted-foreground/35 min-h-[28px] focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:outline-none')}
+          className={cn(CARD_CMD_CHIP, 'text-muted-foreground/70 min-h-[28px] focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:outline-none')}
         >
           {expanded ? (
             <><ChevronUp className="h-3 w-3 opacity-60" />Less</>
@@ -173,13 +173,6 @@ function CommandList({ cmds, onQuickCommand, onNewChat }: {
           )}
         </button>
       )}
-      <button
-        type="button"
-        onClick={onNewChat}
-        className={cn(CMD_CHIP, 'text-muted-foreground/35 min-h-[28px] focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:outline-none')}
-      >
-        <Plus className="h-3 w-3 opacity-60" />New Chat
-      </button>
     </div>
   )
 }
