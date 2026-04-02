@@ -4,6 +4,25 @@ All notable changes to Depot are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.14] - 2026-04-02
+
+### Changed
+
+- **Memory v2 removed** — The legacy `save_agent_memory` tool and flat-fact memory system has been removed. All cross-session persistence now uses the Knowledge Fabric (`save_knowledge` / `query_knowledge`). Existing memory facts are auto-migrated to knowledge entities on first knowledge store open.
+- **`memory: { enabled: true }` deprecated** — Manifests using the old memory field are auto-promoted to `knowledge: { enabled: true }` at parse time with a deprecation warning. Update your `depot.yaml` to use `knowledge` instead.
+- **Personality pinned for prompt caching** — Agent personality is now injected into the static system prompt (instead of per-turn context blocks), enabling SDK prompt caching across turns.
+- **Skill manifest caching** — `BaseAgent` caches the resolved skill manifest in memory, avoiding repeated disk reads every turn.
+- **Workspace capabilities cached** — `PromptBuilder` caches the workspace capabilities string since it doesn't change during a session.
+
+### Removed
+
+- `save_agent_memory` session tool
+- `AgentMemoryPanel` component and memory CRUD UI (replaced by Knowledge Browser)
+- 4 memory RPC channels (`addMemory`, `getMemory`, `deleteFact`, `clearMemory`)
+- Memory operations from `agent-state.ts` (`addMemoryFacts`, `deleteMemoryFact`, `replaceMemoryFacts`, `formatAgentMemoryForPrompt`)
+- Session-end LLM-based memory summarization (superseded by knowledge extraction)
+- `memory: { enabled: true }` from all built-in agent templates (all use `knowledge` now)
+
 ## [1.2.13] - 2026-03-28
 
 ### Added
