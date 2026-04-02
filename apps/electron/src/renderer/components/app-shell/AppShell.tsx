@@ -2495,14 +2495,11 @@ function AppShellContent({
                                 if (isError) {
                                   return <span className="flex items-center justify-center h-4 w-4"><span className="h-[7px] w-[7px] rounded-full" style={{ backgroundColor: 'var(--destructive)' }} /></span>
                                 }
-                                if (s.hasUnread) {
-                                  return <span className="flex items-center justify-center h-4 w-4"><span className="h-[7px] w-[7px] rounded-full" style={{ backgroundColor: statusColor }} /></span>
-                                }
                                 return <span className="flex items-center justify-center h-4 w-4"><span className="h-[7px] w-[7px] rounded-full" style={{ backgroundColor: statusColor }} /></span>
                               })(),
                               iconColorable: false,
                               variant: (isAgentOrChild && navState.details?.sessionId === s.id ? "default" : "ghost") as "default" | "ghost",
-                              muted: !s.hasUnread && s.lastMessageRole !== 'error',
+                              muted: !s.isProcessing && !s.hasUnread && s.lastMessageRole !== 'error',
                               bold: s.hasUnread,
                               onClick: () => navigate(routes.view.skills(skill.slug, s.id)),
                               hoverAction: {
