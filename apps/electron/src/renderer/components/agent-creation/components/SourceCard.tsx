@@ -39,7 +39,7 @@ export function SourceCard({
         'border',
         selected
           ? 'bg-amber-50 border-amber-400 ring-1 ring-amber-400/20'
-          : 'bg-white border-stone-200/80 hover:border-stone-300 hover:shadow-sm',
+          : 'bg-white border-stone-200/80 hover:border-stone-300 hover:shadow-thin',
       )}
     >
       {/* Source icon — real avatar or fallback */}

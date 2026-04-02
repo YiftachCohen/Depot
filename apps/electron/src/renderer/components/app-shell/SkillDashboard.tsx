@@ -484,22 +484,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     }
   }, [activeWorkspaceId, onCreateSession, onSendMessage])
 
-  const headerActions = (
-    <div className="flex items-center gap-1">
-      <button type="button" onClick={() => setCreateAgentFlowOpen(true)} aria-label="Add Agent"
-        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Add Agent">
-        <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-      </button>
-      <button type="button" onClick={handleCreateAgentSession} aria-label="Create Agent"
-        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Create Agent">
-        <Plus className="h-4 w-4 text-muted-foreground" />
-      </button>
-      <button type="button" onClick={() => setPickerOpen(true)} aria-label="Manage Agents"
-        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Manage Agents">
-        <Settings2 className="h-4 w-4 text-muted-foreground" />
-      </button>
-    </div>
-  )
+  const headerActions = (<div />)
 
   // --- Focused Agent View ---
   const focusedSkill = focusedSkillSlug ? skills.find(s => s.slug === focusedSkillSlug) : null
@@ -656,7 +641,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-2.5 py-1 rounded-full border border-border/40 hover:border-border/60 hover:bg-foreground/[0.03]">
                   + New Chat
                 </button>
-                <button type="button" onClick={() => setPickerOpen(true)}
+                <button type="button" onClick={() => setCreateAgentFlowOpen(true)}
                   className="text-xs font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 transition-colors cursor-pointer px-3 py-1 rounded-full border border-amber-200/60">
                   + Add Agent
                 </button>

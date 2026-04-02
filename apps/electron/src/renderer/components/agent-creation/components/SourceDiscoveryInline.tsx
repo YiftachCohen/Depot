@@ -41,7 +41,7 @@ export function SourceDiscoveryInline({ workspaceId, onImported }: SourceDiscove
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-stone-200/80 shadow-thin overflow-hidden">
       <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Search className="h-3.5 w-3.5 text-stone-400" />

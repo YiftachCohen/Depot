@@ -76,7 +76,7 @@ export function SourcesStep({
 
       {/* Suggested Sources — white card */}
       {hasAnySuggestions && (
-        <div className="bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-stone-200/80 shadow-thin overflow-hidden">
           <div className="px-4 py-3 border-b border-stone-100 flex items-center gap-2">
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
             <span className="text-xs font-semibold text-stone-700">Suggested for you</span>
@@ -104,7 +104,7 @@ export function SourcesStep({
 
       {/* Other workspace sources */}
       {hasOtherSources && (
-        <div className="bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-stone-200/80 shadow-thin overflow-hidden">
           <div className="px-4 py-3 border-b border-stone-100">
             <span className="text-xs font-semibold text-stone-700">Your Sources</span>
           </div>
@@ -127,7 +127,7 @@ export function SourcesStep({
 
       {/* Empty state */}
       {!hasAnySuggestions && !hasOtherSources && (
-        <div className="bg-white rounded-2xl border border-stone-200/80 shadow-sm py-10 text-center">
+        <div className="bg-white rounded-2xl border border-stone-200/80 shadow-thin py-10 text-center">
           <Database className="h-8 w-8 text-stone-300 mx-auto mb-3" />
           <p className="text-sm font-medium text-stone-500">No data sources yet</p>
           <p className="text-xs text-stone-400 mt-1">
