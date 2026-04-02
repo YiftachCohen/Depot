@@ -81,6 +81,8 @@ export interface LinkItem {
   sortable?: SortableConfig
   // Muted text style for subordinate items (e.g., conversations under agents)
   muted?: boolean
+  // Bold text for emphasis (e.g., unread sessions)
+  bold?: boolean
   // Optional element rendered after the title (e.g., label type icon), revealed on hover
   afterTitle?: React.ReactNode
   /** Subtitle text shown below the title (e.g., relative time) */
@@ -501,8 +503,8 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
           link.subtitle ? "py-1.5" : link.compact ? "py-1" : "py-2",
           // Section headers: small uppercase labels for expandable top-level items
           link.expandable && !link.compact && "font-mono text-[11px] font-medium tracking-[0.08em] uppercase text-sidebar-section",
-          // Leaf items (non-compact) get medium weight
-          !link.expandable && !link.compact && "font-medium",
+          // Leaf items (non-compact) get medium weight, bold overrides to semibold
+          !link.expandable && !link.compact && (link.bold ? "font-semibold" : "font-medium"),
           // Muted style for subordinate items (lighter text)
           link.muted && "text-foreground/55",
           "px-2",

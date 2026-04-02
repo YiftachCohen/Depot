@@ -44,7 +44,7 @@ import { isMac } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
 import { HeaderIconButton } from "@/components/ui/HeaderIconButton"
 import { Separator } from "@/components/ui/separator"
-import { Tooltip, TooltipTrigger, TooltipContent, DocumentFormattedMarkdownOverlay } from "@depot/ui"
+import { Tooltip, TooltipTrigger, TooltipContent, DocumentFormattedMarkdownOverlay, Spinner } from "@depot/ui"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -2421,7 +2421,7 @@ function AppShellContent({
                         const agentSessions = isShowingAllSessions ? allAgentSessions : allAgentSessions.slice(0, 5)
                         // Resolve agent icon: emoji > manifest lucide name > keyword inference > Zap
                         const hasEmoji = !!(skill.metadata.icon && isEmoji(skill.metadata.icon))
-                        const accent = getAccentColor(skill.slug)
+                        const accent = getAccentColor(skill.slug, skill.manifest?.color)
                         const resolvedIconComponent = !hasEmoji
                           ? resolveIconComponent(skill.manifest?.icon, skill.metadata.name)
                           : null
@@ -2443,13 +2443,24 @@ function AppShellContent({
                         const activityStatus = getActivityStatus(lastUsedAt)
                         const activityDotColor = activityStatus === 'active' ? 'var(--success)' : activityStatus === 'recent' ? 'var(--info)' : 'color-mix(in oklch, var(--foreground) 20%, transparent)'
                         const hasNoSessions = allAgentSessions.length === 0
+                        const processingCount = allAgentSessions.filter(s => s.isProcessing).length
+                        const errorCount = allAgentSessions.filter(s => s.lastMessageRole === 'error' && !s.isProcessing).length
+                        const unreadCount = allAgentSessions.filter(s => s.hasUnread && !s.isProcessing).length
                         return {
                           id: `nav:skill-filter:${skill.slug}`,
                           title: skill.metadata?.name || skill.slug,
                           subtitle: lastUsedAt ? formatRelativeTime(lastUsedAt) : undefined,
                           icon: agentIcon,
                           iconColorable: false,
-                          label: allAgentSessions.length > 0 ? String(allAgentSessions.length) : undefined,
+                          label: processingCount > 0
+                            ? `⟳ ${processingCount}`
+                            : errorCount > 0
+                              ? `! ${errorCount}`
+                              : unreadCount > 0
+                                ? `● ${unreadCount}`
+                                : allAgentSessions.length > 0
+                                  ? String(allAgentSessions.length)
+                                  : undefined,
                           variant: (isAgentPageOnly ? "default" : "ghost") as "default" | "ghost",
                           muted: hasNoSessions,
                           onClick: () => navigate(routes.view.skills(skill.slug)),
@@ -2473,11 +2484,23 @@ function AppShellContent({
                               return {
                               id: `nav:agent-session:${s.id}`,
                               title: s.name || 'Untitled',
-                              subtitle: s.lastMessageAt ? formatRelativeTime(s.lastMessageAt) : undefined,
-                              icon: <span className="flex items-center justify-center h-4 w-4"><span className="h-[7px] w-[7px] rounded-full" style={{ backgroundColor: statusColor }} /></span>,
+                              subtitle: s.preview
+                                ? s.preview.length > 50 ? s.preview.slice(0, 50) + '…' : s.preview
+                                : s.lastMessageAt ? formatRelativeTime(s.lastMessageAt) : undefined,
+                              icon: (() => {
+                                const isError = s.lastMessageRole === 'error' && !s.isProcessing
+                                if (s.isProcessing) {
+                                  return <span className="flex items-center justify-center h-4 w-4" style={{ color: statusColor }}><Spinner className="text-[9px]" /></span>
+                                }
+                                if (isError) {
+                                  return <span className="flex items-center justify-center h-4 w-4"><span className="h-[7px] w-[7px] rounded-full" style={{ backgroundColor: 'var(--destructive)' }} /></span>
+                                }
+                                return <span className="flex items-center justify-center h-4 w-4"><span className="h-[7px] w-[7px] rounded-full" style={{ backgroundColor: statusColor }} /></span>
+                              })(),
                               iconColorable: false,
                               variant: (isAgentOrChild && navState.details?.sessionId === s.id ? "default" : "ghost") as "default" | "ghost",
-                              muted: true,
+                              muted: !s.isProcessing && !s.hasUnread && s.lastMessageRole !== 'error',
+                              bold: s.hasUnread,
                               onClick: () => navigate(routes.view.skills(skill.slug, s.id)),
                               hoverAction: {
                                 icon: Archive,
