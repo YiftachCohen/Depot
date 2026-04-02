@@ -66,7 +66,7 @@ export function ActivityFeed({ sessions, skillMap, onNavigate }: ActivityFeedPro
         <div className="space-y-0">
           {grouped.map(({ session, count }) => {
             const sk = session.skillSlug ? skillMap.get(session.skillSlug) : null
-            const accent = session.skillSlug ? getAccentColor(session.skillSlug) : '#78716C'
+            const accent = session.skillSlug ? getAccentColor(session.skillSlug, sk?.manifest?.color) : '#78716C'
 
             return (
               <button

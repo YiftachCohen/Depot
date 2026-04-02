@@ -135,7 +135,7 @@ function SkillFilterBar({
         const IconComponent = hasEmojiIcon
           ? null
           : resolveIconComponent(skill.manifest?.icon, skill.metadata?.name)
-        const accentColor = getAccentColor(skill.slug)
+        const accentColor = getAccentColor(skill.slug, skill.manifest?.color)
         const isActive = activeSlug === skill.slug
         return (
           <button
