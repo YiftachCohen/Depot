@@ -32,7 +32,6 @@ import { AgentIcon, getAccentColor, formatRelativeTime } from './dashboard/utils
 import { AgentDetailView } from './dashboard/AgentDetailView'
 import { AgentGrid } from './dashboard/AgentGrid'
 import { AgentTemplateBrowser } from './AgentTemplateBrowser'
-import { AgentMemoryPanel } from './AgentMemoryPanel'
 import { KnowledgeBrowserPanel } from './KnowledgeBrowserPanel'
 import type { AgentTemplate } from '../../../shared/types'
 import { type AutomationListItem, type ExecutionEntry, type PromptAction } from '../automations/types'

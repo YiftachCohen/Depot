@@ -433,10 +433,6 @@ export interface ElectronAPI {
 
   // Agent State (workspace-scoped, per-skill)
   getAgentState(workspaceId: string, skillSlug: string): Promise<import('@depot/shared/skills').AgentState | null>
-  getAgentMemory(workspaceId: string, skillSlug: string): Promise<import('@depot/shared/skills').AgentMemoryFact[]>
-  addAgentMemory(workspaceId: string, skillSlug: string, facts: string[]): Promise<{ added: number }>
-  deleteAgentMemoryFact(workspaceId: string, skillSlug: string, factId: string): Promise<{ deleted: boolean }>
-  clearAgentMemory(workspaceId: string, skillSlug: string): Promise<{ cleared: boolean }>
   getKnowledgeStats(workspaceId: string, skillSlug: string): Promise<{ entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: string }>
   onAgentStateChanged(callback: (data: { skillSlug: string }) => void): () => void
   queryKnowledgeEntities(workspaceId: string, skillSlug: string, options?: { domain?: string; entityType?: string; query?: string; tags?: string[]; limit?: number }): Promise<any[]>

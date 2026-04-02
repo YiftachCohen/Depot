@@ -25,7 +25,7 @@ import { AgentPromptBar } from './AgentPromptBar'
 import { AgentHandoffCard } from './AgentHandoffCard'
 import { AgentActivityTimeline } from './AgentActivityTimeline'
 import { KnowledgeStoryCard } from './KnowledgeStoryCard'
-import { AgentMemoryCard } from './AgentMemoryCard'
+import { AgentMemoryCard } from './AgentMemoryCard' // now shows knowledge entity count
 import { determinePageMode } from './types'
 import type { AgentPageMode, KnowledgeStatsData, SkillSessionStats } from './types'
 
@@ -480,7 +480,6 @@ export function AgentDetailView({
                   timelineError,
                   loadTimelineData,
                   handleNewChat,
-                  handleFactsChanged,
                   onTestAutomation,
                   onToggleAutomation,
                   onDeleteAutomation,
@@ -569,7 +568,6 @@ function renderContentCards(ctx: {
   timelineError: string | null
   loadTimelineData: () => void
   handleNewChat: () => void
-  handleFactsChanged: () => void
   onTestAutomation?: (automationId: string) => void
   onToggleAutomation?: (automationId: string) => void
   onDeleteAutomation?: (automationId: string) => void
@@ -627,15 +625,14 @@ function renderContentCards(ctx: {
     )
   }
 
-  // 4. Memory (if has memory)
-  if (ctx.focusedSkill.manifest?.memory?.enabled !== false && ctx.agentStateMap.has(ctx.focusedSkill.slug)) {
+  // 4. Knowledge entities (if knowledge-enabled)
+  if (ctx.focusedSkill.manifest?.knowledge?.enabled && ctx.knowledgeStats) {
     cards.push(
-      <M key="memory" variants={ctx.iVariants}>
+      <M key="knowledge-card" variants={ctx.iVariants}>
         <AgentMemoryCard
           workspaceId={ctx.activeWorkspaceId}
           skillSlug={ctx.focusedSkill.slug}
-          facts={ctx.agentState?.memory?.facts ?? []}
-          onFactsChanged={ctx.handleFactsChanged}
+          knowledgeStats={ctx.knowledgeStats}
         />
       </M>,
     )
