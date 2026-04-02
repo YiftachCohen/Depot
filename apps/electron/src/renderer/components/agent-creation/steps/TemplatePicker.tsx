@@ -243,7 +243,7 @@ export function TemplatePicker({
                   onClick={handleCancel}
                   className="h-8 px-3 text-xs font-medium rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-100 transition-colors"
                 >
-                  Cancel
+                  Discard result
                 </button>
               )}
               {!isGenerating && intent.trim() && llmAvailable && (
@@ -278,7 +278,7 @@ export function TemplatePicker({
           {isGenerating && (
             <div className="mt-3 flex items-center gap-2 text-sm text-amber-600">
               <Sparkles className="h-4 w-4" />
-              Creating your agent...
+              Creating your agent... You can discard the result while it finishes.
             </div>
           )}
 

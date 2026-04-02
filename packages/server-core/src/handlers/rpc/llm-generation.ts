@@ -6,6 +6,11 @@ import { getCredentialManager } from '@depot/shared/credentials'
 import type { RpcServer } from '@depot/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
 
+export const HANDLED_CHANNELS = [
+  RPC_CHANNELS.llm.CHECK_AVAILABLE,
+  RPC_CHANNELS.llm.GENERATE_AGENT_MANIFEST,
+] as const
+
 // ============================================================
 // Known Lucide icon names — validated against this set
 // ============================================================
@@ -39,6 +44,7 @@ const DEFAULT_ICON = 'sparkles'
 
 // Max input prompt length
 const MAX_PROMPT_LENGTH = 500
+const LLM_GENERATION_TIMEOUT_MS = 30_000
 
 // ============================================================
 // Types
@@ -222,6 +228,27 @@ async function resolveApiCredentials(): Promise<{
   return null
 }
 
+function buildCredentialEnvOverrides(creds: {
+  apiKey?: string
+  oauthToken?: string
+  baseUrl?: string
+}): Record<string, string> {
+  return {
+    ANTHROPIC_API_KEY: creds.apiKey ?? '',
+    CLAUDE_CODE_OAUTH_TOKEN: creds.oauthToken ?? '',
+    ANTHROPIC_BASE_URL: creds.baseUrl ?? '',
+  }
+}
+
+function isTimeoutError(err: unknown, abortController: AbortController): boolean {
+  if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+    const reason = abortController.signal.reason
+    return reason instanceof DOMException && reason.name === 'TimeoutError'
+  }
+
+  return err instanceof Error && err.name === 'TimeoutError'
+}
+
 // ============================================================
 // Handler registration
 // ============================================================
@@ -268,26 +295,36 @@ export function registerLlmGenerationHandlers(server: RpcServer, deps: HandlerDe
     }
 
     deps.platform.logger?.info(`[LLM_GENERATION] Generating agent manifest via SDK. hasApiKey=${!!creds.apiKey}, hasOAuth=${!!creds.oauthToken}, prompt="${trimmedPrompt.slice(0, 80)}"`)
+    const abortController = new AbortController()
 
     try {
+      const timeoutId = setTimeout(() => {
+        abortController.abort(new DOMException('Request timed out after 30 seconds', 'TimeoutError'))
+      }, LLM_GENERATION_TIMEOUT_MS)
+
       // Use the Claude Agent SDK query() which handles OAuth, API key, Bedrock, etc.
       const options = {
-        ...getDefaultOptions(),
+        ...getDefaultOptions(buildCredentialEnvOverrides(creds)),
         model: 'claude-sonnet-4-20250514',
         maxTurns: 1,
+        abortController,
         systemPrompt: buildSystemPrompt(workspaceSources),
         maxTokens: 2048,
       }
 
       let resultText = ''
-      for await (const msg of query({ prompt: userMessage, options })) {
-        if (msg.type === 'assistant') {
-          for (const block of msg.message.content) {
-            if (block.type === 'text') {
-              resultText += block.text
+      try {
+        for await (const msg of query({ prompt: userMessage, options })) {
+          if (msg.type === 'assistant') {
+            for (const block of msg.message.content) {
+              if (block.type === 'text') {
+                resultText += block.text
+              }
             }
           }
         }
+      } finally {
+        clearTimeout(timeoutId)
       }
 
       if (!resultText.trim()) {
@@ -334,7 +371,7 @@ export function registerLlmGenerationHandlers(server: RpcServer, deps: HandlerDe
         ...(clarifying_questions ? { clarifying_questions } : {}),
       }
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
+      if (isTimeoutError(err, abortController)) {
         return { error: 'Request timed out after 30 seconds' }
       }
       const msg = err instanceof Error ? err.message : String(err)

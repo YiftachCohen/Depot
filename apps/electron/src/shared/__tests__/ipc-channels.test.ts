@@ -115,6 +115,8 @@ const EXPECTED_CHANNELS: string[] = [
   'labels:create',
   'labels:delete',
   'labels:list',
+  'llm:checkAvailable',
+  'llm:generateAgentManifest',
   'logo:getUrl',
   'menu:copy',
   'menu:cut',

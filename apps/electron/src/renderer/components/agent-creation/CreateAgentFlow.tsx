@@ -145,17 +145,17 @@ export function CreateAgentFlow({
     setShowAdvanced(false)
   }, [])
 
-  const handleClose = useCallback(() => {
-    if (isModified && !creating) {
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    if (!nextOpen && isModified && !creating) {
       if (!window.confirm('Discard this agent?')) return
     }
-    onOpenChange(false)
-  }, [isModified, creating, onOpenChange])
-
-  const handleOpenChange = useCallback((nextOpen: boolean) => {
     if (nextOpen) resetState()
     onOpenChange(nextOpen)
-  }, [onOpenChange, resetState])
+  }, [isModified, creating, onOpenChange, resetState])
+
+  const handleClose = useCallback(() => {
+    handleOpenChange(false)
+  }, [handleOpenChange])
 
   const handleSelectTemplate = useCallback((template: AgentTemplate) => {
     setIdentity({
