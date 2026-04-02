@@ -45,6 +45,8 @@ export class PromptBuilder {
   private config: PromptBuilderConfig;
   private workspaceRootPath: string;
   private pinnedPreferencesPrompt: string | null = null;
+  /** Cached workspace capabilities string (doesn't change during a session) */
+  private cachedWorkspaceCapabilities: string | null = null;
 
   constructor(config: PromptBuilderConfig) {
     this.config = config;
@@ -93,13 +95,9 @@ export class PromptBuilder {
     parts.push(this.formatWorkspaceCapabilities());
 
     // Add agent personality if provided (from manifest v2)
-    if (this.config.agentPersonality) {
+    // Callers can set skipPersonality when personality is handled via system prompt instead
+    if (this.config.agentPersonality && !options.skipPersonality) {
       parts.push(`<agent_personality>\n${this.config.agentPersonality}\n</agent_personality>`);
-    }
-
-    // Add agent memory context if provided (from agent-state.json)
-    if (this.config.agentMemoryContext) {
-      parts.push(this.config.agentMemoryContext);
     }
 
     // Add agent knowledge context if provided (from knowledge store)
@@ -124,7 +122,6 @@ export class PromptBuilder {
         'You have a structured knowledge store. When you learn facts about your domain:\n' +
         '- Use save_knowledge to store entities (things), relationships (connections between things), and patterns (recurring observations). Include synonym tags for retrieval.\n' +
         '- Use save_knowledge with the observations field for free-form notes.\n' +
-        '- Do NOT use save_agent_memory — use save_knowledge instead. Your knowledge store is your primary memory.\n' +
         '- Use query_knowledge to recall what you know before answering domain questions.\n' +
         '</agent_knowledge_instructions>'
       );
@@ -144,6 +141,11 @@ export class PromptBuilder {
    * Informs the agent about what features are available in this workspace.
    */
   formatWorkspaceCapabilities(): string {
+    // Cache result since workspace capabilities don't change during a session
+    if (this.cachedWorkspaceCapabilities) {
+      return this.cachedWorkspaceCapabilities;
+    }
+
     const capabilities: string[] = [];
 
     // Check local MCP server capability
@@ -154,7 +156,8 @@ export class PromptBuilder {
       capabilities.push('local-mcp: disabled (only HTTP/SSE servers)');
     }
 
-    return `<workspace_capabilities>\n${capabilities.join('\n')}\n</workspace_capabilities>`;
+    this.cachedWorkspaceCapabilities = `<workspace_capabilities>\n${capabilities.join('\n')}\n</workspace_capabilities>`;
+    return this.cachedWorkspaceCapabilities;
   }
 
   /**
@@ -171,6 +174,13 @@ export class PromptBuilder {
       isSessionRoot,
       this.config.session?.sdkCwd
     );
+  }
+
+  /**
+   * Get the agent personality text for callers that handle it via system prompt.
+   */
+  getPersonality(): string | undefined {
+    return this.config.agentPersonality;
   }
 
   // ============================================================

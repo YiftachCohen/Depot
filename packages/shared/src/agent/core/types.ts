@@ -96,8 +96,6 @@ export interface PromptBuilderConfig {
   isHeadless?: boolean;
   /** Agent personality text (prepended to system prompt context) */
   agentPersonality?: string;
-  /** Pre-formatted agent memory context (injected into system prompt) */
-  agentMemoryContext?: string;
   /** Pre-formatted agent knowledge context (injected into system prompt) */
   agentKnowledgeContext?: string;
   /** Pre-formatted agent briefing context (injected into system prompt) */
@@ -124,6 +122,8 @@ export interface ContextBlockOptions {
   inactiveSources?: LoadedSource[];
   /** Whether local MCP is enabled */
   localMcpEnabled?: boolean;
+  /** Skip personality injection (when caller handles it via system prompt instead) */
+  skipPersonality?: boolean;
 }
 
 /**

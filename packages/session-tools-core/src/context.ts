@@ -306,13 +306,6 @@ export interface SessionToolContext {
   updatePreferences?(updates: Record<string, unknown>): void;
 
   /**
-   * Save facts to the current agent's persistent memory.
-   * Only available in sessions linked to a skill/agent with memory enabled.
-   * Injected by the backend when the session has a skillSlug.
-   */
-  saveAgentMemory?(facts: string[]): void;
-
-  /**
    * Save structured knowledge to the agent's knowledge store.
    * Only available for knowledge-enabled agents (knowledge: { enabled: true }).
    */

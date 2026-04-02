@@ -25,7 +25,7 @@ import type { FileAttachment } from '../utils/files.ts';
 import type { LLMQueryRequest, LLMQueryResult } from './llm-tool.ts';
 import { debug } from '../utils/debug.ts';
 import { guardLargeResult } from '../utils/large-response.ts';
-import { loadSkillBySlug } from '../skills/storage.ts';
+// loadSkillBySlug is no longer needed here — unified into BaseAgent.cachedSkill
 import {
   getSessionPlansDir,
   getLastPlanFilePath,
@@ -406,8 +406,7 @@ export class ClaudeAgent extends BaseAgent {
   private branchFromSdkCwd: string | null = null;
   private branchFromSdkTurnId: string | null = null;
   private isHeadless: boolean = false;
-  /** Cached knowledge skill reference for PostToolUse hook (avoids disk I/O per tool call). undefined = not checked, null = checked and not knowledge-enabled. */
-  private _cachedKnowledgeSkill: import('../skills/types.ts').LoadedSkill | null | undefined = undefined;
+  // Knowledge skill cache unified into BaseAgent.cachedSkill (populated by createPromptBuilder/initKnowledgeStore)
   private pendingPermissions: Map<string, PendingPermission> = new Map();
   // Permission whitelists are now managed by this.permissionManager (inherited from BaseAgent)
   // Source state tracking is now managed by this.sourceManager (inherited from BaseAgent)
@@ -420,8 +419,10 @@ export class ClaudeAgent extends BaseAgent {
   // Thinking level is managed by BaseAgent
   // Pinned system prompt components (captured on first chat, used for consistency after compaction)
   private pinnedPreferencesPrompt: string | null = null;
-  // Track if preference drift notification has been shown this session
+  private pinnedPersonality: string | null = null;
+  // Track if preference/personality drift notification has been shown this session
   private preferencesDriftNotified: boolean = false;
+  private personalityDriftNotified: boolean = false;
   // Captured stderr from SDK subprocess (for error diagnostics when process exits with code 1)
   private lastStderrOutput: string[] = [];
   /** Pending steer message — injected via additionalContext on next PreToolUse */
@@ -737,14 +738,17 @@ export class ClaudeAgent extends BaseAgent {
       // Pin system prompt components on first chat() call for consistency after compaction
       // The SDK's resume mechanism expects system prompt consistency within a session
       const currentPreferencesPrompt = formatPreferencesForPrompt();
+      const currentPersonality = this.promptBuilder.getPersonality() ?? null;
 
       if (this.pinnedPreferencesPrompt === null) {
         // First chat in this session - pin current values
         this.pinnedPreferencesPrompt = currentPreferencesPrompt;
+        this.pinnedPersonality = currentPersonality;
         debug('[chat] Pinned system prompt components for session consistency');
       } else {
         // Detect drift: warn user if context has changed since session started
         const preferencesDrifted = currentPreferencesPrompt !== this.pinnedPreferencesPrompt;
+        const personalityDrifted = currentPersonality !== this.pinnedPersonality;
 
         if (preferencesDrifted && !this.preferencesDriftNotified) {
           yield {
@@ -753,6 +757,15 @@ export class ClaudeAgent extends BaseAgent {
           };
           this.preferencesDriftNotified = true;
           debug(`[chat] Detected drift in: preferences`);
+        }
+
+        if (personalityDrifted && !this.personalityDriftNotified) {
+          yield {
+            type: 'info',
+            message: `Note: Your skill's personality changed since this session started. Start a new session to apply changes.`,
+          };
+          this.personalityDriftNotified = true;
+          debug(`[chat] Detected drift in: personality`);
         }
       }
 
@@ -882,12 +895,15 @@ export class ClaudeAgent extends BaseAgent {
               type: 'preset' as const,
               preset: 'claude_code' as const,
               // Working directory included for monorepo context file discovery
+              // Personality is appended here (static per session) for SDK prompt caching
               append: getSystemPrompt(
                 this.pinnedPreferencesPrompt ?? undefined,
                 this.config.debugMode,
                 this.workspaceRootPath,
                 this.config.session?.workingDirectory
-              ),
+              ) + (this.pinnedPersonality
+                ? `\n\n<agent_personality>\n${this.pinnedPersonality}\n</agent_personality>`
+                : ''),
             },
         // Use sdkCwd for SDK session storage - this is set once at session creation and never changes.
         // This ensures SDK can always find session transcripts regardless of workingDirectory changes.
@@ -1182,19 +1198,13 @@ export class ClaudeAgent extends BaseAgent {
               // Only for knowledge-enabled agents — use cached skill to avoid disk I/O per tool call
               const slug = this.config.session?.skillSlug;
               if (!slug) return { continue: true };
-              if (this._cachedKnowledgeSkill === undefined) {
-                const resolved = loadSkillBySlug(this.config.workspace.rootPath, slug, this.config.session?.workingDirectory);
-                if (!resolved?.manifest?.knowledge?.enabled) {
-                  this._cachedKnowledgeSkill = null;
-                  return { continue: true };
-                }
-                this._cachedKnowledgeSkill = resolved;
-              }
-              if (this._cachedKnowledgeSkill === null) return { continue: true };
+              // Use cachedSkill from BaseAgent (populated by createPromptBuilder/initKnowledgeStore)
+              const skill = this.cachedSkill;
+              if (!skill?.manifest?.knowledge?.enabled) return { continue: true };
               // Fire-and-forget: extract entities from tool response in background
               const toolResult = typedInput.tool_result ?? '';
               if (toolResult.length < 50) return { continue: true }; // Skip tiny responses
-              this.extractKnowledgeFromToolResponse(slug, this._cachedKnowledgeSkill, toolName, toolResult).catch(() => {});
+              this.extractKnowledgeFromToolResponse(slug, skill, toolName, toolResult).catch(() => {});
               return { continue: true };
             }],
           }],
@@ -1532,6 +1542,7 @@ This is a branched conversation. All prior messages in this conversation are par
           this.config.onSdkSessionIdCleared?.();
           // Clear pinned state for fresh start
           this.pinnedPreferencesPrompt = null;
+          this.pinnedPersonality = null;
           this.preferencesDriftNotified = false;
 
           // Build recovery context from previous messages to inject into retry
@@ -1734,6 +1745,7 @@ This is a branched conversation. All prior messages in this conversation are par
           this.config.onSdkSessionIdCleared?.(); // persist cleared ID to JSONL header
           // Clear pinned state so retry captures fresh values
           this.pinnedPreferencesPrompt = null;
+          this.pinnedPersonality = null;
           this.preferencesDriftNotified = false;
           // Use 'info' instead of 'status' to show message without spinner
           yield { type: 'info', message: 'Session expired, restoring context...' };
@@ -1854,6 +1866,7 @@ This is a branched conversation. All prior messages in this conversation are par
           this.config.onSdkSessionIdCleared?.(); // persist cleared ID to JSONL header
           // Clear pinned state so retry captures fresh values
           this.pinnedPreferencesPrompt = null;
+          this.pinnedPersonality = null;
           this.preferencesDriftNotified = false;
 
           // Provide context-aware message (conservative: only match explicit session/resume terms)
@@ -1938,7 +1951,7 @@ This is a branched conversation. All prior messages in this conversation are par
       `modeVersion=${textPromptDiagnostics.modeVersion} changedBy=${textPromptDiagnostics.lastChangedBy} changedAt=${textPromptDiagnostics.lastChangedAt}`
     )
     const contextParts = this.promptBuilder.buildContextParts(
-      { plansFolderPath: getSessionPlansPath(this.workspaceRootPath, this.modeSessionId) },
+      { plansFolderPath: getSessionPlansPath(this.workspaceRootPath, this.modeSessionId), skipPersonality: true },
       this.sourceManager.formatSourceState(getPermissionMode(this.modeSessionId))
     );
 
@@ -1984,7 +1997,7 @@ This is a branched conversation. All prior messages in this conversation are par
       `modeVersion=${sdkPromptDiagnostics.modeVersion} changedBy=${sdkPromptDiagnostics.lastChangedBy} changedAt=${sdkPromptDiagnostics.lastChangedAt}`
     )
     const contextParts = this.promptBuilder.buildContextParts(
-      { plansFolderPath: getSessionPlansPath(this.workspaceRootPath, this.modeSessionId) },
+      { plansFolderPath: getSessionPlansPath(this.workspaceRootPath, this.modeSessionId), skipPersonality: true },
       this.sourceManager.formatSourceState(getPermissionMode(this.modeSessionId))
     );
 
@@ -2368,7 +2381,9 @@ This is a branched conversation. All prior messages in this conversation are par
     this.sessionId = null;
     // Clear pinned state so next chat() will capture fresh values
     this.pinnedPreferencesPrompt = null;
+    this.pinnedPersonality = null;
     this.preferencesDriftNotified = false;
+    this.personalityDriftNotified = false;
   }
 
   /**
@@ -2518,7 +2533,9 @@ This is a branched conversation. All prior messages in this conversation are par
 
     // Clear pinned system prompt state
     this.pinnedPreferencesPrompt = null;
+    this.pinnedPersonality = null;
     this.preferencesDriftNotified = false;
+    this.personalityDriftNotified = false;
 
     // Clear Claude-specific callbacks (not handled by BaseAgent)
     this.onSourcesListChange = null;

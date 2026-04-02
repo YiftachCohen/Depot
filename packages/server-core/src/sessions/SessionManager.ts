@@ -72,7 +72,7 @@ import { DepotMcpClient, McpClientPool, McpPoolServer } from '@depot/shared/mcp'
 import { type Session, type SessionEvent, type FileAttachment, type SendMessageOptions, type UnreadSummary, RPC_CHANNELS, generateMessageId } from '@depot/shared/protocol'
 import { messageToStored, storedToMessage, type Message, type StoredAttachment, type ToolDisplayMeta } from '@depot/core/types'
 import { formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrlAsync, getEmojiIcon, resetSummarizationClient, resolveToolIcon, readFileAttachment, selectSpreadMessages, normalizePath } from '@depot/shared/utils'
-import { loadAllSkills, loadSkillBySlug, resolveAgentSources, addMemoryFacts, loadAgentState, saveAgentState, initAgentState, MEMORY_CONSOLIDATION_THRESHOLD, type LoadedSkill } from '@depot/shared/skills'
+import { loadAllSkills, loadSkillBySlug, resolveAgentSources, loadAgentState, saveAgentState, initAgentState, type LoadedSkill } from '@depot/shared/skills'
 import { getToolIconsDir, getMiniModel } from '@depot/shared/config'
 import type { SummarizeCallback } from '@depot/shared/sources'
 import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@depot/shared/agent/thinking-levels'
@@ -5385,68 +5385,6 @@ export class SessionManager implements ISessionManager {
         sessionLog.warn(`Failed to update lastUserSessionTimestamp: ${err}`)
       }
       await this.extractSessionKnowledge(managed, skill, turnStartTimestamp)
-      return // Skip flat fact extraction — knowledge extraction subsumes it
-    }
-
-    // Check if the skill has memory enabled (flat facts for non-knowledge agents)
-    if (!skill?.manifest?.memory?.enabled) return
-
-    // Collect messages from this turn only (starting at the user message that triggered it)
-    const recentMessages = managed.messages
-      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.timestamp >= turnStartTimestamp)
-      .slice(-10)  // Last 10 messages max
-
-    if (recentMessages.length < 2) return  // Need at least a user + assistant exchange
-
-    const conversationSnippet = JSON.stringify(
-      recentMessages.map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string'
-          ? m.content.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string)).replace(/\s+/g, ' ').slice(0, 500)
-          : '(structured content)',
-      })),
-    )
-
-    const prompt = `Extract 1-5 key facts from this conversation that would be useful in future sessions with this agent. Return ONLY a JSON array of strings, no other text.\n\nConversation JSON:\n${conversationSnippet}`
-
-    try {
-      const result = await managed.agent.runMiniCompletion(prompt)
-      if (!result) return
-
-      // Parse JSON array from response
-      const jsonMatch = result.match(/\[[\s\S]*\]/)
-      if (!jsonMatch) return
-
-      const facts = JSON.parse(jsonMatch[0]) as string[]
-      if (!Array.isArray(facts) || facts.length === 0) return
-
-      // Filter out facts that look like they contain secrets or PII
-      const sensitivePatterns = [
-        /\b[A-Za-z0-9+/=]{40,}\b/,             // Long base64-like tokens / API keys
-        /\b(sk|pk|api|key|token|secret|password)[_-][A-Za-z0-9]{16,}\b/i, // Prefixed API keys
-        /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z]{2,}\b/i, // Email addresses
-        /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/,        // Phone numbers
-        /\b\d{3}-\d{2}-\d{4}\b/,                // SSN
-        /\bAKIA[0-9A-Z]{16}\b/,                 // AWS access key
-        /\bghp_[A-Za-z0-9]{36}\b/,              // GitHub PAT
-        /-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----/, // Private keys
-      ]
-      const validFacts = facts
-        .filter(f => typeof f === 'string' && f.trim().length > 0)
-        .filter(f => !sensitivePatterns.some(p => p.test(f)))
-      if (validFacts.length > 0) {
-        addMemoryFacts(managed.workspace.rootPath, managed.skillSlug, managed.id, validFacts, skill.path)
-        sessionLog.info(`Agent memory: saved ${validFacts.length} facts for ${managed.skillSlug}`)
-      }
-
-      // Check if consolidation is needed
-      const state = loadAgentState(managed.workspace.rootPath, managed.skillSlug, skill.path)
-      if (state && state.memory.facts.length > MEMORY_CONSOLIDATION_THRESHOLD) {
-        sessionLog.info(`Agent memory: consolidation needed for ${managed.skillSlug} (${state.memory.facts.length} facts)`)
-        // Consolidation can be added as a follow-up feature
-      }
-    } catch (err) {
-      sessionLog.warn(`Agent memory summarization error: ${err}`)
     }
   }
 

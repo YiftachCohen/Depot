@@ -600,7 +600,7 @@ quick_commands:
     expect(manifest.permission_mode).toBeUndefined();
   });
 
-  it('should parse memory with enabled: true', () => {
+  it('should auto-promote memory enabled: true to knowledge', () => {
     const yaml = `
 name: Agent
 icon: zap
@@ -612,11 +612,13 @@ quick_commands:
     prompt: "Go"
 `;
     const manifest = parseDepotManifest(yaml);
-    expect(manifest.memory).toBeDefined();
-    expect(manifest.memory!.enabled).toBe(true);
+    // memory is removed after promotion
+    expect(manifest.memory).toBeUndefined();
+    expect(manifest.knowledge).toBeDefined();
+    expect(manifest.knowledge!.enabled).toBe(true);
   });
 
-  it('should parse memory with enabled: false', () => {
+  it('should drop memory with enabled: false without promoting', () => {
     const yaml = `
 name: Agent
 icon: zap
@@ -628,11 +630,11 @@ quick_commands:
     prompt: "Go"
 `;
     const manifest = parseDepotManifest(yaml);
-    expect(manifest.memory).toBeDefined();
-    expect(manifest.memory!.enabled).toBe(false);
+    expect(manifest.memory).toBeUndefined();
+    expect(manifest.knowledge).toBeUndefined();
   });
 
-  it('should parse memory object with missing enabled as undefined', () => {
+  it('should drop memory object with missing enabled without promoting', () => {
     const yaml = `
 name: Agent
 icon: zap
@@ -643,8 +645,8 @@ quick_commands:
     prompt: "Go"
 `;
     const manifest = parseDepotManifest(yaml);
-    expect(manifest.memory).toBeDefined();
-    expect(manifest.memory!.enabled).toBeUndefined();
+    expect(manifest.memory).toBeUndefined();
+    expect(manifest.knowledge).toBeUndefined();
   });
 
   it('should leave memory undefined when not present', () => {
@@ -725,7 +727,10 @@ quick_commands:
     expect(manifest.permission_mode).toBe('ask');
     expect(manifest.model).toBe('claude-sonnet-4-6');
     expect(manifest.llm_connection).toBe('my-bedrock');
-    expect(manifest.memory).toEqual({ enabled: true });
+    // memory is deprecated and auto-promoted to knowledge
+    expect(manifest.memory).toBeUndefined();
+    expect(manifest.knowledge).toBeDefined();
+    expect(manifest.knowledge!.enabled).toBe(true);
     expect(manifest.sources).toEqual(['jira']);
     expect(manifest.source_configs).toBeDefined();
     expect(manifest.quick_commands).toHaveLength(1);

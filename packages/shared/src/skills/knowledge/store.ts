@@ -23,6 +23,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, copyFileSync } from 'fs';
 import { dirname, join, resolve, sep } from 'path';
 import { randomUUID } from 'crypto';
+import { extractKeywords } from './extraction.ts';
 import type {
   KnowledgeEntity,
   KnowledgeRelationship,
@@ -962,6 +963,62 @@ export class KnowledgeStore {
 }
 
 // ============================================================
+// Memory → Knowledge Migration
+// ============================================================
+
+/** Migrate memory facts from agent-state.json into the knowledge store. */
+function migrateMemoryFacts(store: KnowledgeStore, skillDir: string, skillSlug: string): void {
+  const agentStatePath = join(skillDir, 'agent-state.json');
+  if (!existsSync(agentStatePath)) return;
+
+  try {
+    const raw = readFileSync(agentStatePath, 'utf-8');
+    const data = JSON.parse(raw);
+
+    // Already migrated?
+    if (data.memoryMigrated === true) return;
+
+    // Any facts to migrate?
+    const facts = data?.memory?.facts;
+    if (!Array.isArray(facts) || facts.length === 0) {
+      // No facts, just mark migrated and return
+      data.memoryMigrated = true;
+      const tempPath = `${agentStatePath}.tmp`;
+      writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+      renameSync(tempPath, agentStatePath);
+      return;
+    }
+
+    // Convert memory facts to knowledge entities
+    const entities: SaveEntityInput[] = facts.map((fact: any) => ({
+      type: 'memory_fact',
+      name: `fact-${fact.id ?? randomUUID().slice(0, 8)}`,
+      domain: skillSlug,
+      properties: {
+        content: fact.content,
+        source_session_id: fact.sourceSessionId,
+        migrated_from: 'memory_v2',
+      },
+      tags: extractKeywords(fact.content ?? ''),
+    }));
+
+    const sessionId = `migration-${Date.now()}`;
+    store.saveKnowledge({ entities }, sessionId, skillSlug);
+
+    // Mark migrated in agent-state.json
+    data.memoryMigrated = true;
+    const tempPath = `${agentStatePath}.tmp`;
+    writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+    renameSync(tempPath, agentStatePath);
+
+    console.log(`Knowledge migration: migrated ${facts.length} facts for ${skillSlug}`);
+  } catch (err) {
+    // Non-critical — log and continue
+    console.warn(`Knowledge migration failed for ${skillSlug}:`, err);
+  }
+}
+
+// ============================================================
 // KnowledgeStoreManager — singleton with idle eviction
 // ============================================================
 
@@ -1091,6 +1148,11 @@ export class KnowledgeStoreManager {
 
     const store = new KnowledgeStore(db, dbPath);
     this.stores.set(cacheKey, store);
+
+    // Migrate memory facts from agent-state.json if present
+    const storeDir = skillDir ?? resolve(workspaceRootPath, 'skills', skillSlug);
+    migrateMemoryFacts(store, storeDir, skillSlug);
+
     return store;
   }
 
