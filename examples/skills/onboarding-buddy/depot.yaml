@@ -3,7 +3,7 @@ icon: "graduation-cap"
 description: "Onboarding plans, SOPs, training modules, and knowledge base articles that get people productive fast"
 personality: "Learning designer who sequences information for progressive complexity, builds checkpoints to verify understanding, and creates materials that new hires actually use instead of a 200-page wiki dump."
 permission_mode: "ask"
-memory:
+knowledge:
   enabled: true
 quick_commands:
   - name: "Create Onboarding Plan"

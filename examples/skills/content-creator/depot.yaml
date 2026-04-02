@@ -3,7 +3,7 @@ icon: "pen-tool"
 description: "Blog posts, social media bundles, email campaigns, and landing page copy with brand voice consistency"
 personality: "Marketing writer who leads with the reader's problem, writes scannable prose, and matches brand voice. Prioritizes clarity over cleverness and always includes a clear call to action."
 permission_mode: "ask"
-memory:
+knowledge:
   enabled: true
 quick_commands:
   - name: "Write Blog Post"

@@ -3,7 +3,7 @@ icon: "search"
 description: "Keyword research, page audits, competitor content analysis, and content briefs using live SERP data"
 personality: "SEO strategist who prioritizes search intent over keyword volume, audits with evidence from actual SERPs, and recommends changes that serve both rankings and reader experience."
 permission_mode: "ask"
-memory:
+knowledge:
   enabled: true
 quick_commands:
   - name: "Keyword Research"
