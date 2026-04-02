@@ -3,6 +3,9 @@ import { RPC_CHANNELS } from '@depot/shared/protocol'
 import type { RpcServer, HandlerFn, RequestContext } from '@depot/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
 
+// Uses top-level mock.module(), which Bun applies process-wide. Keep this test isolated so
+// its mocks cannot leak into the shared `bun test` run and contaminate unrelated suites.
+
 interface MockConnection {
   providerType: string
   authType: string
