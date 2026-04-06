@@ -70,7 +70,7 @@ export const CARD_CMD_CHIP = cn(
   'inline-flex items-center gap-1.5 text-[12px] text-foreground/70 cursor-pointer',
   'rounded-full px-2.5 py-1',
   'border border-border/50 bg-foreground/[0.03]',
-  'hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:border-amber-300/60 dark:hover:border-amber-700/40 hover:text-amber-900 dark:hover:text-amber-300 transition-colors',
+  'hover:bg-foreground/[0.06] hover:border-foreground/[0.12] hover:text-foreground/80 transition-colors',
 )
 
 export const FOCUSED_CMD_CHIP = cn(

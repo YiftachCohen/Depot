@@ -302,6 +302,7 @@ export function CreateAgentFlow({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="!max-w-[960px] !w-[calc(100%-2rem)] !h-[min(720px,calc(100vh-100px))] !rounded-[14px] !border !border-stone-200/60 !p-0 !gap-0 flex flex-col bg-stone-50 overflow-hidden"
+        showCloseButton={false}
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
       >
