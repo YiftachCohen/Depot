@@ -25,7 +25,6 @@ import { AgentPromptBar } from './AgentPromptBar'
 import { AgentHandoffCard } from './AgentHandoffCard'
 import { AgentActivityTimeline } from './AgentActivityTimeline'
 import { KnowledgeStoryCard } from './KnowledgeStoryCard'
-import { AgentMemoryCard } from './AgentMemoryCard' // now shows knowledge entity count
 import { determinePageMode } from './types'
 import type { AgentPageMode, KnowledgeStatsData, SkillSessionStats } from './types'
 
@@ -620,19 +619,6 @@ function renderContentCards(ctx: {
           skillSlug={ctx.focusedSkill.slug}
           knowledgeStats={ctx.knowledgeStats}
           reducedMotion={ctx.prefersReducedMotion}
-        />
-      </M>,
-    )
-  }
-
-  // 4. Knowledge entities (if knowledge-enabled)
-  if (ctx.focusedSkill.manifest?.knowledge?.enabled && ctx.knowledgeStats) {
-    cards.push(
-      <M key="knowledge-card" variants={ctx.iVariants}>
-        <AgentMemoryCard
-          workspaceId={ctx.activeWorkspaceId}
-          skillSlug={ctx.focusedSkill.slug}
-          knowledgeStats={ctx.knowledgeStats}
         />
       </M>,
     )
