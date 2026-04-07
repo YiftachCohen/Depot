@@ -4,6 +4,20 @@ All notable changes to Depot are documented in this file.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-07
+
+### Added
+
+- **AI-powered agent creation wizard** — Describe the teammate you need in plain language and let Claude generate a full agent config (name, icon, personality, sources, quick commands). Includes a clarifying questions flow when the AI needs more context, and graceful degradation when no LLM credentials are configured.
+- **Template browser** — Browse agent templates by category with fuzzy search. Category filter pills, responsive card grid, and "Best Match" badge highlight the most relevant template for your query.
+- **Split-panel agent builder** — Phase 2 of agent creation: left panel with Identity/Sources/Commands tabs, right panel with a live preview card showing completeness indicator. Centered 960px modal that doesn't take over the whole screen.
+- **LLM generation backend** — New `llm:generateAgentManifest` RPC channel using the Claude Agent SDK. Workspace-aware source suggestions, Lucide icon validation, post-validation on all LLM output fields. 30s timeout with cancel button.
+
+### Changed
+
+- **Agent creation flow** — Replaced the old 3-step linear form with a 2-phase flow: template browser first, then split-panel builder. "Build Custom" option for starting from scratch.
+- **Test file naming** — Renamed module-mocked test files from `.test.ts` to `.isolated.ts` to prevent Bun from running them with global mocks applied to other suites.
+
 ## [1.2.13] - 2026-03-28
 
 ### Added
