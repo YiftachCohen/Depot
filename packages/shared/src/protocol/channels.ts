@@ -338,6 +338,10 @@ export const RPC_CHANNELS = {
     REMOVED: 'browser-pane:removed',
     INTERACTED: 'browser-pane:interacted',
   },
+  llm: {
+    GENERATE_AGENT_MANIFEST: 'llm:generateAgentManifest',
+    CHECK_AVAILABLE: 'llm:checkAvailable',
+  },
   automations: {
     TEST: 'automations:test',
     SET_ENABLED: 'automations:setEnabled',

@@ -579,6 +579,10 @@ export interface ElectronAPI {
   setDefaultThinkingLevel(level: ThinkingLevel): Promise<{ success: boolean; error?: string }>
   setWorkspaceDefaultLlmConnection(workspaceId: string, slug: string | null): Promise<{ success: boolean; error?: string }>
 
+  // LLM Generation
+  generateAgentManifest(input: { prompt: string; workspaceSources: string[]; answers?: Record<string, string> }): Promise<{ name: string; icon: string; description: string; personality: string; sources: string[]; quick_commands: Array<{ name: string; prompt: string; icon?: string }>; clarifying_questions?: string[] } | { error: string }>
+  checkLlmAvailable(): Promise<{ available: boolean }>
+
   // Automation testing (manual trigger)
   testAutomation(payload: TestAutomationPayload): Promise<TestAutomationResult>
 
