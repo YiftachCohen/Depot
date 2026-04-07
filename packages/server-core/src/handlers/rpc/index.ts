@@ -6,6 +6,7 @@ import { registerAutomationsHandlers } from './automations'
 import { registerFilesHandlers } from './files'
 import { registerLabelsHandlers } from './labels'
 import { registerLlmConnectionsHandlers } from './llm-connections'
+import { registerLlmGenerationHandlers } from './llm-generation'
 import { registerOAuthHandlers } from './oauth'
 import { registerOnboardingHandlers } from './onboarding'
 import { registerSessionsHandlers } from './sessions'
@@ -25,6 +26,7 @@ export function registerCoreRpcHandlers(server: RpcServer, deps: HandlerDeps): v
   registerFilesHandlers(server, deps)
   registerLabelsHandlers(server, deps)
   registerLlmConnectionsHandlers(server, deps)
+  registerLlmGenerationHandlers(server, deps)
   registerOAuthHandlers(server, deps)
   registerOnboardingHandlers(server, deps)
   registerSessionsHandlers(server, deps)

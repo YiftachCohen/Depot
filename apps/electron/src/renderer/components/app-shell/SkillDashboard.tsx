@@ -32,6 +32,8 @@ import { AgentIcon, getAccentColor, formatRelativeTime } from './dashboard/utils
 import { AgentDetailView } from './dashboard/AgentDetailView'
 import { AgentGrid } from './dashboard/AgentGrid'
 import { AgentTemplateBrowser } from './AgentTemplateBrowser'
+import { CreateAgentFlow } from '../agent-creation/CreateAgentFlow'
+import { sourcesAtom } from '@/atoms/sources'
 import { AgentMemoryPanel } from './AgentMemoryPanel'
 import { KnowledgeBrowserPanel } from './KnowledgeBrowserPanel'
 import type { AgentTemplate } from '../../../shared/types'
@@ -192,6 +194,8 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   const hasInitializedSkillFilterRef = useRef(false)
   const [pendingVarCommand, setPendingVarCommand] = useState<{ skill: LoadedSkill; cmd: QuickCommand } | null>(null)
   const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false)
+  const [createAgentFlowOpen, setCreateAgentFlowOpen] = useState(false)
+  const workspaceSources = useAtomValue(sourcesAtom)
   const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([])
   const [agentStateMap, setAgentStateMap] = useState<Map<string, import('@depot/shared/skills').AgentState>>(new Map())
   const [knowledgeStatsMap, setKnowledgeStatsMap] = useState<Map<string, { entityCount: number; relationshipCount: number; patternCount: number; lastObservation: number | null; observationHealth: 'green' | 'yellow' | 'red' | 'gray' }>>(new Map())
@@ -276,6 +280,14 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
   ) => {
     await window.electronAPI.createAgentFromTemplate(templateId, overrides)
     // Skill file watcher will auto-refresh the dashboard
+  }, [])
+
+  const handleCreateFromScratch = useCallback(async (slug: string, name: string, description: string) => {
+    return await window.electronAPI.createSkill(slug, name, description)
+  }, [])
+
+  const handlePromoteToAgent = useCallback(async (wsId: string, slug: string, manifest: import('../../../shared/types').DepotSkillManifest) => {
+    await window.electronAPI.promoteSkillToAgent(wsId, slug, manifest)
   }, [])
 
   useEffect(() => {
@@ -472,14 +484,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
     }
   }, [activeWorkspaceId, onCreateSession, onSendMessage])
 
-  const headerActions = (
-    <div className="flex items-center gap-1">
-      <button type="button" onClick={() => setPickerOpen(true)} aria-label="Manage Agents"
-        className="p-1.5 rounded-md hover:bg-foreground/[0.05] transition-colors cursor-pointer" title="Manage Agents">
-        <Settings2 className="h-4 w-4 text-muted-foreground" />
-      </button>
-    </div>
-  )
+  const headerActions = (<div />)
 
   // --- Focused Agent View ---
   const focusedSkill = focusedSkillSlug ? skills.find(s => s.slug === focusedSkillSlug) : null
@@ -636,7 +641,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-2.5 py-1 rounded-full border border-border/40 hover:border-border/60 hover:bg-foreground/[0.03]">
                   + New Chat
                 </button>
-                <button type="button" onClick={() => setPickerOpen(true)}
+                <button type="button" onClick={() => setCreateAgentFlowOpen(true)}
                   className="text-xs font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 transition-colors cursor-pointer px-3 py-1 rounded-full border border-amber-200/60">
                   + Add Agent
                 </button>
@@ -706,7 +711,7 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
 
                 <button
                   type="button"
-                  onClick={() => setTemplateBrowserOpen(true)}
+                  onClick={() => setCreateAgentFlowOpen(true)}
                   className="w-full flex items-center gap-3.5 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3.5 text-left hover:bg-foreground/[0.05] hover:border-foreground/15 transition-all cursor-pointer group/card"
                 >
                   <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-foreground/[0.05] shrink-0">
@@ -840,13 +845,24 @@ export function SkillDashboard({ focusedSkillSlug }: { focusedSkillSlug?: string
       <SkillPicker open={pickerOpen} onOpenChange={setPickerOpen}
         workspaceId={activeWorkspaceId ?? ''} enabledSlugs={enabledSlugs} onSave={handleSaveEnabledSlugs}
         onCreateAgent={handleCreateAgentSession}
-        onBrowseTemplates={() => setTemplateBrowserOpen(true)}
+        onBrowseTemplates={() => setCreateAgentFlowOpen(true)}
         onPromoteWithAI={handlePromoteWithAI} />
       <AgentTemplateBrowser
         open={templateBrowserOpen}
         onOpenChange={setTemplateBrowserOpen}
         templates={agentTemplates}
         onCreateFromTemplate={handleCreateFromTemplate}
+      />
+      <CreateAgentFlow
+        open={createAgentFlowOpen}
+        onOpenChange={setCreateAgentFlowOpen}
+        workspaceId={activeWorkspaceId ?? ''}
+        skills={skills}
+        sources={workspaceSources}
+        templates={agentTemplates}
+        onCreateFromTemplate={handleCreateFromTemplate}
+        onCreateFromScratch={handleCreateFromScratch}
+        onPromoteToAgent={handlePromoteToAgent}
       />
       <TemplateVariableModal
         open={pendingVarCommand !== null}

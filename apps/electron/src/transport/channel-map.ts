@@ -353,6 +353,10 @@ export const CHANNEL_MAP = {
   setDefaultLlmConnection: invoke(RPC_CHANNELS.llmConnections.SET_DEFAULT),
   setWorkspaceDefaultLlmConnection: invoke(RPC_CHANNELS.llmConnections.SET_WORKSPACE_DEFAULT),
 
+  // LLM Generation
+  generateAgentManifest: invoke(RPC_CHANNELS.llm.GENERATE_AGENT_MANIFEST),
+  checkLlmAvailable: invoke(RPC_CHANNELS.llm.CHECK_AVAILABLE),
+
   // Automations
   testAutomation: invoke(RPC_CHANNELS.automations.TEST),
   setAutomationEnabled: invoke(RPC_CHANNELS.automations.SET_ENABLED),
