@@ -51,7 +51,7 @@ Shared type definitions (workspaces, sessions, messages, agent events). Dependen
 Core domain logic: agent backends (`src/agent/`), sessions, config, credentials, MCP integration, skills, sources, permissions. `ClaudeAgent` in `src/agent/claude-agent.ts` is the primary agent class. Permission modes: `safe`, `ask`, `allow-all`. Source types: `mcp`, `api`, `local`. Has many subpath exports (e.g., `@depot/shared/agent`, `@depot/shared/auth`).
 
 ### `packages/server-core` — Server runtime
-RPC handler implementations in `src/handlers/rpc/` (sessions, skills, auth, settings, sources, etc.). Domain services in `src/domain/`, session management in `src/sessions/`, transport layer in `src/transport/`.
+RPC handler implementations in `src/handlers/rpc/` (sessions, skills, auth, settings, sources, LLM generation, etc.). Domain services in `src/domain/`, session management in `src/sessions/`, transport layer in `src/transport/`.
 
 ### `packages/server` — Server entrypoint
 Thin wrapper that boots the server-core runtime.
@@ -75,7 +75,7 @@ Electron app with standard main/preload/renderer split:
 ## Architecture Patterns
 
 ### IPC / RPC System
-`packages/shared/src/protocol/channels.ts` defines `RPC_CHANNELS` — the canonical channel name registry organized by domain (sessions, workspaces, window, settings, etc.). Wire-format strings are the stable API contract. `apps/electron/src/transport/channel-map.ts` maps renderer method names to these channels. A lint script (`bun run lint:ipc-sends`) ensures no raw IPC sends bypass the channel map.
+`packages/shared/src/protocol/channels.ts` defines `RPC_CHANNELS` — the canonical channel name registry organized by domain (sessions, workspaces, window, settings, llm, etc.). Wire-format strings are the stable API contract. `apps/electron/src/transport/channel-map.ts` maps renderer method names to these channels. A lint script (`bun run lint:ipc-sends`) ensures no raw IPC sends bypass the channel map.
 
 ### Skill System
 Skills use a `depot.yaml` manifest with metadata, sources, and quick commands with template variables (`{{var_name}}`). Skills resolve from three layers: `~/.depot/skills/` (global), workspace-level, and project-level (deeper overrides shallower). Skill types defined in `packages/shared/src/skills/types.ts`. Manifest parsing in `packages/shared/src/skills/depot-manifest.ts`.
