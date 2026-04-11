@@ -21,11 +21,10 @@ Depot is a fork of [Craft Agents](https://github.com/lukilabs/craft-agents-oss) 
 - **Skill Dashboard**: Browse, search, and launch skills from a central dashboard instead of navigating chat sessions
 - **Quick Commands with template variables**: Define parameterized commands in `depot.yaml` that prompt for input before execution (e.g., `{{repo_url}}`, `{{ticket_id}}`)
 - **Agent personality**: Each agent gets a distinct voice via the `personality` field, injected into every conversation
-- **Cross-session memory**: Agents remember facts across sessions -- learned automatically on session end and via the `save_agent_memory` tool, with LLM-based consolidation
 - **AI-powered agent creation**: Describe what you need in plain language and let AI generate a full agent config, or browse templates by category and customize in a split-panel builder
-- **Knowledge Fabric**: Domain-expert agents build structured knowledge graphs with entities, relationships, and patterns stored in SQLite. Agents learn from every conversation and MCP tool response, with knowledge injected into system prompts for context-aware answers. Enable with `knowledge: { enabled: true }` in `depot.yaml`.
+- **Knowledge Fabric**: Domain-expert agents build structured knowledge graphs with entities, relationships, and patterns stored in SQLite. Agents learn from every conversation and MCP tool response, with knowledge injected into system prompts for context-aware answers. Enable with `knowledge: { enabled: true }` in `depot.yaml`. Legacy `memory: { enabled: true }` is auto-promoted to knowledge.
 - **Source auto-resolution**: Declare data sources inline in `depot.yaml` with `source_configs` -- missing sources are auto-created when the agent first runs
-- **Self-contained agents**: A single `depot.yaml` carries everything (sources, personality, memory config, permission mode) -- shareable as one file
+- **Self-contained agents**: A single `depot.yaml` carries everything (sources, personality, knowledge config, permission mode) -- shareable as one file
 - **AWS Bedrock provider**: Connect to Claude and other models through AWS Bedrock with IAM authentication
 - **Skill-grouped sessions**: Sessions are organized under the skill that spawned them, providing clear lineage and traceability
 - **Cross-session search**: Search across all sessions and skills in a workspace

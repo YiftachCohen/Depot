@@ -3,7 +3,7 @@
  * Typography and spacing create hierarchy, not borders or backgrounds.
  */
 import { useState } from 'react'
-import { Brain, Database, Zap, ChevronDown, ChevronUp } from 'lucide-react'
+import { Database, Zap, ChevronDown, ChevronUp } from 'lucide-react'
 import { getCommandIcon } from '@/lib/command-icon'
 import { cn } from '@/lib/utils'
 import { AgentIcon, getActivityStatus, formatRelativeTime, ACTIVITY_DOT, OBSERVATION_HEALTH_DOT, CARD_CMD_CHIP } from './utils'
@@ -40,9 +40,6 @@ export function AgentCard({
   const cmds = skill.manifest?.quick_commands ?? []
   const count = stats?.sessionCount ?? 0
   const activity = getActivityStatus(stats?.lastUsedAt)
-  const factCount = agentState?.memory?.facts?.length ?? 0
-  const memoryEnabled = skill.manifest?.memory?.enabled
-
   return (
     <div
       className={cn(
@@ -103,12 +100,6 @@ export function AgentCard({
               {count > 0 && (
                 <span className="inline-flex items-center gap-1 font-mono tabular-nums">
                   {count} session{count !== 1 ? 's' : ''}
-                </span>
-              )}
-              {memoryEnabled && factCount > 0 && (
-                <span className="inline-flex items-center gap-1">
-                  <Brain className="h-3.5 w-3.5" />
-                  <span className="font-mono tabular-nums">{factCount} {factCount === 1 ? 'memory' : 'memories'}</span>
                 </span>
               )}
               {knowledgeStats && (

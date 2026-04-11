@@ -115,7 +115,10 @@ export interface DepotSkillManifest {
   color?: string;
   /** Default LLM connection slug for sessions with this agent */
   llm_connection?: string;
-  /** Cross-session memory configuration */
+  /**
+   * Cross-session memory configuration.
+   * @deprecated Use `knowledge: { enabled: true }` instead. Memory is auto-promoted to knowledge at parse time.
+   */
   memory?: { enabled?: boolean };
 
   // --- v3 fields (all optional, backward compatible) ---

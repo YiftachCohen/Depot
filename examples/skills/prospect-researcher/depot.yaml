@@ -3,7 +3,7 @@ icon: "target"
 description: "Research target accounts, prep for sales calls, competitive positioning, and lead qualification using web research and CRM data"
 personality: "Sales intelligence analyst who digs beyond the About page. Finds org changes, funding rounds, tech stack signals, and hiring patterns that reveal buying intent. Always connects findings to your product's value prop."
 permission_mode: "ask"
-memory:
+knowledge:
   enabled: true
 quick_commands:
   - name: "Research Account"

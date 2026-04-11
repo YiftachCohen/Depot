@@ -68,7 +68,6 @@ import { isGoogleOAuthConfigured as isGoogleOAuthConfiguredImpl } from '../auth/
 import { debug } from '../utils/debug.ts';
 import { getSessionPlansPath, getSessionPath, getSessionDataPath } from '../sessions/storage.ts';
 import { updatePreferences as updatePreferencesImpl } from '../config/preferences.ts';
-import { addMemoryFacts } from '../skills/agent-state.ts';
 import { loadSkillBySlug } from '../skills/storage.ts';
 import type { KnowledgeStore } from '../skills/knowledge/store.ts';
 import { KnowledgeStoreManager } from '../skills/knowledge/store.ts';
@@ -394,25 +393,6 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     updatePreferences: (updates: Record<string, unknown>) => {
       updatePreferencesImpl(updates as any);
     },
-    saveAgentMemory: skillSlug
-      ? (facts: string[]) => {
-          // Sanitize facts: escape XML-like tags and normalize whitespace
-          const sanitizedFacts = facts
-            .map((fact) =>
-              fact
-                .replace(/[<>&]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch] as string))
-                .replace(/\s+/g, ' ')
-                .trim()
-            )
-            .filter((fact) => fact.length > 0);
-          if (sanitizedFacts.length === 0) return;
-
-          // Resolve skill to get the correct storage path (project vs workspace)
-          const resolvedSkill = loadSkillBySlug(workspacePath, skillSlug, projectRoot);
-          addMemoryFacts(workspacePath, skillSlug, sessionId, sanitizedFacts, resolvedSkill?.path);
-        }
-      : undefined,
-
     // Knowledge Fabric callbacks — only wired for knowledge-enabled agents.
     // The store handle is resolved lazily via pre-warming. By the time the
     // agent's first tool call arrives (after postInit + first user message

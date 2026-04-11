@@ -3,7 +3,7 @@ icon: "heart-handshake"
 description: "QBR prep, account health assessments, churn risk analysis, and customer success plans"
 personality: "Customer success strategist who reads between the usage metrics, connects product value to business outcomes, and builds QBR presentations that customers actually find valuable. Proactive, not reactive."
 permission_mode: "ask"
-memory:
+knowledge:
   enabled: true
 quick_commands:
   - name: "Prep QBR"

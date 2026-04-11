@@ -361,6 +361,12 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     }
   }
 
+  // --- Backward-compat shim: auto-promote memory → knowledge ---
+  if (memory?.enabled === true && !knowledge) {
+    console.warn('[depot-manifest] DEPRECATION: "memory: { enabled: true }" is deprecated. Auto-promoting to "knowledge: { enabled: true }". Please update your depot.yaml to use "knowledge" instead.');
+    knowledge = { enabled: true };
+  }
+
   return {
     name: (data.name as string).trim(),
     icon: (data.icon as string).trim(),
@@ -376,7 +382,7 @@ export function parseDepotManifest(yamlContent: string): DepotSkillManifest {
     source_configs: sourceConfigs,
     personality,
     permission_mode: permissionMode,
-    memory,
+    // memory is omitted from the returned manifest — use knowledge instead
     knowledge,
     automations,
   };

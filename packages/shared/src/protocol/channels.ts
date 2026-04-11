@@ -245,10 +245,6 @@ export const RPC_CHANNELS = {
   },
   agentState: {
     GET: 'agentState:get',
-    GET_MEMORY: 'agentState:getMemory',
-    ADD_MEMORY: 'agentState:addMemory',
-    DELETE_FACT: 'agentState:deleteFact',
-    CLEAR_MEMORY: 'agentState:clearMemory',
     GET_KNOWLEDGE_STATS: 'agentState:getKnowledgeStats',
     QUERY_KNOWLEDGE_ENTITIES: 'agentState:queryKnowledgeEntities',
     QUERY_KNOWLEDGE_PATTERNS: 'agentState:queryKnowledgePatterns',

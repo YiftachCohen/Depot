@@ -66,7 +66,7 @@ import { buildTitlePrompt, buildRegenerateTitlePrompt, validateTitle } from '../
 import { parseMentions, stripAllMentions, resolveFileMentions } from '../mentions/index.ts';
 import { loadAllSkills } from '../skills/storage.ts';
 import { loadSkillBySlug } from '../skills/storage.ts';
-import { loadAgentState, formatAgentMemoryForPrompt } from '../skills/agent-state.ts';
+import { loadAgentState } from '../skills/agent-state.ts';
 import { buildKnowledgeContext, buildBriefingContext } from '../skills/knowledge/context.ts';
 import type { LoadedSkill } from '../skills/types.ts';
 import { findProjectContextFile } from '../prompts/system.ts';
@@ -295,6 +295,9 @@ export abstract class BaseAgent implements AgentBackend {
   /** Cached knowledge store handle, set by initKnowledgeStore() during postInit(). */
   private knowledgeStore: import('../skills/knowledge/store.ts').KnowledgeStore | null = null;
 
+  /** Cached skill manifest to avoid re-reading from disk every turn. Invalidated by onSkillChange. */
+  protected cachedSkill: LoadedSkill | null = null;
+
   /**
    * Pre-load the knowledge store for this agent's skill.
    * Called from subclass postInit() so the store is ready before the first turn.
@@ -305,6 +308,8 @@ export abstract class BaseAgent implements AgentBackend {
     if (!slug) return;
     const projectRoot = this.config.session?.workingDirectory;
     const skill = loadSkillBySlug(this.config.workspace.rootPath, slug, projectRoot);
+    // Cache the resolved skill for per-turn reuse (avoids re-reading disk)
+    if (skill) this.cachedSkill = skill;
     if (!skill?.manifest?.knowledge?.enabled) return;
 
     try {
@@ -322,23 +327,23 @@ export abstract class BaseAgent implements AgentBackend {
   /**
    * Build a fresh PromptBuilder with current personality and memory state.
    * Called once in the constructor and again at the start of each turn so that
-   * facts added by save_agent_memory are visible immediately.
+   * facts added by save_knowledge are visible immediately.
    */
   private createPromptBuilder(): PromptBuilder {
     let agentPersonality: string | undefined;
-    let agentMemoryContext: string | undefined;
     let agentKnowledgeContext: string | undefined;
     let agentBriefingContext: string | undefined;
     let knowledgeEnabled = false;
     if (this.config.session?.skillSlug) {
       const slug = this.config.session.skillSlug;
       const projectRoot = this.config.session?.workingDirectory;
-      const skill = loadSkillBySlug(this.config.workspace.rootPath, slug, projectRoot);
+      // Use cached skill if available, otherwise load from disk (and cache for next turn)
+      const skill = this.cachedSkill ?? loadSkillBySlug(this.config.workspace.rootPath, slug, projectRoot);
+      if (skill && !this.cachedSkill) this.cachedSkill = skill;
       agentPersonality = skill?.manifest?.personality;
       // Only enable knowledge instructions if the store was actually loaded
       knowledgeEnabled = !!(this.knowledgeStore && skill?.manifest?.knowledge?.enabled);
       const agentState = loadAgentState(this.config.workspace.rootPath, slug, skill?.path);
-      agentMemoryContext = formatAgentMemoryForPrompt(agentState, slug) || undefined;
 
       // Inject knowledge context if the store was pre-loaded via initKnowledgeStore()
       if (this.knowledgeStore && knowledgeEnabled) {
@@ -372,7 +377,6 @@ export abstract class BaseAgent implements AgentBackend {
       systemPromptPreset: this.config.systemPromptPreset,
       isHeadless: this.config.isHeadless,
       agentPersonality,
-      agentMemoryContext,
       agentKnowledgeContext,
       agentBriefingContext,
       knowledgeEnabled,
@@ -403,10 +407,10 @@ export abstract class BaseAgent implements AgentBackend {
         this.onSourcesListChange?.(sources);
       },
       onSkillChange: (slug, _skill) => {
-        // Reset cached knowledge skill reference so PostToolUse hook re-evaluates
+        // Invalidate cached skill so next turn re-reads from disk
         if (slug === this.config.session?.skillSlug) {
-          (this as any)._cachedKnowledgeSkill = undefined;
-          this.debug(`Skill manifest changed for ${slug} — reset cached knowledge skill`);
+          this.cachedSkill = null;
+          this.debug(`Skill manifest changed for ${slug} — invalidated cached skill`);
         }
       },
       onValidationError: (file, errors) => {

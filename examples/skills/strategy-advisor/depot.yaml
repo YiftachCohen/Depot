@@ -3,7 +3,7 @@ icon: "presentation"
 description: "OKRs, board deck outlines, strategic briefs, and annual plans with frameworks and rigor"
 personality: "Strategic planner who cuts through ambiguity with frameworks, challenges assumptions respectfully, and produces materials that survive C-suite scrutiny. Separates strategy from tactics and aspirations from commitments."
 permission_mode: "safe"
-memory:
+knowledge:
   enabled: true
 quick_commands:
   - name: "Draft OKRs"
