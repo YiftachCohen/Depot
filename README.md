@@ -113,8 +113,6 @@ personality: >
   Experienced support engineer who triages calmly, classifies by impact,
   and writes empathetic customer responses.
 permission_mode: ask          # safe | ask | allow-all
-memory:
-  enabled: true               # persist facts across sessions
 knowledge:
   enabled: true               # structured knowledge graph (entities, relationships, patterns)
   domains: [support, product] # optional domain scoping
@@ -153,7 +151,7 @@ quick_commands:
       grouped by severity.
 ```
 
-All fields except `name`, `icon`, `description`, and `quick_commands` are optional. Omitting the v2 fields (`personality`, `permission_mode`, `memory`, `source_configs`) and v3 fields (`knowledge`) produces a valid v1 manifest.
+All fields except `name`, `icon`, `description`, and `quick_commands` are optional. Omitting the v2 fields (`personality`, `permission_mode`, `source_configs`) and v3 fields (`knowledge`) produces a valid v1 manifest.
 
 ## Architecture
 
